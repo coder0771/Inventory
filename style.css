@@ -1,0 +1,250 @@
+:root { 
+    --neon: #39ff14; 
+    --dark-neon: #1f4011; 
+    --update-cyan: #00d2ff; 
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body { 
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+    text-align: center; 
+    background: radial-gradient(circle at top, #45ff26 0%, var(--dark-neon) 40%, #0d1a07 100%); 
+    background-attachment: fixed; 
+    margin: 0; 
+    padding: 0; 
+    color: #333; 
+    min-height: 100vh;
+}
+
+/* --- HEADER --- */
+#workspaceHeader { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 10px 25px; 
+    background: rgba(0, 0, 0, 0.9); 
+    color: var(--neon); 
+    border-bottom: 2px solid var(--neon); 
+}
+
+.staff-list { 
+    font-size: 0.8em; 
+    color: white; 
+    background: rgba(255,255,255,0.1); 
+    padding: 5px 12px; 
+    border-radius: 20px; 
+    border: 1px solid var(--neon); 
+}
+
+/* --- UI COMPONENTS --- */
+.auth-box { 
+    background: white; 
+    width: 340px; 
+    max-width: 90%;
+    margin: 50px auto; 
+    padding: 30px; 
+    border-radius: 20px; 
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+}
+
+.hidden { 
+    display: none !important; 
+}
+
+input, select { 
+    padding: 10px; 
+    border-radius: 6px; 
+    border: 1px solid #ccc; 
+    outline: none; 
+    margin: 5px 0; 
+    font-size: 0.95em;
+}
+
+.main-nav:focus, .modal-nav:focus { 
+    border: 2px solid var(--neon); 
+    box-shadow: 0 0 12px var(--neon); 
+    outline: none;
+}
+
+button { 
+    padding: 10px 15px; 
+    margin: 3px; 
+    cursor: pointer; 
+    color: white; 
+    border: none; 
+    border-radius: 6px; 
+    font-weight: bold; 
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+
+button:focus-visible {
+    outline: 2px solid var(--neon);
+    box-shadow: 0 0 10px var(--neon);
+}
+
+.auth-btn { 
+    background: #222; 
+}
+
+.auth-btn:hover {
+    background: #333;
+}
+
+.google-btn { 
+    background: #4285F4; 
+    color: white; 
+    width: 93%; 
+    margin-top: 8px; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 8px; 
+}
+
+.google-btn:hover {
+    background: #3367d6;
+}
+
+.role-btn { 
+    background: #0056b3; 
+    width: 90%; 
+    margin: 10px 0; 
+}
+
+.role-btn:hover {
+    filter: brightness(1.1);
+}
+
+.att-btn { 
+    background: #39ff14; 
+    color: black; 
+}
+
+.att-btn:hover {
+    background: #32e012;
+}
+
+/* --- CUSTOM STYLED UPDATE BUTTON --- */
+.edit-btn { 
+    background: linear-gradient(135deg, #00d2ff 0%, #0072ff 100%); 
+    color: white; 
+    border-radius: 6px; 
+    padding: 6px 14px; 
+    font-weight: 600; 
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 2px 8px rgba(0, 210, 255, 0.3);
+}
+
+.edit-btn:focus {
+    outline: none;
+    border: 2px solid var(--neon);
+    box-shadow: 0 0 15px var(--neon);
+    transform: translateY(-2px);
+}
+
+.edit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 210, 255, 0.5);
+}
+
+/* --- DASHBOARD --- */
+.dashboard { 
+    background: rgba(255, 255, 255, 0.1); 
+    backdrop-filter: blur(10px); 
+    padding: 20px; 
+    margin: 20px auto; 
+    width: 85%; 
+    max-width: 1200px;
+    border-radius: 15px; 
+    display: flex; 
+    justify-content: space-around; 
+    flex-wrap: wrap;
+    gap: 15px;
+    color: white; 
+    border: 1px solid rgba(255,255,255,0.2); 
+}
+
+table { 
+    margin: 20px auto; 
+    width: 95%; 
+    max-width: 1400px;
+    border-collapse: collapse; 
+    background: rgba(255, 255, 255, 0.95); 
+    border-radius: 12px; 
+    overflow: hidden; 
+}
+
+th, td { 
+    padding: 12px; 
+    border: 1px solid #eee; 
+}
+
+th { 
+    background: #1a1a1a; 
+    color: var(--neon); 
+}
+
+/* --- LOW STOCK HIGHLIGHT --- */
+tr.low-stock-row { 
+    background-color: #ffcccc !important; 
+    color: #900; 
+    font-weight: bold; 
+}
+
+.badge-low { 
+    background: #dc3545; 
+    color: white; 
+    padding: 2px 8px; 
+    border-radius: 10px; 
+    font-size: 0.8em; 
+}
+
+.badge-cat { 
+    background: #17a2b8; 
+    color: white; 
+    padding: 3px 8px; 
+    border-radius: 12px; 
+    font-size: 0.8em; 
+}
+
+/* --- MODALS --- */
+.modal-overlay { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background: rgba(0,0,0,0.8); 
+    display: none; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 1000; 
+    padding: 15px;
+}
+
+.modal-content { 
+    background: white; 
+    padding: 25px; 
+    border-radius: 15px; 
+    width: 550px; 
+    max-width: 100%;
+    text-align: center; 
+    max-height: 85vh; 
+    overflow-y: auto; 
+    box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+}
+
+/* --- GEO LOCATION PANEL --- */
+.geo-panel { 
+    background: rgba(0, 0, 0, 0.4); 
+    border: 1px dashed var(--neon); 
+    color: white; 
+    padding: 15px; 
+    border-radius: 12px; 
+    margin: 20px auto; 
+    width: 85%; 
+    max-width: 1200px;
+}
