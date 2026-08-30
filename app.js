@@ -9,6 +9,14 @@ import {
     signInWithPopup 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+import { 
+    getFirestore, 
+    doc, 
+    getDoc, 
+    setDoc, 
+    updateDoc 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
 // --- FIREBASE INITIALIZATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
@@ -22,36 +30,40 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// --- AUTHENTICATION FUNCTIONS ---
+// --- STATE MANAGEMENT ---
+let currentCompanyDocId = "";
+let wsData = null;
+let inventory = [];
+let historyLog = [];
+let staff = [];
+let attendanceRecords = [];
+let activeUser = { role: null, name: "" };
+let editIdx = -1;
+
+// --- AUTHENTICATION ---
 window.emailLogin = () => {
     const email = document.getElementById("email").value;
     const password = document.getElementById("password").value;
     if(!email || !password) return alert("Please enter email and password");
-    
-    signInWithEmailAndPassword(auth, email, password)
-        .catch(e => alert("Login Error: " + e.message));
+    signInWithEmailAndPassword(auth, email, password).catch(e => alert("Login Error: " + e.message));
 };
 
 window.signup = () => {
     const email = document.getElementById("email").value;
     const password = document.getElementById("password").value;
     if(!email || !password) return alert("Please enter email and password");
-
-    createUserWithEmailAndPassword(auth, email, password)
-        .catch(e => alert("Signup Error: " + e.message));
+    createUserWithEmailAndPassword(auth, email, password).catch(e => alert("Signup Error: " + e.message));
 };
 
 window.googleLogin = () => {
-    signInWithPopup(auth, googleProvider)
-        .catch(e => alert("Google Login Error: " + e.message));
+    signInWithPopup(auth, googleProvider).catch(e => alert("Google Login Error: " + e.message));
 };
 
 window.handleLogout = () => {
-    signOut(auth).then(() => {
-        location.reload();
-    }).catch(e => alert(e.message));
+    signOut(auth).then(() => location.reload()).catch(e => alert(e.message));
 };
 
 onAuthStateChanged(auth, (user) => {
@@ -61,17 +73,7 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- WORKSPACE & INVENTORY APPLICATION STATE ---
-let inventory = JSON.parse(localStorage.getItem("inv")) || [];
-let historyLog = JSON.parse(localStorage.getItem("history_log")) || [];
-let wsData = JSON.parse(localStorage.getItem("ws_settings"));
-let staff = JSON.parse(localStorage.getItem("staff_list")) || [];
-let attendanceRecords = JSON.parse(localStorage.getItem("attendance_log")) || [];
-let geoFenceSettings = JSON.parse(localStorage.getItem("geo_settings")) || null;
-let activeUser = { role: null, name: "" };
-let editIdx = -1;
-
-// --- NAVIGATION & ROLE SELECTION ---
+// --- NAVIGATION ---
 window.chooseAdminPath = () => {
     document.getElementById("rolePage").classList.add("hidden");
     document.getElementById("adminChoicePage").classList.remove("hidden");
@@ -93,13 +95,11 @@ window.openWorkspace = (role, mode) => {
         if(mode === 'new') {
             document.getElementById("setupView").classList.remove("hidden");
             document.getElementById("loginCompView").classList.add("hidden");
-            document.getElementById("loginPassView").classList.add("hidden");
             document.getElementById("wsTitle").innerText = "Setup New Company";
         } else {
             document.getElementById("loginCompView").classList.remove("hidden");
             document.getElementById("setupView").classList.add("hidden");
-            document.getElementById("loginPassView").classList.add("hidden");
-            document.getElementById("wsTitle").innerText = "Enter Company Name";
+            document.getElementById("wsTitle").innerText = "Admin Login";
         }
     } else {
         document.getElementById("empArea").classList.remove("hidden");
@@ -108,61 +108,100 @@ window.openWorkspace = (role, mode) => {
     }
 };
 
-window.setupWS = () => {
+// --- FIRESTORE PERSISTENCE HELPERS ---
+async function syncToCloud() {
+    if (!currentCompanyDocId) return;
+    const compRef = doc(db, "companies", currentCompanyDocId);
+    await updateDoc(compRef, {
+        inventory: inventory,
+        historyLog: historyLog,
+        staff: staff,
+        attendanceRecords: attendanceRecords
+    });
+}
+
+async function loadCompanyData(companyName) {
+    const docId = companyName.toLowerCase().replace(/\s+/g, "_");
+    const compRef = doc(db, "companies", docId);
+    const snap = await getDoc(compRef);
+
+    if (snap.exists()) {
+        const data = snap.data();
+        currentCompanyDocId = docId;
+        wsData = data.settings;
+        inventory = data.inventory || [];
+        historyLog = data.historyLog || [];
+        staff = data.staff || [];
+        attendanceRecords = data.attendanceRecords || [];
+        return true;
+    }
+    return false;
+}
+
+// --- SETUP AND LOGIN LOGIC ---
+window.setupWS = async () => {
     const name = document.getElementById("cName").value.trim();
     const pass = document.getElementById("aPass").value.trim();
     const code = document.getElementById("jCode").value.trim();
+    
     if(!name || !pass || !code) return alert("Fill all fields");
+
+    const docId = name.toLowerCase().replace(/\s+/g, "_");
+    const compRef = doc(db, "companies", docId);
+    const existingSnap = await getDoc(compRef);
+
+    if (existingSnap.exists()) {
+        return alert("A company with this name already exists. Please choose a unique name or log in.");
+    }
+
     wsData = { name, adminPass: pass, joinCode: code };
-    localStorage.setItem("ws_settings", JSON.stringify(wsData));
+    currentCompanyDocId = docId;
+
+    await setDoc(compRef, {
+        settings: wsData,
+        inventory: [],
+        historyLog: [],
+        staff: [],
+        attendanceRecords: []
+    });
+
     startApp("ADMIN", "Owner");
 };
 
-window.verifyCompName = () => {
-    if(!wsData) return alert("No company found. Please create one first.");
-    const enteredComp = document.getElementById("adminCompSearch").value.trim();
-    if(!enteredComp) return alert("Please enter your Company Name");
-    
-    if(enteredComp.toLowerCase() === wsData.name.toLowerCase()) {
-        document.getElementById("loginCompView").classList.add("hidden");
-        document.getElementById("loginPassView").classList.remove("hidden");
-        document.getElementById("targetCompLabel").innerText = wsData.name;
-        document.getElementById("wsTitle").innerText = "Admin Password";
+window.checkAdmin = async () => {
+    const compName = document.getElementById("adminCompSearch").value.trim();
+    const pass = document.getElementById("adminKey").value.trim();
+
+    if(!compName || !pass) return alert("Please enter Company Name and Admin Password");
+
+    const found = await loadCompanyData(compName);
+    if (!found) return alert("Company does not exist!");
+
+    if (pass === wsData.adminPass) {
+        startApp("ADMIN", "Owner");
     } else {
-        alert("Company Name not found!");
+        alert("Incorrect Admin Password!");
     }
 };
 
-window.checkAdmin = () => {
-    if(!wsData) return alert("No company found. Please create one first.");
-    if(document.getElementById("adminKey").value === wsData.adminPass) startApp("ADMIN", "Owner");
-    else alert("Wrong Admin Password");
-};
-
-window.checkEmp = () => {
+window.checkEmp = async () => {
     const compName = document.getElementById("eComp").value.trim();
-    const name = document.getElementById("eName").value.trim();
+    const empName = document.getElementById("eName").value.trim();
     const code = document.getElementById("eCode").value.trim();
-    
-    if (!wsData) {
-        return alert("No active company found. Please set up a company first.");
-    }
 
-    if (!compName || !name || !code) {
+    if (!compName || !empName || !code) {
         return alert("Please fill in all fields (Company Name, Your Name, Join Code).");
     }
 
-    const isCompanyValid = compName.toLowerCase() === wsData.name.toLowerCase();
-    const isCodeValid = code === wsData.joinCode;
+    const found = await loadCompanyData(compName);
+    if (!found) return alert("Company does not exist!");
 
-    if (isCompanyValid && isCodeValid) {
-        if (!staff.includes(name)) {
-            staff.push(name);
-            localStorage.setItem("staff_list", JSON.stringify(staff));
+    if (code === wsData.joinCode) {
+        if (!staff.includes(empName)) {
+            staff.push(empName);
+            await syncToCloud();
         }
-        startApp("EMPLOYEE", name);
-    } else if (!isCompanyValid) {
-        alert("Incorrect Company Name!");
+        startApp("EMPLOYEE", empName);
     } else {
         alert("Invalid Join Code!");
     }
@@ -178,7 +217,6 @@ function startApp(role, name) {
     if(role === 'ADMIN') {
         document.getElementById("staffDisplay").classList.remove("hidden");
         document.getElementById("viewAttBtn").classList.remove("hidden");
-        document.getElementById("adminGeoPanel").classList.remove("hidden");
         document.getElementById("staffNames").innerText = staff.length ? staff.join(", ") : "None";
     } else {
         document.getElementById("markAttBtn").classList.remove("hidden");
@@ -186,8 +224,8 @@ function startApp(role, name) {
     render();
 }
 
-// --- AUDIT LOGGING & INVENTORY RENDER ---
-function logAction(item, action, qty) {
+// --- LOGGING & INVENTORY RENDER ---
+async function logAction(item, action, qty) {
     historyLog.unshift({
         time: new Date().toLocaleString(),
         user: activeUser.name || activeUser.role,
@@ -195,27 +233,21 @@ function logAction(item, action, qty) {
         action: action,
         qty: qty
     });
-    localStorage.setItem("history_log", JSON.stringify(historyLog));
+    await syncToCloud();
 }
 
 function updateCategoryDropdown() {
     const catSelect = document.getElementById("categoryFilter");
     const selectedVal = catSelect.value;
-    
     const categories = Array.from(new Set(inventory.map(i => i.category || 'General')));
-    
     let optionsHTML = '<option value="ALL">All Categories</option>';
-    categories.forEach(cat => {
-        optionsHTML += `<option value="${cat}">${cat}</option>`;
-    });
-    
+    categories.forEach(cat => { optionsHTML += `<option value="${cat}">${cat}</option>`; });
     catSelect.innerHTML = optionsHTML;
     catSelect.value = categories.includes(selectedVal) || selectedVal === "ALL" ? selectedVal : "ALL";
 }
 
 function render(data = inventory) {
     let h = "", v = 0, lowCount = 0;
-    
     updateCategoryDropdown();
 
     inventory.forEach(i => {
@@ -249,7 +281,7 @@ function render(data = inventory) {
     document.getElementById("totalValue").innerText = v.toLocaleString();
 }
 
-window.addItem = () => {
+window.addItem = async () => {
     const name = document.getElementById("itemName").value.trim() || "Unnamed Item";
     const category = document.getElementById("itemCat").value.trim() || "General";
     const qty = +document.getElementById("itemQty").value || 0;
@@ -257,18 +289,13 @@ window.addItem = () => {
     const minQty = +document.getElementById("itemMinQty").value || 5;
 
     inventory.push({ 
-        name, 
-        category,
+        name, category,
         size: document.getElementById("itemSize").value || "-", 
         unit: document.getElementById("itemUnit").value || "-", 
-        qty, 
-        hold: 0, 
-        price,
-        minQty
+        qty, hold: 0, price, minQty
     });
 
-    logAction(name, "ADD ITEM", qty);
-    localStorage.setItem("inv", JSON.stringify(inventory));
+    await logAction(name, "ADD ITEM", qty);
     
     document.getElementById("itemName").value = "";
     document.getElementById("itemCat").value = "";
@@ -305,7 +332,7 @@ window.openModal = (index) => {
     document.getElementById("editModal").style.display = "flex";
 };
 
-window.saveItemDetails = () => {
+window.saveItemDetails = async () => {
     if(editIdx < 0) return;
     const item = inventory[editIdx];
 
@@ -316,13 +343,12 @@ window.saveItemDetails = () => {
     item.price = +document.getElementById("editPrice").value || 0;
     item.minQty = +document.getElementById("editMinQty").value || 5;
 
-    logAction(item.name, "UPDATE DETAILS", 0);
-    localStorage.setItem("inv", JSON.stringify(inventory));
+    await logAction(item.name, "UPDATE DETAILS", 0);
     render();
     closeModal();
 };
 
-window.doTrans = (mode) => {
+window.doTrans = async (mode) => {
     const amt = +document.getElementById("transAmt").value || 0;
     const item = inventory[editIdx];
 
@@ -335,39 +361,37 @@ window.doTrans = (mode) => {
         item.minQty = +document.getElementById("editMinQty").value || 5;
     }
 
-    if(mode === 'in') { item.qty += amt; logAction(item.name, "STOCK IN", amt); }
+    if(mode === 'in') { item.qty += amt; await logAction(item.name, "STOCK IN", amt); }
     else if(mode === 'out') { 
         if(item.qty < amt) return alert("Low Stock"); 
         item.qty -= amt; 
-        logAction(item.name, "STOCK OUT", amt); 
+        await logAction(item.name, "STOCK OUT", amt); 
     }
     else if(mode === 'hold') { 
         if(item.qty < amt) return alert("Low Stock"); 
         item.qty -= amt; 
         item.hold = (item.hold || 0) + amt; 
-        logAction(item.name, "HOLD", amt); 
+        await logAction(item.name, "HOLD", amt); 
     }
     else if(mode === 'rel') { 
         item.qty += (item.hold || 0); 
-        logAction(item.name, "RELEASE HOLD", item.hold); 
+        await logAction(item.name, "RELEASE HOLD", item.hold); 
         item.hold = 0; 
     }
     else if(mode === 'fin') { 
-        logAction(item.name, "FINAL OUT", item.hold); 
+        await logAction(item.name, "FINAL OUT", item.hold); 
         item.hold = 0; 
     }
 
-    localStorage.setItem("inv", JSON.stringify(inventory));
     render(); 
     closeModal();
 };
 
-window.deleteItem = () => {
+window.deleteItem = async () => {
     if(confirm("Delete this item?")) {
         const item = inventory[editIdx];
-        logAction(item.name, "DELETE ITEM", item.qty);
         inventory.splice(editIdx, 1);
-        localStorage.setItem("inv", JSON.stringify(inventory));
+        await logAction(item.name, "DELETE ITEM", item.qty);
         render(); 
         closeModal();
     }
@@ -388,13 +412,12 @@ window.filterItems = () => {
     render(filtered); 
 };
 
-// --- MODAL CONTROLS & ATTENDANCE ---
+// --- ATTENDANCE & MODALS ---
 window.showHistoryModal = () => {
     const body = document.getElementById("historyTableBody");
     body.innerHTML = historyLog.map(rec => `<tr><td>${rec.time}</td><td>${rec.user}</td><td>${rec.item}</td><td><b>${rec.action}</b></td><td>${rec.qty}</td></tr>`).join("");
     document.getElementById("historyModal").style.display = "flex";
 };
-
 window.closeHistoryModal = () => { document.getElementById("historyModal").style.display = "none"; };
 
 window.showAttendanceModal = () => {
@@ -402,21 +425,17 @@ window.showAttendanceModal = () => {
     body.innerHTML = attendanceRecords.map(rec => `<tr><td>${rec.name}</td><td>${rec.date}</td><td>${rec.time}</td></tr>`).join("");
     document.getElementById("attendanceModal").style.display = "flex";
 };
-
 window.closeAttendanceModal = () => { document.getElementById("attendanceModal").style.display = "none"; };
 
-window.markAttendance = () => {
+window.markAttendance = async () => {
     const now = new Date();
-    const date = now.toLocaleDateString();
-    const time = now.toLocaleTimeString();
-
     attendanceRecords.unshift({
         name: activeUser.name,
-        date: date,
-        time: time
+        date: now.toLocaleDateString(),
+        time: now.toLocaleTimeString()
     });
 
-    localStorage.setItem("attendance_log", JSON.stringify(attendanceRecords));
+    await syncToCloud();
     alert("Attendance marked successfully for " + activeUser.name);
 };
 
