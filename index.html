@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro Inventory - Live Workspace</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Inventory - Live Workspace</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -33,7 +33,7 @@
     <button class="role-btn" style="background:#28a745" onclick="openWorkspace('admin', 'new')">Create New Company</button>
     <button class="role-btn" style="background:#222" onclick="openWorkspace('admin', 'login')">Existing Company Login</button>
     <br><br>
-    <button onclick="backToRoles()" style="color:#666; background:none; border:none; text-decoration:underline;">Back</button>
+    <button onclick="backToRoles()" style="color:#666; background:none; border:none; text-decoration:underline; cursor:pointer;">Back</button>
 </div>
 
 <div id="wsEntryPage" class="auth-box hidden">
@@ -49,11 +49,6 @@
         
         <div id="loginCompView" class="hidden">
             <input id="adminCompSearch" placeholder="Company Name" style="width:90%">
-            <button class="auth-btn" onclick="verifyCompName()" style="width:90%; margin-top:10px;">Next</button>
-        </div>
-
-        <div id="loginPassView" class="hidden">
-            <p style="margin: 5px 0 15px 0; color: #555;">Company: <strong id="targetCompLabel"></strong></p>
             <input id="adminKey" type="password" placeholder="Enter Admin Password" style="width:90%">
             <button class="auth-btn" onclick="checkAdmin()" style="width:90%; margin-top:10px;">Login to Dashboard</button>
         </div>
@@ -79,17 +74,6 @@
         </div>
     </header>
 
-    <div id="adminGeoPanel" class="geo-panel hidden">
-        <h4 style="margin: 0 0 10px 0; color: var(--neon);">📍 Attendance Geo-Fence Configuration</h4>
-        <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center;">
-            <input id="geoLat" type="number" step="any" placeholder="Latitude">
-            <input id="geoLng" type="number" step="any" placeholder="Longitude">
-            <input id="geoRadius" type="number" placeholder="Radius (m)" value="10">
-            <button onclick="getCurrentLocation()" style="background: #6f42c1;">Fetch My Location</button>
-            <button onclick="saveGeoSettings()" style="background: #28a745;">Save Geo-Fence</button>
-        </div>
-    </div>
-
     <div class="dashboard">
         <div><p>Total Items</p><h2 id="totalItems">0</h2></div>
         <div><p>Low Stock Items</p><h2 id="lowStockCount" style="color: #ff4d4d;">0</h2></div>
@@ -99,7 +83,7 @@
     <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; display: inline-block; margin-top:20px;">
         <h4 style="color:white; margin:0 0 10px 0;">+ Add New Stock Item</h4>
         <input id="itemName" class="main-nav" placeholder="Item Name">
-        <input id="itemCat" class="main-nav" placeholder="Category (e.g. Snacks)">
+        <input id="itemCat" class="main-nav" placeholder="Category (e.g. Tiles)">
         <input id="itemSize" class="main-nav" placeholder="Size" style="width:70px;">
         <input id="itemUnit" class="main-nav" placeholder="Unit" style="width:70px;">
         <input id="itemQty" class="main-nav" type="number" placeholder="Qty" style="width:70px;">
@@ -202,7 +186,6 @@
     </div>
 </div>
 
-<script type="module" src="app.js"></script>
-<script src="script.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>
