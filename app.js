@@ -1,3 +1,67 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+    getAuth, 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    onAuthStateChanged, 
+    signOut, 
+    GoogleAuthProvider, 
+    signInWithPopup 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+// --- FIREBASE INITIALIZATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
+  authDomain: "inventory-app-ad3c6.firebaseapp.com",
+  projectId: "inventory-app-ad3c6",
+  storageBucket: "inventory-app-ad3c6.firebasestorage.app",
+  messagingSenderId: "150702776400",
+  appId: "1:150702776400:web:b492e1e811e14c80063155",
+  measurementId: "G-4D6KQBVWLR"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+// --- AUTHENTICATION FUNCTIONS ---
+window.emailLogin = () => {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    if(!email || !password) return alert("Please enter email and password");
+    
+    signInWithEmailAndPassword(auth, email, password)
+        .catch(e => alert("Login Error: " + e.message));
+};
+
+window.signup = () => {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    if(!email || !password) return alert("Please enter email and password");
+
+    createUserWithEmailAndPassword(auth, email, password)
+        .catch(e => alert("Signup Error: " + e.message));
+};
+
+window.googleLogin = () => {
+    signInWithPopup(auth, googleProvider)
+        .catch(e => alert("Google Login Error: " + e.message));
+};
+
+window.handleLogout = () => {
+    signOut(auth).then(() => {
+        location.reload();
+    }).catch(e => alert(e.message));
+};
+
+onAuthStateChanged(auth, (user) => {
+    if(user) {
+        document.getElementById("loginPage").classList.add("hidden");
+        document.getElementById("rolePage").classList.remove("hidden");
+    }
+});
+
+// --- WORKSPACE & INVENTORY APPLICATION STATE ---
 let inventory = JSON.parse(localStorage.getItem("inv")) || [];
 let historyLog = JSON.parse(localStorage.getItem("history_log")) || [];
 let wsData = JSON.parse(localStorage.getItem("ws_settings"));
@@ -7,17 +71,18 @@ let geoFenceSettings = JSON.parse(localStorage.getItem("geo_settings")) || null;
 let activeUser = { role: null, name: "" };
 let editIdx = -1;
 
-function chooseAdminPath() {
+// --- NAVIGATION & ROLE SELECTION ---
+window.chooseAdminPath = () => {
     document.getElementById("rolePage").classList.add("hidden");
     document.getElementById("adminChoicePage").classList.remove("hidden");
-}
+};
 
-function backToRoles() {
+window.backToRoles = () => {
     document.getElementById("adminChoicePage").classList.add("hidden");
     document.getElementById("rolePage").classList.remove("hidden");
-}
+};
 
-function openWorkspace(role, mode) {
+window.openWorkspace = (role, mode) => {
     document.getElementById("rolePage").classList.add("hidden");
     document.getElementById("adminChoicePage").classList.add("hidden");
     document.getElementById("wsEntryPage").classList.remove("hidden");
@@ -41,9 +106,9 @@ function openWorkspace(role, mode) {
         document.getElementById("adminArea").classList.add("hidden");
         document.getElementById("wsTitle").innerText = "Employee Join";
     }
-}
+};
 
-function setupWS() {
+window.setupWS = () => {
     const name = document.getElementById("cName").value.trim();
     const pass = document.getElementById("aPass").value.trim();
     const code = document.getElementById("jCode").value.trim();
@@ -51,9 +116,9 @@ function setupWS() {
     wsData = { name, adminPass: pass, joinCode: code };
     localStorage.setItem("ws_settings", JSON.stringify(wsData));
     startApp("ADMIN", "Owner");
-}
+};
 
-function verifyCompName() {
+window.verifyCompName = () => {
     if(!wsData) return alert("No company found. Please create one first.");
     const enteredComp = document.getElementById("adminCompSearch").value.trim();
     if(!enteredComp) return alert("Please enter your Company Name");
@@ -66,15 +131,15 @@ function verifyCompName() {
     } else {
         alert("Company Name not found!");
     }
-}
+};
 
-function checkAdmin() {
+window.checkAdmin = () => {
     if(!wsData) return alert("No company found. Please create one first.");
     if(document.getElementById("adminKey").value === wsData.adminPass) startApp("ADMIN", "Owner");
     else alert("Wrong Admin Password");
-}
+};
 
-function checkEmp() {
+window.checkEmp = () => {
     const compName = document.getElementById("eComp").value.trim();
     const name = document.getElementById("eName").value.trim();
     const code = document.getElementById("eCode").value.trim();
@@ -101,7 +166,7 @@ function checkEmp() {
     } else {
         alert("Invalid Join Code!");
     }
-}
+};
 
 function startApp(role, name) {
     activeUser = { role, name };
@@ -121,6 +186,7 @@ function startApp(role, name) {
     render();
 }
 
+// --- AUDIT LOGGING & INVENTORY RENDER ---
 function logAction(item, action, qty) {
     historyLog.unshift({
         time: new Date().toLocaleString(),
@@ -183,7 +249,7 @@ function render(data = inventory) {
     document.getElementById("totalValue").innerText = v.toLocaleString();
 }
 
-function addItem() {
+window.addItem = () => {
     const name = document.getElementById("itemName").value.trim() || "Unnamed Item";
     const category = document.getElementById("itemCat").value.trim() || "General";
     const qty = +document.getElementById("itemQty").value || 0;
@@ -213,9 +279,9 @@ function addItem() {
     document.getElementById("itemMinQty").value = "5";
 
     render();
-}
+};
 
-function openModal(index) {
+window.openModal = (index) => {
     editIdx = index;
     const item = inventory[index];
     document.getElementById("modalTitle").innerText = "Item: " + (item.name || 'Unnamed Item');
@@ -237,9 +303,9 @@ function openModal(index) {
         document.getElementById("adminDeleteGroup").classList.add("hidden");
     }
     document.getElementById("editModal").style.display = "flex";
-}
+};
 
-function saveItemDetails() {
+window.saveItemDetails = () => {
     if(editIdx < 0) return;
     const item = inventory[editIdx];
 
@@ -254,9 +320,9 @@ function saveItemDetails() {
     localStorage.setItem("inv", JSON.stringify(inventory));
     render();
     closeModal();
-}
+};
 
-function doTrans(mode) {
+window.doTrans = (mode) => {
     const amt = +document.getElementById("transAmt").value || 0;
     const item = inventory[editIdx];
 
@@ -292,22 +358,24 @@ function doTrans(mode) {
     }
 
     localStorage.setItem("inv", JSON.stringify(inventory));
-    render(); closeModal();
-}
+    render(); 
+    closeModal();
+};
 
-function deleteItem() {
+window.deleteItem = () => {
     if(confirm("Delete this item?")) {
         const item = inventory[editIdx];
         logAction(item.name, "DELETE ITEM", item.qty);
         inventory.splice(editIdx, 1);
         localStorage.setItem("inv", JSON.stringify(inventory));
-        render(); closeModal();
+        render(); 
+        closeModal();
     }
-}
+};
 
-function closeModal() { document.getElementById("editModal").style.display = "none"; }
+window.closeModal = () => { document.getElementById("editModal").style.display = "none"; };
 
-function filterItems() { 
+window.filterItems = () => { 
     const query = document.getElementById("search").value.toLowerCase(); 
     const cat = document.getElementById("categoryFilter").value;
 
@@ -318,23 +386,26 @@ function filterItems() {
     });
 
     render(filtered); 
-}
+};
 
-function showHistoryModal() {
+// --- MODAL CONTROLS & ATTENDANCE ---
+window.showHistoryModal = () => {
     const body = document.getElementById("historyTableBody");
     body.innerHTML = historyLog.map(rec => `<tr><td>${rec.time}</td><td>${rec.user}</td><td>${rec.item}</td><td><b>${rec.action}</b></td><td>${rec.qty}</td></tr>`).join("");
     document.getElementById("historyModal").style.display = "flex";
-}
-function closeHistoryModal() { document.getElementById("historyModal").style.display = "none"; }
+};
 
-function showAttendanceModal() {
+window.closeHistoryModal = () => { document.getElementById("historyModal").style.display = "none"; };
+
+window.showAttendanceModal = () => {
     const body = document.getElementById("attendanceTableBody");
     body.innerHTML = attendanceRecords.map(rec => `<tr><td>${rec.name}</td><td>${rec.date}</td><td>${rec.time}</td></tr>`).join("");
     document.getElementById("attendanceModal").style.display = "flex";
-}
-function closeAttendanceModal() { document.getElementById("attendanceModal").style.display = "none"; }
+};
 
-function markAttendance() {
+window.closeAttendanceModal = () => { document.getElementById("attendanceModal").style.display = "none"; };
+
+window.markAttendance = () => {
     const now = new Date();
     const date = now.toLocaleDateString();
     const time = now.toLocaleTimeString();
@@ -347,8 +418,9 @@ function markAttendance() {
 
     localStorage.setItem("attendance_log", JSON.stringify(attendanceRecords));
     alert("Attendance marked successfully for " + activeUser.name);
-}
+};
 
+// --- KEYBOARD NAVIGATION ---
 document.addEventListener("keydown", (e) => {
     const isModalOpen = document.getElementById("editModal").style.display === "flex";
     if (document.activeElement.id === "search" && e.key === "ArrowDown") {
