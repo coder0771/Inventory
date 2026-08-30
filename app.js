@@ -110,7 +110,7 @@ function escapeHTML(str) {
   );
 }
 
-// Ensures inputs are clean strings
+// Enforces string type and removes surrounding whitespace
 function normalizeString(val) {
   if (val === null || val === undefined) return "";
   return String(val).trim();
@@ -274,9 +274,9 @@ CREATE COMPANY
 window.createCompany = async function () {
   const companyName = normalizeString($("companyName")?.value);
   const adminPassword = normalizeString($("adminPassword")?.value);
-  const inputCode = normalizeString($("joinCode")?.value || $("companyCode")?.value);
+  const codeInput = normalizeString($("joinCode")?.value || $("companyCode")?.value);
 
-  if (!companyName || !adminPassword || !inputCode) {
+  if (!companyName || !adminPassword || !codeInput) {
     toast("Please fill all fields");
     return;
   }
@@ -298,8 +298,8 @@ window.createCompany = async function () {
 
     const companyPayload = {
       companyName: companyName,
-      companyCode: inputCode,
-      joinCode: inputCode,
+      companyCode: codeInput,
+      joinCode: codeInput, // Kept for backward compatibility
       adminPassword: adminPassword,
       adminUID: currentUser.uid,
       createdAt: serverTimestamp()
@@ -322,11 +322,11 @@ window.createCompany = async function () {
 };
 
 /* ==========================================
-FIND COMPANY / VERIFY COMPANY
+FIND COMPANY (ADMIN SEARCH)
 ========================================== */
 window.findCompany = async function () {
   const companyName = normalizeString($("loginCompany")?.value);
-  const inputCode = normalizeString($("loginCompanyCode")?.value || $("loginJoinCode")?.value);
+  const codeInput = normalizeString($("loginCompanyCode")?.value || $("loginJoinCode")?.value);
 
   if (!companyName) {
     toast("Enter Company Name");
@@ -350,10 +350,9 @@ window.findCompany = async function () {
 
     const docSnap = snapshot.docs[0];
     const data = docSnap.data();
-
     const storedCode = normalizeString(data.companyCode || data.joinCode);
 
-    if (inputCode && storedCode !== inputCode) {
+    if (codeInput && storedCode !== codeInput) {
       toast("Invalid Company Code");
       return;
     }
@@ -394,39 +393,71 @@ window.adminLogin = function () {
 };
 
 /* ==========================================
-EMPLOYEE LOGIN
+EMPLOYEE LOGIN & VERIFICATION
 ========================================== */
 window.employeeLogin = async function () {
   const employeeName = normalizeString($("employeeName")?.value);
-  const joinCode = normalizeString($("employeeJoinCode")?.value || $("employeeCompanyCode")?.value);
+  const companyName = normalizeString($("employeeCompanyName")?.value);
+  const codeInput = normalizeString($("employeeJoinCode")?.value || $("employeeCompanyCode")?.value);
 
-  if (!employeeName || !joinCode) {
-    toast("Fill all fields");
+  if (!employeeName || !codeInput) {
+    toast("Please fill all fields");
     return;
   }
 
   try {
     loading(true);
 
-    let snapshot = await getDocs(
-      query(collection(db, "companies"), where("companyCode", "==", joinCode))
-    );
+    let docSnap = null;
 
-    if (snapshot.empty) {
-      snapshot = await getDocs(
-        query(collection(db, "companies"), where("joinCode", "==", joinCode))
+    // Verify via Company Name + Code if Company Name was provided
+    if (companyName) {
+      const q = query(
+        collection(db, "companies"),
+        where("companyName", "==", companyName)
       );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        toast("Invalid Company Name");
+        return;
+      }
+
+      const foundData = snapshot.docs[0].data();
+      const storedCode = normalizeString(foundData.companyCode || foundData.joinCode);
+
+      if (storedCode !== codeInput) {
+        toast("Invalid Company Code");
+        return;
+      }
+
+      docSnap = snapshot.docs[0];
+    } else {
+      // Lookup strictly by Company Code / Join Code
+      let snapshot = await getDocs(
+        query(collection(db, "companies"), where("companyCode", "==", codeInput))
+      );
+
+      if (snapshot.empty) {
+        snapshot = await getDocs(
+          query(collection(db, "companies"), where("joinCode", "==", codeInput))
+        );
+      }
+
+      if (snapshot.empty) {
+        toast("Invalid Company Code");
+        return;
+      }
+
+      docSnap = snapshot.docs[0];
     }
 
-    if (snapshot.empty) {
-      toast("Invalid Company Code / Join Code");
-      return;
-    }
-
-    companyID = snapshot.docs[0].id;
-    companyData = snapshot.docs[0].data();
+    companyID = docSnap.id;
+    companyData = docSnap.data();
     currentRole = "EMPLOYEE";
 
+    // Register employee in the company's staff subcollection
     await addDoc(collection(db, "companies", companyID, "staff"), {
       uid: currentUser.uid,
       name: employeeName,
@@ -485,7 +516,7 @@ function startRealtime() {
       updateDashboard();
     },
     (err) => {
-      console.error("Inventory snapshot error:", err);
+      console.error("Inventory listener error:", err);
     }
   );
 
@@ -530,7 +561,7 @@ window.addItem = async function () {
     toast("Product Added");
     clearProductForm();
   } catch (err) {
-    console.error("Add item error:", err);
+    console.error("Add product error:", err);
     toast("Failed to add product: " + err.message);
   } finally {
     loading(false);
@@ -791,7 +822,7 @@ function startHistoryListener() {
         `;
       });
     },
-    (err) => console.error("History snapshot error:", err)
+    (err) => console.error("History listener error:", err)
   );
 }
 
@@ -824,7 +855,7 @@ window.markAttendance = function () {
 
         toast("Attendance Marked");
       } catch (err) {
-        console.error("Attendance error:", err);
+        console.error("Attendance log error:", err);
         toast(err.message);
       }
     },
@@ -860,7 +891,7 @@ function startAttendanceListener() {
         `;
       });
     },
-    (err) => console.error("Attendance snapshot error:", err)
+    (err) => console.error("Attendance listener error:", err)
   );
 }
 
