@@ -110,6 +110,12 @@ function escapeHTML(str) {
   );
 }
 
+// Ensures inputs are clean strings
+function normalizeString(val) {
+  if (val === null || val === undefined) return "";
+  return String(val).trim();
+}
+
 /* ==========================================
 AUTH STATE
 ========================================== */
@@ -140,8 +146,8 @@ function unsubscribeAllListeners() {
 EMAIL SIGNUP
 ========================================== */
 window.signup = async function () {
-  const email = $("email")?.value.trim();
-  const password = $("password")?.value.trim();
+  const email = normalizeString($("email")?.value);
+  const password = normalizeString($("password")?.value);
 
   if (!email || !password) {
     toast("Enter email and password");
@@ -153,6 +159,7 @@ window.signup = async function () {
     await createUserWithEmailAndPassword(auth, email, password);
     toast("Account created successfully");
   } catch (err) {
+    console.error("Signup error:", err);
     toast(err.message);
   } finally {
     loading(false);
@@ -163,8 +170,8 @@ window.signup = async function () {
 EMAIL LOGIN
 ========================================== */
 window.emailLogin = async function () {
-  const email = $("email")?.value.trim();
-  const password = $("password")?.value.trim();
+  const email = normalizeString($("email")?.value);
+  const password = normalizeString($("password")?.value);
 
   if (!email || !password) {
     toast("Enter email and password");
@@ -176,6 +183,7 @@ window.emailLogin = async function () {
     await signInWithEmailAndPassword(auth, email, password);
     toast("Login Successful");
   } catch (err) {
+    console.error("Email login error:", err);
     toast(err.message);
   } finally {
     loading(false);
@@ -191,6 +199,7 @@ window.googleLogin = async function () {
     await signInWithPopup(auth, googleProvider);
     toast("Google Login Successful");
   } catch (err) {
+    console.error("Google login error:", err);
     toast(err.message);
   } finally {
     loading(false);
@@ -215,6 +224,7 @@ window.logout = async function () {
 
     toast("Logged Out");
   } catch (err) {
+    console.error("Logout error:", err);
     toast(err.message);
   }
 };
@@ -262,11 +272,11 @@ window.backToAdminChoice = function () {
 CREATE COMPANY
 ========================================== */
 window.createCompany = async function () {
-  const companyName = $("companyName")?.value.trim();
-  const adminPassword = $("adminPassword")?.value.trim();
-  const joinCode = $("joinCode")?.value.trim();
+  const companyName = normalizeString($("companyName")?.value);
+  const adminPassword = normalizeString($("adminPassword")?.value);
+  const inputCode = normalizeString($("joinCode")?.value || $("companyCode")?.value);
 
-  if (!companyName || !adminPassword || !joinCode) {
+  if (!companyName || !adminPassword || !inputCode) {
     toast("Please fill all fields");
     return;
   }
@@ -286,37 +296,37 @@ window.createCompany = async function () {
       return;
     }
 
-    const companyRef = await addDoc(collection(db, "companies"), {
-      companyName,
-      adminPassword,
+    const companyPayload = {
+      companyName: companyName,
+      companyCode: inputCode,
+      joinCode: inputCode,
+      adminPassword: adminPassword,
       adminUID: currentUser.uid,
-      joinCode,
       createdAt: serverTimestamp()
-    });
+    };
+
+    const companyRef = await addDoc(collection(db, "companies"), companyPayload);
 
     companyID = companyRef.id;
-    companyData = {
-      companyName,
-      adminPassword,
-      adminUID: currentUser.uid,
-      joinCode
-    };
+    companyData = companyPayload;
 
     currentRole = "ADMIN";
     openDashboard();
-    toast("Company Created");
+    toast("Company Created Successfully");
   } catch (err) {
-    toast(err.message);
+    console.error("Error creating company:", err);
+    toast("Firestore Write Failed: " + err.message);
   } finally {
     loading(false);
   }
 };
 
 /* ==========================================
-FIND COMPANY
+FIND COMPANY / VERIFY COMPANY
 ========================================== */
 window.findCompany = async function () {
-  const companyName = $("loginCompany")?.value.trim();
+  const companyName = normalizeString($("loginCompany")?.value);
+  const inputCode = normalizeString($("loginCompanyCode")?.value || $("loginJoinCode")?.value);
 
   if (!companyName) {
     toast("Enter Company Name");
@@ -334,19 +344,30 @@ window.findCompany = async function () {
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      toast("Company Not Found");
+      toast("Invalid Company Name");
       return;
     }
 
-    companyID = snapshot.docs[0].id;
-    companyData = snapshot.docs[0].data();
+    const docSnap = snapshot.docs[0];
+    const data = docSnap.data();
+
+    const storedCode = normalizeString(data.companyCode || data.joinCode);
+
+    if (inputCode && storedCode !== inputCode) {
+      toast("Invalid Company Code");
+      return;
+    }
+
+    companyID = docSnap.id;
+    companyData = data;
 
     if ($("companyLabel")) $("companyLabel").innerText = companyData.companyName;
 
     hide("companyLoginPage");
     show("adminPasswordPage");
   } catch (err) {
-    toast(err.message);
+    console.error("Error finding company:", err);
+    toast("Firestore Read Error: " + err.message);
   } finally {
     loading(false);
   }
@@ -356,7 +377,7 @@ window.findCompany = async function () {
 ADMIN LOGIN
 ========================================== */
 window.adminLogin = function () {
-  const password = $("loginAdminPassword")?.value.trim();
+  const password = normalizeString($("loginAdminPassword")?.value);
 
   if (password !== companyData.adminPassword) {
     toast("Wrong Password");
@@ -376,8 +397,8 @@ window.adminLogin = function () {
 EMPLOYEE LOGIN
 ========================================== */
 window.employeeLogin = async function () {
-  const employeeName = $("employeeName")?.value.trim();
-  const joinCode = $("employeeJoinCode")?.value.trim();
+  const employeeName = normalizeString($("employeeName")?.value);
+  const joinCode = normalizeString($("employeeJoinCode")?.value || $("employeeCompanyCode")?.value);
 
   if (!employeeName || !joinCode) {
     toast("Fill all fields");
@@ -387,15 +408,18 @@ window.employeeLogin = async function () {
   try {
     loading(true);
 
-    const q = query(
-      collection(db, "companies"),
-      where("joinCode", "==", joinCode)
+    let snapshot = await getDocs(
+      query(collection(db, "companies"), where("companyCode", "==", joinCode))
     );
 
-    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      snapshot = await getDocs(
+        query(collection(db, "companies"), where("joinCode", "==", joinCode))
+      );
+    }
 
     if (snapshot.empty) {
-      toast("Invalid Join Code");
+      toast("Invalid Company Code / Join Code");
       return;
     }
 
@@ -411,7 +435,8 @@ window.employeeLogin = async function () {
 
     openDashboard();
   } catch (err) {
-    toast(err.message);
+    console.error("Employee login error:", err);
+    toast("Firestore Read Error: " + err.message);
   } finally {
     loading(false);
   }
@@ -458,6 +483,9 @@ function startRealtime() {
 
       renderInventory();
       updateDashboard();
+    },
+    (err) => {
+      console.error("Inventory snapshot error:", err);
     }
   );
 
@@ -469,10 +497,10 @@ function startRealtime() {
 ADD PRODUCT
 ========================================== */
 window.addItem = async function () {
-  const name = $("itemName")?.value.trim();
-  const category = $("itemCategory")?.value.trim() || "General";
-  const size = $("itemSize")?.value.trim() || "-";
-  const unit = $("itemUnit")?.value.trim() || "pcs";
+  const name = normalizeString($("itemName")?.value);
+  const category = normalizeString($("itemCategory")?.value) || "General";
+  const size = normalizeString($("itemSize")?.value) || "-";
+  const unit = normalizeString($("itemUnit")?.value) || "pcs";
 
   const qty = Number($("itemQty")?.value) || 0;
   const price = Number($("itemPrice")?.value) || 0;
@@ -502,7 +530,8 @@ window.addItem = async function () {
     toast("Product Added");
     clearProductForm();
   } catch (err) {
-    toast(err.message);
+    console.error("Add item error:", err);
+    toast("Failed to add product: " + err.message);
   } finally {
     loading(false);
   }
@@ -605,10 +634,10 @@ window.saveItem = async function () {
     await updateDoc(
       doc(db, "companies", companyID, "inventory", selectedItem.id),
       {
-        name: $("editName")?.value.trim(),
-        category: $("editCategory")?.value.trim(),
-        size: $("editSize")?.value.trim(),
-        unit: $("editUnit")?.value.trim(),
+        name: normalizeString($("editName")?.value),
+        category: normalizeString($("editCategory")?.value),
+        size: normalizeString($("editSize")?.value),
+        unit: normalizeString($("editUnit")?.value),
         price: Number($("editPrice")?.value) || 0,
         minQty: Number($("editMinQty")?.value) || 0
       }
@@ -617,6 +646,7 @@ window.saveItem = async function () {
     toast("Product Updated");
     closeEditModal();
   } catch (err) {
+    console.error("Save item error:", err);
     toast(err.message);
   } finally {
     loading(false);
@@ -637,6 +667,7 @@ window.deleteItem = async function () {
     toast("Product Deleted");
     closeEditModal();
   } catch (err) {
+    console.error("Delete item error:", err);
     toast(err.message);
   } finally {
     loading(false);
@@ -704,6 +735,7 @@ async function updateStock(type) {
     toast("Stock Updated");
     closeEditModal();
   } catch (err) {
+    console.error("Update stock error:", err);
     toast(err.message);
   } finally {
     loading(false);
@@ -758,7 +790,8 @@ function startHistoryListener() {
           </tr>
         `;
       });
-    }
+    },
+    (err) => console.error("History snapshot error:", err)
   );
 }
 
@@ -791,6 +824,7 @@ window.markAttendance = function () {
 
         toast("Attendance Marked");
       } catch (err) {
+        console.error("Attendance error:", err);
         toast(err.message);
       }
     },
@@ -825,7 +859,8 @@ function startAttendanceListener() {
           </tr>
         `;
       });
-    }
+    },
+    (err) => console.error("Attendance snapshot error:", err)
   );
 }
 
@@ -841,7 +876,7 @@ window.closeAttendanceModal = function () {
 SEARCH
 ========================================== */
 window.filterInventory = function () {
-  const text = $("search")?.value.toLowerCase() || "";
+  const text = normalizeString($("search")?.value).toLowerCase();
   const rows = $("inventoryBody")?.getElementsByTagName("tr") || [];
 
   for (let row of rows) {
