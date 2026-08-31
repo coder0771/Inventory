@@ -1,23 +1,40 @@
+// ==========================================
+// PROFESSIONAL INVENTORY MANAGEMENT SYSTEM
+// APP.JS
+// ==========================================
+
+/* ==========================================
+FIREBASE IMPORTS
+========================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { 
-    getAuth, 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    onAuthStateChanged, 
-    signOut, 
-    GoogleAuthProvider, 
-    signInWithPopup 
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-import { 
-    getFirestore, 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc 
+import {
+  getFirestore,
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- FIREBASE INITIALIZATION ---
+/* ==========================================
+FIREBASE CONFIG
+========================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
   authDomain: "inventory-app-ad3c6.firebaseapp.com",
@@ -28,430 +45,896 @@ const firebaseConfig = {
   measurementId: "G-4D6KQBVWLR"
 };
 
+/* ==========================================
+INITIALIZE FIREBASE
+========================================== */
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// --- STATE MANAGEMENT ---
-let currentCompanyDocId = "";
-let wsData = null;
+/* ==========================================
+GLOBAL STATE & UNLISTENERS
+========================================== */
+let currentUser = null;
+let companyID = "";
+let companyData = null;
 let inventory = [];
-let historyLog = [];
-let staff = [];
-let attendanceRecords = [];
-let activeUser = { role: null, name: "" };
-let editIdx = -1;
+let selectedItem = null;
+let currentRole = "";
 
-// --- AUTHENTICATION ---
-window.emailLogin = () => {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    if(!email || !password) return alert("Please enter email and password");
-    signInWithEmailAndPassword(auth, email, password).catch(e => alert("Login Error: " + e.message));
-};
+// Firebase real-time unsubscribers
+let unsubscribeInventory = null;
+let unsubscribeHistory = null;
+let unsubscribeAttendance = null;
 
-window.signup = () => {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    if(!email || !password) return alert("Please enter email and password");
-    createUserWithEmailAndPassword(auth, email, password).catch(e => alert("Signup Error: " + e.message));
-};
+/* ==========================================
+HELPERS
+========================================== */
+function $(id) {
+  return document.getElementById(id);
+}
 
-window.googleLogin = () => {
-    signInWithPopup(auth, googleProvider).catch(e => alert("Google Login Error: " + e.message));
-};
+function show(id) {
+  const el = $(id);
+  if (el) el.classList.remove("hidden");
+}
 
-window.handleLogout = () => {
-    signOut(auth).then(() => location.reload()).catch(e => alert(e.message));
-};
+function hide(id) {
+  const el = $(id);
+  if (el) el.classList.add("hidden");
+}
 
+function toast(message) {
+  const t = $("toast");
+  if (!t) return;
+  t.innerText = message;
+  t.classList.add("show");
+  setTimeout(() => {
+    t.classList.remove("show");
+  }, 3000);
+}
+
+function loading(state) {
+  if (state) {
+    show("loadingOverlay");
+  } else {
+    hide("loadingOverlay");
+  }
+}
+
+function escapeHTML(str) {
+  if (!str) return "";
+  return String(str).replace(/[&<>'"]/g, 
+    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  );
+}
+
+// Enforces string type and removes surrounding whitespace
+function normalizeString(val) {
+  if (val === null || val === undefined) return "";
+  return String(val).trim();
+}
+
+/* ==========================================
+AUTH STATE
+========================================== */
 onAuthStateChanged(auth, (user) => {
-    if(user) {
-        document.getElementById("loginPage").classList.add("hidden");
-        document.getElementById("rolePage").classList.remove("hidden");
-    }
+  if (user) {
+    currentUser = user;
+    hide("loginPage");
+    show("rolePage");
+  } else {
+    currentUser = null;
+    unsubscribeAllListeners();
+    hide("rolePage");
+    hide("app");
+    show("loginPage");
+  }
 });
 
-// --- NAVIGATION ---
-window.chooseAdminPath = () => {
-    document.getElementById("rolePage").classList.add("hidden");
-    document.getElementById("adminChoicePage").classList.remove("hidden");
-};
-
-window.backToRoles = () => {
-    document.getElementById("adminChoicePage").classList.add("hidden");
-    document.getElementById("rolePage").classList.remove("hidden");
-};
-
-window.openWorkspace = (role, mode) => {
-    document.getElementById("rolePage").classList.add("hidden");
-    document.getElementById("adminChoicePage").classList.add("hidden");
-    document.getElementById("wsEntryPage").classList.remove("hidden");
-
-    if(role === 'admin') {
-        document.getElementById("adminArea").classList.remove("hidden");
-        document.getElementById("empArea").classList.add("hidden");
-        if(mode === 'new') {
-            document.getElementById("setupView").classList.remove("hidden");
-            document.getElementById("loginCompView").classList.add("hidden");
-            document.getElementById("wsTitle").innerText = "Setup New Company";
-        } else {
-            document.getElementById("loginCompView").classList.remove("hidden");
-            document.getElementById("setupView").classList.add("hidden");
-            document.getElementById("wsTitle").innerText = "Admin Login";
-        }
-    } else {
-        document.getElementById("empArea").classList.remove("hidden");
-        document.getElementById("adminArea").classList.add("hidden");
-        document.getElementById("wsTitle").innerText = "Employee Join";
-    }
-};
-
-// --- FIRESTORE PERSISTENCE HELPERS ---
-async function syncToCloud() {
-    if (!currentCompanyDocId) return;
-    const compRef = doc(db, "companies", currentCompanyDocId);
-    await updateDoc(compRef, {
-        inventory: inventory,
-        historyLog: historyLog,
-        staff: staff,
-        attendanceRecords: attendanceRecords
-    });
+function unsubscribeAllListeners() {
+  if (unsubscribeInventory) unsubscribeInventory();
+  if (unsubscribeHistory) unsubscribeHistory();
+  if (unsubscribeAttendance) unsubscribeAttendance();
+  unsubscribeInventory = null;
+  unsubscribeHistory = null;
+  unsubscribeAttendance = null;
 }
 
-async function loadCompanyData(companyName) {
-    const docId = companyName.toLowerCase().replace(/\s+/g, "_");
-    const compRef = doc(db, "companies", docId);
-    const snap = await getDoc(compRef);
+/* ==========================================
+EMAIL SIGNUP
+========================================== */
+window.signup = async function () {
+  const email = normalizeString($("email")?.value);
+  const password = normalizeString($("password")?.value);
 
-    if (snap.exists()) {
-        const data = snap.data();
-        currentCompanyDocId = docId;
-        wsData = data.settings;
-        inventory = data.inventory || [];
-        historyLog = data.historyLog || [];
-        staff = data.staff || [];
-        attendanceRecords = data.attendanceRecords || [];
-        return true;
-    }
-    return false;
-}
+  if (!email || !password) {
+    toast("Enter email and password");
+    return;
+  }
 
-// --- SETUP AND LOGIN LOGIC ---
-window.setupWS = async () => {
-    const name = document.getElementById("cName").value.trim();
-    const pass = document.getElementById("aPass").value.trim();
-    const code = document.getElementById("jCode").value.trim();
-    
-    if(!name || !pass || !code) return alert("Fill all fields");
-
-    const docId = name.toLowerCase().replace(/\s+/g, "_");
-    const compRef = doc(db, "companies", docId);
-    const existingSnap = await getDoc(compRef);
-
-    if (existingSnap.exists()) {
-        return alert("A company with this name already exists. Please choose a unique name or log in.");
-    }
-
-    wsData = { name, adminPass: pass, joinCode: code };
-    currentCompanyDocId = docId;
-
-    await setDoc(compRef, {
-        settings: wsData,
-        inventory: [],
-        historyLog: [],
-        staff: [],
-        attendanceRecords: []
-    });
-
-    startApp("ADMIN", "Owner");
+  try {
+    loading(true);
+    await createUserWithEmailAndPassword(auth, email, password);
+    toast("Account created successfully");
+  } catch (err) {
+    console.error("Signup error:", err);
+    toast(err.message);
+  } finally {
+    loading(false);
+  }
 };
 
-window.checkAdmin = async () => {
-    const compName = document.getElementById("adminCompSearch").value.trim();
-    const pass = document.getElementById("adminKey").value.trim();
+/* ==========================================
+EMAIL LOGIN
+========================================== */
+window.emailLogin = async function () {
+  const email = normalizeString($("email")?.value);
+  const password = normalizeString($("password")?.value);
 
-    if(!compName || !pass) return alert("Please enter Company Name and Admin Password");
+  if (!email || !password) {
+    toast("Enter email and password");
+    return;
+  }
 
-    const found = await loadCompanyData(compName);
-    if (!found) return alert("Company does not exist!");
-
-    if (pass === wsData.adminPass) {
-        startApp("ADMIN", "Owner");
-    } else {
-        alert("Incorrect Admin Password!");
-    }
+  try {
+    loading(true);
+    await signInWithEmailAndPassword(auth, email, password);
+    toast("Login Successful");
+  } catch (err) {
+    console.error("Email login error:", err);
+    toast(err.message);
+  } finally {
+    loading(false);
+  }
 };
 
-window.checkEmp = async () => {
-    const compName = document.getElementById("eComp").value.trim();
-    const empName = document.getElementById("eName").value.trim();
-    const code = document.getElementById("eCode").value.trim();
-
-    if (!compName || !empName || !code) {
-        return alert("Please fill in all fields (Company Name, Your Name, Join Code).");
-    }
-
-    const found = await loadCompanyData(compName);
-    if (!found) return alert("Company does not exist!");
-
-    if (code === wsData.joinCode) {
-        if (!staff.includes(empName)) {
-            staff.push(empName);
-            await syncToCloud();
-        }
-        startApp("EMPLOYEE", empName);
-    } else {
-        alert("Invalid Join Code!");
-    }
+/* ==========================================
+GOOGLE LOGIN
+========================================== */
+window.googleLogin = async function () {
+  try {
+    loading(true);
+    await signInWithPopup(auth, googleProvider);
+    toast("Google Login Successful");
+  } catch (err) {
+    console.error("Google login error:", err);
+    toast(err.message);
+  } finally {
+    loading(false);
+  }
 };
 
-function startApp(role, name) {
-    activeUser = { role, name };
-    document.getElementById("wsEntryPage").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    document.getElementById("headerCompName").innerText = wsData ? wsData.name : "COMPANY";
-    document.getElementById("roleTag").innerText = role;
+/* ==========================================
+LOGOUT
+========================================== */
+window.logout = async function () {
+  try {
+    await signOut(auth);
 
-    if(role === 'ADMIN') {
-        document.getElementById("staffDisplay").classList.remove("hidden");
-        document.getElementById("viewAttBtn").classList.remove("hidden");
-        document.getElementById("staffNames").innerText = staff.length ? staff.join(", ") : "None";
-    } else {
-        document.getElementById("markAttBtn").classList.remove("hidden");
-    }
-    render();
-}
+    companyID = "";
+    companyData = null;
+    inventory = [];
+    currentRole = "";
 
-// --- LOGGING & INVENTORY RENDER ---
-async function logAction(item, action, qty) {
-    historyLog.unshift({
-        time: new Date().toLocaleString(),
-        user: activeUser.name || activeUser.role,
-        item: item,
-        action: action,
-        qty: qty
-    });
-    await syncToCloud();
-}
+    hide("app");
+    hide("rolePage");
+    show("loginPage");
 
-function updateCategoryDropdown() {
-    const catSelect = document.getElementById("categoryFilter");
-    const selectedVal = catSelect.value;
-    const categories = Array.from(new Set(inventory.map(i => i.category || 'General')));
-    let optionsHTML = '<option value="ALL">All Categories</option>';
-    categories.forEach(cat => { optionsHTML += `<option value="${cat}">${cat}</option>`; });
-    catSelect.innerHTML = optionsHTML;
-    catSelect.value = categories.includes(selectedVal) || selectedVal === "ALL" ? selectedVal : "ALL";
-}
-
-function render(data = inventory) {
-    let h = "", v = 0, lowCount = 0;
-    updateCategoryDropdown();
-
-    inventory.forEach(i => {
-        if (i.qty <= (i.minQty !== undefined ? i.minQty : 5)) lowCount++;
-    });
-
-    data.forEach((i) => {
-        const sub = (i.qty + (i.hold || 0)) * i.price;
-        v += sub;
-        const minAlert = i.minQty !== undefined ? i.minQty : 5;
-        const isLow = i.qty <= minAlert;
-        const rowClass = isLow ? 'class="low-stock-row"' : '';
-
-        h += `<tr ${rowClass}>
-            <td>${i.name || 'Unnamed Item'} ${isLow ? '<span class="badge-low">LOW</span>' : ''}</td>
-            <td><span class="badge-cat">${i.category || 'General'}</span></td>
-            <td>${i.size || '-'}</td>
-            <td>${i.unit || '-'}</td>
-            <td><b>${i.qty}</b></td>
-            <td>${minAlert}</td>
-            <td style="color:purple"><b>${i.hold || 0}</b></td>
-            <td>₹${i.price}</td>
-            <td>₹${sub.toLocaleString()}</td>
-            <td><button class="edit-btn main-nav" onclick="openModal(${inventory.indexOf(i)})">Update</button></td>
-        </tr>`;
-    });
-
-    document.getElementById("list").innerHTML = h;
-    document.getElementById("totalItems").innerText = inventory.length;
-    document.getElementById("lowStockCount").innerText = lowCount;
-    document.getElementById("totalValue").innerText = v.toLocaleString();
-}
-
-window.addItem = async () => {
-    const name = document.getElementById("itemName").value.trim() || "Unnamed Item";
-    const category = document.getElementById("itemCat").value.trim() || "General";
-    const qty = +document.getElementById("itemQty").value || 0;
-    const price = +document.getElementById("itemPrice").value || 0;
-    const minQty = +document.getElementById("itemMinQty").value || 5;
-
-    inventory.push({ 
-        name, category,
-        size: document.getElementById("itemSize").value || "-", 
-        unit: document.getElementById("itemUnit").value || "-", 
-        qty, hold: 0, price, minQty
-    });
-
-    await logAction(name, "ADD ITEM", qty);
-    
-    document.getElementById("itemName").value = "";
-    document.getElementById("itemCat").value = "";
-    document.getElementById("itemSize").value = "";
-    document.getElementById("itemUnit").value = "";
-    document.getElementById("itemQty").value = "";
-    document.getElementById("itemPrice").value = "";
-    document.getElementById("itemMinQty").value = "5";
-
-    render();
+    toast("Logged Out");
+  } catch (err) {
+    console.error("Logout error:", err);
+    toast(err.message);
+  }
 };
 
-window.openModal = (index) => {
-    editIdx = index;
-    const item = inventory[index];
-    document.getElementById("modalTitle").innerText = "Item: " + (item.name || 'Unnamed Item');
-    document.getElementById("curStock").innerText = item.qty;
-    document.getElementById("curHold").innerText = item.hold || 0;
-    document.getElementById("transAmt").value = "";
-    
-    if(activeUser.role === "ADMIN") {
-        document.getElementById("adminEditGroup").classList.remove("hidden");
-        document.getElementById("adminDeleteGroup").classList.remove("hidden");
-        document.getElementById("editName").value = item.name || "";
-        document.getElementById("editCat").value = item.category || "General";
-        document.getElementById("editSize").value = item.size || "-";
-        document.getElementById("editUnit").value = item.unit || "-";
-        document.getElementById("editPrice").value = item.price || 0;
-        document.getElementById("editMinQty").value = item.minQty !== undefined ? item.minQty : 5;
-    } else {
-        document.getElementById("adminEditGroup").classList.add("hidden");
-        document.getElementById("adminDeleteGroup").classList.add("hidden");
-    }
-    document.getElementById("editModal").style.display = "flex";
+/* ==========================================
+ROLE NAVIGATION
+========================================== */
+window.chooseAdmin = function () {
+  hide("rolePage");
+  show("adminChoicePage");
 };
 
-window.saveItemDetails = async () => {
-    if(editIdx < 0) return;
-    const item = inventory[editIdx];
-
-    item.name = document.getElementById("editName").value.trim() || "Unnamed Item";
-    item.category = document.getElementById("editCat").value.trim() || "General";
-    item.size = document.getElementById("editSize").value || "-";
-    item.unit = document.getElementById("editUnit").value || "-";
-    item.price = +document.getElementById("editPrice").value || 0;
-    item.minQty = +document.getElementById("editMinQty").value || 5;
-
-    await logAction(item.name, "UPDATE DETAILS", 0);
-    render();
-    closeModal();
+window.chooseEmployee = function () {
+  hide("rolePage");
+  show("employeePage");
 };
 
-window.doTrans = async (mode) => {
-    const amt = +document.getElementById("transAmt").value || 0;
-    const item = inventory[editIdx];
+window.backToRole = function () {
+  hide("employeePage");
+  hide("adminChoicePage");
+  hide("createCompanyPage");
+  hide("companyLoginPage");
+  hide("adminPasswordPage");
+  show("rolePage");
+};
 
-    if(activeUser.role === "ADMIN") {
-        item.name = document.getElementById("editName").value.trim() || "Unnamed Item";
-        item.category = document.getElementById("editCat").value.trim() || "General";
-        item.size = document.getElementById("editSize").value || "-";
-        item.unit = document.getElementById("editUnit").value || "-";
-        item.price = +document.getElementById("editPrice").value || 0;
-        item.minQty = +document.getElementById("editMinQty").value || 5;
+window.showCreateCompany = function () {
+  hide("adminChoicePage");
+  show("createCompanyPage");
+};
+
+window.showCompanyLogin = function () {
+  hide("adminChoicePage");
+  show("companyLoginPage");
+};
+
+window.backToAdminChoice = function () {
+  hide("createCompanyPage");
+  hide("companyLoginPage");
+  hide("adminPasswordPage");
+  show("adminChoicePage");
+};
+
+/* ==========================================
+CREATE COMPANY
+========================================== */
+window.createCompany = async function () {
+  const companyName = normalizeString($("companyName")?.value);
+  const adminPassword = normalizeString($("adminPassword")?.value);
+  const codeInput = normalizeString($("joinCode")?.value || $("companyCode")?.value);
+
+  if (!companyName || !adminPassword || !codeInput) {
+    toast("Please fill all fields");
+    return;
+  }
+
+  try {
+    loading(true);
+
+    const q = query(
+      collection(db, "companies"),
+      where("companyName", "==", companyName)
+    );
+
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      toast("Company already exists");
+      return;
     }
 
-    if(mode === 'in') { item.qty += amt; await logAction(item.name, "STOCK IN", amt); }
-    else if(mode === 'out') { 
-        if(item.qty < amt) return alert("Low Stock"); 
-        item.qty -= amt; 
-        await logAction(item.name, "STOCK OUT", amt); 
+    const companyPayload = {
+      companyName: companyName,
+      companyCode: codeInput,
+      joinCode: codeInput, // Kept for backward compatibility
+      adminPassword: adminPassword,
+      adminUID: currentUser.uid,
+      createdAt: serverTimestamp()
+    };
+
+    const companyRef = await addDoc(collection(db, "companies"), companyPayload);
+
+    companyID = companyRef.id;
+    companyData = companyPayload;
+
+    currentRole = "ADMIN";
+    openDashboard();
+    toast("Company Created Successfully");
+  } catch (err) {
+    console.error("Error creating company:", err);
+    toast("Firestore Write Failed: " + err.message);
+  } finally {
+    loading(false);
+  }
+};
+
+/* ==========================================
+FIND COMPANY (ADMIN SEARCH)
+========================================== */
+window.findCompany = async function () {
+  const companyName = normalizeString($("loginCompany")?.value);
+  const codeInput = normalizeString($("loginCompanyCode")?.value || $("loginJoinCode")?.value);
+
+  if (!companyName) {
+    toast("Enter Company Name");
+    return;
+  }
+
+  try {
+    loading(true);
+
+    const q = query(
+      collection(db, "companies"),
+      where("companyName", "==", companyName)
+    );
+
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      toast("Invalid Company Name");
+      return;
     }
-    else if(mode === 'hold') { 
-        if(item.qty < amt) return alert("Low Stock"); 
-        item.qty -= amt; 
-        item.hold = (item.hold || 0) + amt; 
-        await logAction(item.name, "HOLD", amt); 
-    }
-    else if(mode === 'rel') { 
-        item.qty += (item.hold || 0); 
-        await logAction(item.name, "RELEASE HOLD", item.hold); 
-        item.hold = 0; 
-    }
-    else if(mode === 'fin') { 
-        await logAction(item.name, "FINAL OUT", item.hold); 
-        item.hold = 0; 
+
+    const docSnap = snapshot.docs[0];
+    const data = docSnap.data();
+    const storedCode = normalizeString(data.companyCode || data.joinCode);
+
+    if (codeInput && storedCode !== codeInput) {
+      toast("Invalid Company Code");
+      return;
     }
 
-    render(); 
-    closeModal();
+    companyID = docSnap.id;
+    companyData = data;
+
+    if ($("companyLabel")) $("companyLabel").innerText = companyData.companyName;
+
+    hide("companyLoginPage");
+    show("adminPasswordPage");
+  } catch (err) {
+    console.error("Error finding company:", err);
+    toast("Firestore Read Error: " + err.message);
+  } finally {
+    loading(false);
+  }
 };
 
-window.deleteItem = async () => {
-    if(confirm("Delete this item?")) {
-        const item = inventory[editIdx];
-        inventory.splice(editIdx, 1);
-        await logAction(item.name, "DELETE ITEM", item.qty);
-        render(); 
-        closeModal();
-    }
+/* ==========================================
+ADMIN LOGIN
+========================================== */
+window.adminLogin = function () {
+  const password = normalizeString($("loginAdminPassword")?.value);
+
+  if (password !== companyData.adminPassword) {
+    toast("Wrong Password");
+    return;
+  }
+
+  if (currentUser.uid !== companyData.adminUID) {
+    toast("This Google account is not the owner.");
+    return;
+  }
+
+  currentRole = "ADMIN";
+  openDashboard();
 };
 
-window.closeModal = () => { document.getElementById("editModal").style.display = "none"; };
+/* ==========================================
+EMPLOYEE LOGIN & VERIFICATION
+========================================== */
+window.employeeLogin = async function () {
+  const employeeName = normalizeString($("employeeName")?.value);
+  const companyName = normalizeString($("employeeCompanyName")?.value);
+  const codeInput = normalizeString($("employeeJoinCode")?.value || $("employeeCompanyCode")?.value);
 
-window.filterItems = () => { 
-    const query = document.getElementById("search").value.toLowerCase(); 
-    const cat = document.getElementById("categoryFilter").value;
+  if (!employeeName || !codeInput) {
+    toast("Please fill all fields");
+    return;
+  }
 
-    const filtered = inventory.filter(i => {
-        const matchesQuery = (i.name || "").toLowerCase().includes(query);
-        const matchesCat = (cat === "ALL") || ((i.category || "General") === cat);
-        return matchesQuery && matchesCat;
-    });
+  try {
+    loading(true);
 
-    render(filtered); 
-};
+    let docSnap = null;
 
-// --- ATTENDANCE & MODALS ---
-window.showHistoryModal = () => {
-    const body = document.getElementById("historyTableBody");
-    body.innerHTML = historyLog.map(rec => `<tr><td>${rec.time}</td><td>${rec.user}</td><td>${rec.item}</td><td><b>${rec.action}</b></td><td>${rec.qty}</td></tr>`).join("");
-    document.getElementById("historyModal").style.display = "flex";
-};
-window.closeHistoryModal = () => { document.getElementById("historyModal").style.display = "none"; };
+    // Verify via Company Name + Code if Company Name was provided
+    if (companyName) {
+      const q = query(
+        collection(db, "companies"),
+        where("companyName", "==", companyName)
+      );
 
-window.showAttendanceModal = () => {
-    const body = document.getElementById("attendanceTableBody");
-    body.innerHTML = attendanceRecords.map(rec => `<tr><td>${rec.name}</td><td>${rec.date}</td><td>${rec.time}</td></tr>`).join("");
-    document.getElementById("attendanceModal").style.display = "flex";
-};
-window.closeAttendanceModal = () => { document.getElementById("attendanceModal").style.display = "none"; };
+      const snapshot = await getDocs(q);
 
-window.markAttendance = async () => {
-    const now = new Date();
-    attendanceRecords.unshift({
-        name: activeUser.name,
-        date: now.toLocaleDateString(),
-        time: now.toLocaleTimeString()
-    });
-
-    await syncToCloud();
-    alert("Attendance marked successfully for " + activeUser.name);
-};
-
-// --- KEYBOARD NAVIGATION ---
-document.addEventListener("keydown", (e) => {
-    const isModalOpen = document.getElementById("editModal").style.display === "flex";
-    if (document.activeElement.id === "search" && e.key === "ArrowDown") {
-        e.preventDefault();
-        const firstBtn = document.querySelector("#list .edit-btn");
-        if (firstBtn) firstBtn.focus();
+      if (snapshot.empty) {
+        toast("Invalid Company Name");
         return;
+      }
+
+      const foundData = snapshot.docs[0].data();
+      const storedCode = normalizeString(foundData.companyCode || foundData.joinCode);
+
+      if (storedCode !== codeInput) {
+        toast("Invalid Company Code");
+        return;
+      }
+
+      docSnap = snapshot.docs[0];
+    } else {
+      // Lookup strictly by Company Code / Join Code
+      let snapshot = await getDocs(
+        query(collection(db, "companies"), where("companyCode", "==", codeInput))
+      );
+
+      if (snapshot.empty) {
+        snapshot = await getDocs(
+          query(collection(db, "companies"), where("joinCode", "==", codeInput))
+        );
+      }
+
+      if (snapshot.empty) {
+        toast("Invalid Company Code");
+        return;
+      }
+
+      docSnap = snapshot.docs[0];
     }
-    const els = Array.from(document.querySelectorAll(isModalOpen ? ".modal-nav" : ".main-nav"));
-    const i = els.indexOf(document.activeElement);
-    if (i !== -1) {
-        if(e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); (els[i+1] || els[0]).focus(); }
-        if(e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); (els[i-1] || els[els.length-1]).focus(); }
+
+    companyID = docSnap.id;
+    companyData = docSnap.data();
+    currentRole = "EMPLOYEE";
+
+    // Register employee in the company's staff subcollection
+    await addDoc(collection(db, "companies", companyID, "staff"), {
+      uid: currentUser.uid,
+      name: employeeName,
+      joinedAt: serverTimestamp()
+    });
+
+    openDashboard();
+  } catch (err) {
+    console.error("Employee login error:", err);
+    toast("Firestore Read Error: " + err.message);
+  } finally {
+    loading(false);
+  }
+};
+
+/* ==========================================
+OPEN DASHBOARD
+========================================== */
+function openDashboard() {
+  hide("rolePage");
+  hide("employeePage");
+  hide("adminChoicePage");
+  hide("createCompanyPage");
+  hide("companyLoginPage");
+  hide("adminPasswordPage");
+
+  show("app");
+
+  if ($("companyTitle")) $("companyTitle").innerText = companyData.companyName;
+  if ($("roleBadge")) $("roleBadge").innerText = currentRole;
+
+  startRealtime();
+}
+
+/* ==========================================
+REALTIME LISTENERS
+========================================== */
+function startRealtime() {
+  if (!companyID) return;
+
+  unsubscribeAllListeners();
+
+  // Inventory Realtime Listener
+  unsubscribeInventory = onSnapshot(
+    collection(db, "companies", companyID, "inventory"),
+    (snapshot) => {
+      inventory = [];
+      snapshot.forEach((docSnap) => {
+        inventory.push({
+          id: docSnap.id,
+          ...docSnap.data()
+        });
+      });
+
+      renderInventory();
+      updateDashboard();
+    },
+    (err) => {
+      console.error("Inventory listener error:", err);
     }
-});
+  );
+
+  startHistoryListener();
+  startAttendanceListener();
+}
+
+/* ==========================================
+ADD PRODUCT
+========================================== */
+window.addItem = async function () {
+  const name = normalizeString($("itemName")?.value);
+  const category = normalizeString($("itemCategory")?.value) || "General";
+  const size = normalizeString($("itemSize")?.value) || "-";
+  const unit = normalizeString($("itemUnit")?.value) || "pcs";
+
+  const qty = Number($("itemQty")?.value) || 0;
+  const price = Number($("itemPrice")?.value) || 0;
+  const minQty = Number($("itemMinQty")?.value) || 5;
+
+  if (!name) {
+    toast("Enter Product Name");
+    return;
+  }
+
+  try {
+    loading(true);
+
+    await addDoc(collection(db, "companies", companyID, "inventory"), {
+      name,
+      category,
+      size,
+      unit,
+      qty,
+      hold: 0,
+      price,
+      minQty,
+      createdBy: currentUser.uid,
+      createdAt: serverTimestamp()
+    });
+
+    toast("Product Added");
+    clearProductForm();
+  } catch (err) {
+    console.error("Add product error:", err);
+    toast("Failed to add product: " + err.message);
+  } finally {
+    loading(false);
+  }
+};
+
+function clearProductForm() {
+  if ($("itemName")) $("itemName").value = "";
+  if ($("itemCategory")) $("itemCategory").value = "";
+  if ($("itemSize")) $("itemSize").value = "";
+  if ($("itemUnit")) $("itemUnit").value = "";
+  if ($("itemQty")) $("itemQty").value = "";
+  if ($("itemPrice")) $("itemPrice").value = "";
+  if ($("itemMinQty")) $("itemMinQty").value = 5;
+}
+
+/* ==========================================
+UPDATE DASHBOARD METRICS
+========================================== */
+function updateDashboard() {
+  if ($("totalItems")) $("totalItems").innerText = inventory.length;
+
+  let low = 0;
+  let totalVal = 0;
+
+  inventory.forEach((item) => {
+    if (item.qty <= item.minQty) {
+      low++;
+    }
+    totalVal += item.qty * item.price;
+  });
+
+  if ($("lowStock")) $("lowStock").innerText = low;
+  if ($("totalValue")) $("totalValue").innerText = totalVal.toLocaleString();
+}
+
+/* ==========================================
+RENDER INVENTORY
+========================================== */
+function renderInventory() {
+  const body = $("inventoryBody");
+  if (!body) return;
+
+  body.innerHTML = "";
+
+  inventory.forEach((item) => {
+    const isLow = item.qty <= item.minQty;
+    const rowClass = isLow ? 'class="low-stock-row"' : "";
+
+    body.innerHTML += `
+      <tr ${rowClass}>
+        <td><strong>${escapeHTML(item.name)}</strong></td>
+        <td>${escapeHTML(item.category)}</td>
+        <td>${escapeHTML(item.size)}</td>
+        <td>${escapeHTML(item.unit)}</td>
+        <td>${item.qty} ${isLow ? '<span class="badge-low">LOW</span>' : ''}</td>
+        <td>${item.hold}</td>
+        <td>${item.minQty}</td>
+        <td>₹${item.price}</td>
+        <td>₹${(item.qty * item.price).toLocaleString()}</td>
+        <td>
+          <button class="edit-btn" onclick="editItem('${item.id}')">Edit</button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+/* ==========================================
+EDIT & MODAL HANDLERS
+========================================== */
+window.editItem = function (id) {
+  selectedItem = inventory.find((item) => item.id === id);
+  if (!selectedItem) return;
+
+  if ($("editName")) $("editName").value = selectedItem.name;
+  if ($("editCategory")) $("editCategory").value = selectedItem.category;
+  if ($("editSize")) $("editSize").value = selectedItem.size;
+  if ($("editUnit")) $("editUnit").value = selectedItem.unit;
+  if ($("editPrice")) $("editPrice").value = selectedItem.price;
+  if ($("editMinQty")) $("editMinQty").value = selectedItem.minQty;
+
+  if ($("currentStock")) $("currentStock").innerText = selectedItem.qty;
+  if ($("currentHold")) $("currentHold").innerText = selectedItem.hold;
+  if ($("transactionQty")) $("transactionQty").value = "";
+
+  show("editModal");
+};
+
+window.closeEditModal = function () {
+  hide("editModal");
+  selectedItem = null;
+};
+
+window.saveItem = async function () {
+  if (!selectedItem) return;
+
+  try {
+    loading(true);
+
+    await updateDoc(
+      doc(db, "companies", companyID, "inventory", selectedItem.id),
+      {
+        name: normalizeString($("editName")?.value),
+        category: normalizeString($("editCategory")?.value),
+        size: normalizeString($("editSize")?.value),
+        unit: normalizeString($("editUnit")?.value),
+        price: Number($("editPrice")?.value) || 0,
+        minQty: Number($("editMinQty")?.value) || 0
+      }
+    );
+
+    toast("Product Updated");
+    closeEditModal();
+  } catch (err) {
+    console.error("Save item error:", err);
+    toast(err.message);
+  } finally {
+    loading(false);
+  }
+};
+
+window.deleteItem = async function () {
+  if (!selectedItem) return;
+
+  if (!confirm("Delete this product?")) return;
+
+  try {
+    loading(true);
+    await deleteDoc(
+      doc(db, "companies", companyID, "inventory", selectedItem.id)
+    );
+
+    toast("Product Deleted");
+    closeEditModal();
+  } catch (err) {
+    console.error("Delete item error:", err);
+    toast(err.message);
+  } finally {
+    loading(false);
+  }
+};
+
+/* ==========================================
+UPDATE STOCK
+========================================== */
+async function updateStock(type) {
+  if (!selectedItem) return;
+
+  const qty = Number($("transactionQty")?.value);
+
+  if (isNaN(qty) || qty <= 0) {
+    toast("Enter a valid Quantity");
+    return;
+  }
+
+  let stock = Number(selectedItem.qty) || 0;
+  let hold = Number(selectedItem.hold) || 0;
+
+  switch (type) {
+    case "IN":
+      stock += qty;
+      break;
+
+    case "OUT":
+      if (stock < qty) {
+        toast("Insufficient Stock");
+        return;
+      }
+      stock -= qty;
+      break;
+
+    case "HOLD":
+      if (stock < qty) {
+        toast("Insufficient Stock");
+        return;
+      }
+      stock -= qty;
+      hold += qty;
+      break;
+
+    case "RELEASE":
+      if (hold < qty) {
+        toast("Not Enough Hold Stock");
+        return;
+      }
+      hold -= qty;
+      stock += qty;
+      break;
+  }
+
+  try {
+    loading(true);
+
+    await updateDoc(
+      doc(db, "companies", companyID, "inventory", selectedItem.id),
+      { qty: stock, hold: hold }
+    );
+
+    await addHistory(type, qty, selectedItem.name);
+
+    toast("Stock Updated");
+    closeEditModal();
+  } catch (err) {
+    console.error("Update stock error:", err);
+    toast(err.message);
+  } finally {
+    loading(false);
+  }
+}
+
+window.stockIn = () => updateStock("IN");
+window.stockOut = () => updateStock("OUT");
+window.holdStock = () => updateStock("HOLD");
+window.releaseStock = () => updateStock("RELEASE");
+
+/* ==========================================
+AUDIT HISTORY
+========================================== */
+async function addHistory(action, qty, itemName) {
+  try {
+    await addDoc(collection(db, "companies", companyID, "history"), {
+      action,
+      qty,
+      item: itemName,
+      user: currentUser.email || "Unknown",
+      time: serverTimestamp()
+    });
+  } catch (err) {
+    console.error("Audit log error:", err);
+  }
+}
+
+function startHistoryListener() {
+  unsubscribeHistory = onSnapshot(
+    query(
+      collection(db, "companies", companyID, "history"),
+      orderBy("time", "desc")
+    ),
+    (snapshot) => {
+      const body = $("historyBody");
+      if (!body) return;
+
+      body.innerHTML = "";
+
+      snapshot.forEach((docSnap) => {
+        const h = docSnap.data();
+        const formattedTime = h.time?.toDate ? h.time.toDate().toLocaleString() : "";
+
+        body.innerHTML += `
+          <tr>
+            <td>${formattedTime}</td>
+            <td>${escapeHTML(h.user)}</td>
+            <td><strong>${escapeHTML(h.action)}</strong></td>
+            <td>${escapeHTML(h.item)}</td>
+            <td>${h.qty}</td>
+          </tr>
+        `;
+      });
+    },
+    (err) => console.error("History listener error:", err)
+  );
+}
+
+window.showHistoryModal = function () {
+  show("historyModal");
+};
+
+window.closeHistoryModal = function () {
+  hide("historyModal");
+};
+
+/* ==========================================
+ATTENDANCE
+========================================== */
+window.markAttendance = function () {
+  if (!navigator.geolocation) {
+    toast("Geolocation not supported");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        await addDoc(collection(db, "companies", companyID, "attendance"), {
+          name: currentUser.email || "Employee",
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          time: serverTimestamp()
+        });
+
+        toast("Attendance Marked");
+      } catch (err) {
+        console.error("Attendance log error:", err);
+        toast(err.message);
+      }
+    },
+    (err) => {
+      toast("Location Error: " + err.message);
+    }
+  );
+};
+
+function startAttendanceListener() {
+  unsubscribeAttendance = onSnapshot(
+    query(
+      collection(db, "companies", companyID, "attendance"),
+      orderBy("time", "desc")
+    ),
+    (snapshot) => {
+      const body = $("attendanceBody");
+      if (!body) return;
+
+      body.innerHTML = "";
+
+      snapshot.forEach((docSnap) => {
+        const a = docSnap.data();
+        const formattedTime = a.time?.toDate ? a.time.toDate().toLocaleString() : "";
+
+        body.innerHTML += `
+          <tr>
+            <td>${escapeHTML(a.name)}</td>
+            <td>${formattedTime}</td>
+            <td>${a.latitude}</td>
+            <td>${a.longitude}</td>
+          </tr>
+        `;
+      });
+    },
+    (err) => console.error("Attendance listener error:", err)
+  );
+}
+
+window.showAttendanceModal = function () {
+  show("attendanceModal");
+};
+
+window.closeAttendanceModal = function () {
+  hide("attendanceModal");
+};
+
+/* ==========================================
+SEARCH
+========================================== */
+window.filterInventory = function () {
+  const text = normalizeString($("search")?.value).toLowerCase();
+  const rows = $("inventoryBody")?.getElementsByTagName("tr") || [];
+
+  for (let row of rows) {
+    row.style.display = row.innerText.toLowerCase().includes(text) ? "" : "none";
+  }
+};
+
+/* ==========================================
+EXPORT TO CSV
+========================================== */
+window.exportInventory = function () {
+  if (!inventory || inventory.length === 0) {
+    toast("No inventory data to export");
+    return;
+  }
+
+  let csv = "Name,Category,Size,Unit,Qty,Hold,MinQty,Price\n";
+
+  inventory.forEach((item) => {
+    csv += `"${item.name}","${item.category}","${item.size}","${item.unit}",${item.qty},${item.hold},${item.minQty},${item.price}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${companyData?.companyName || "inventory"}_export.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
