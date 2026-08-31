@@ -127,7 +127,7 @@ button:focus-visible {
     background: #32e012;
 }
 
-/* --- UPDATE BUTTON --- */
+/* --- CUSTOM STYLED UPDATE BUTTON --- */
 .edit-btn { 
     background: linear-gradient(135deg, #00d2ff 0%, #0072ff 100%); 
     color: white; 
@@ -187,7 +187,7 @@ th {
     color: var(--neon); 
 }
 
-/* --- HIGHLIGHTS --- */
+/* --- LOW STOCK HIGHLIGHT --- */
 tr.low-stock-row { 
     background-color: #ffcccc !important; 
     color: #900; 
@@ -235,4 +235,16 @@ tr.low-stock-row {
     max-height: 85vh; 
     overflow-y: auto; 
     box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+}
+
+/* --- GEO LOCATION PANEL --- */
+.geo-panel { 
+    background: rgba(0, 0, 0, 0.4); 
+    border: 1px dashed var(--neon); 
+    color: white; 
+    padding: 15px; 
+    border-radius: 12px; 
+    margin: 20px auto; 
+    width: 85%; 
+    max-width: 1200px;
 }
