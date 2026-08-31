@@ -1,10 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Inventory - Live Workspace</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pro Inventory - Live Workspace</title>
+<style>
+:root { --neon: #39ff14; --dark-neon: #1f4011; --update-cyan: #00d2ff; }
+body { font-family: 'Segoe UI', sans-serif; text-align: center; background: radial-gradient(circle at top, #45ff26 0%, var(--dark-neon) 40%, #0d1a07 100%); background-attachment: fixed; margin: 0; padding: 0; color: #333; }
+
+/* --- HEADER --- */
+#workspaceHeader { display: flex; justify-content: space-between; align-items: center; padding: 10px 25px; background: rgba(0, 0, 0, 0.9); color: var(--neon); border-bottom: 2px solid var(--neon); }
+.staff-list { font-size: 0.8em; color: white; background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px; border: 1px solid var(--neon); }
+
+/* --- UI COMPONENTS --- */
+.auth-box { background: white; width: 340px; margin: 50px auto; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+.hidden { display: none !important; }
+input, select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; outline: none; margin: 5px 0; }
+.main-nav:focus { border: 2px solid var(--neon); box-shadow: 0 0 15px var(--neon); }
+
+button { padding:10px 15px; margin:3px; cursor:pointer; color:white; border:none; border-radius: 6px; font-weight: bold; }
+.auth-btn { background: #222; }
+.google-btn { background: #4285F4; color: white; width: 93%; margin-top: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.role-btn { background: #0056b3; width: 90%; margin: 10px 0; }
+.att-btn { background: #39ff14; color: black; }
+
+/* --- CUSTOM STYLED UPDATE BUTTON --- */
+.edit-btn { 
+    background: linear-gradient(135deg, #00d2ff 0%, #0072ff 100%); 
+    color: white; 
+    border-radius: 6px; 
+    padding: 6px 14px; 
+    font-weight: 600; 
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 2px 8px rgba(0, 210, 255, 0.3);
+}
+.edit-btn:focus {
+    outline: none;
+    border: 2px solid var(--neon);
+    box-shadow: 0 0 15px var(--neon);
+    transform: translateY(-2px);
+}
+.edit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 210, 255, 0.5);
+}
+
+/* --- DASHBOARD --- */
+.dashboard { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); padding: 20px; margin: 20px auto; width: 85%; border-radius: 15px; display: flex; justify-content: space-around; color: white; border: 1px solid rgba(255,255,255,0.2); }
+table { margin: 20px auto; width: 95%; border-collapse: collapse; background: rgba(255, 255, 255, 0.95); border-radius: 12px; overflow: hidden; }
+th, td { padding: 12px; border: 1px solid #eee; }
+th { background: #1a1a1a; color: var(--neon); }
+
+/* --- LOW STOCK HIGHLIGHT --- */
+tr.low-stock-row { background-color: #ffcccc !important; color: #900; font-weight: bold; }
+.badge-low { background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
+.badge-cat { background: #17a2b8; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; }
+
+/* --- MODALS --- */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background: white; padding: 25px; border-radius: 15px; width: 550px; text-align: center; max-height: 80vh; overflow-y: auto; }
+
+/* --- GEO LOCATION PANEL --- */
+.geo-panel { background: rgba(0, 0, 0, 0.4); border: 1px dashed var(--neon); color: white; padding: 15px; border-radius: 12px; margin: 20px auto; width: 85%; }
+</style>
 </head>
 <body>
 
@@ -33,7 +91,7 @@
     <button class="role-btn" style="background:#28a745" onclick="openWorkspace('admin', 'new')">Create New Company</button>
     <button class="role-btn" style="background:#222" onclick="openWorkspace('admin', 'login')">Existing Company Login</button>
     <br><br>
-    <button onclick="backToRoles()" style="color:#666; background:none; border:none; text-decoration:underline; cursor:pointer;">Back</button>
+    <button onclick="backToRoles()" style="color:#666; background:none; border:none; text-decoration:underline;">Back</button>
 </div>
 
 <div id="wsEntryPage" class="auth-box hidden">
@@ -49,13 +107,17 @@
         
         <div id="loginCompView" class="hidden">
             <input id="adminCompSearch" placeholder="Company Name" style="width:90%">
+            <button class="auth-btn" onclick="verifyCompName()" style="width:90%; margin-top:10px;">Next</button>
+        </div>
+
+        <div id="loginPassView" class="hidden">
+            <p style="margin: 5px 0 15px 0; color: #555;">Company: <strong id="targetCompLabel"></strong></p>
             <input id="adminKey" type="password" placeholder="Enter Admin Password" style="width:90%">
             <button class="auth-btn" onclick="checkAdmin()" style="width:90%; margin-top:10px;">Login to Dashboard</button>
         </div>
     </div>
 
     <div id="empArea" class="hidden">
-        <input id="eComp" placeholder="Company Name" style="width:90%">
         <input id="eName" placeholder="Your Name" style="width:90%">
         <input id="eCode" placeholder="Company Join Code" style="width:90%">
         <button class="auth-btn" onclick="checkEmp()" style="width:90%; margin-top:10px;">Join Dashboard</button>
@@ -74,6 +136,17 @@
         </div>
     </header>
 
+    <div id="adminGeoPanel" class="geo-panel hidden">
+        <h4 style="margin: 0 0 10px 0; color: var(--neon);">📍 Attendance Geo-Fence Configuration</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center;">
+            <input id="geoLat" type="number" step="any" placeholder="Latitude">
+            <input id="geoLng" type="number" step="any" placeholder="Longitude">
+            <input id="geoRadius" type="number" placeholder="Radius (m)" value="10">
+            <button onclick="getCurrentLocation()" style="background: #6f42c1;">Fetch My Location</button>
+            <button onclick="saveGeoSettings()" style="background: #28a745;">Save Geo-Fence</button>
+        </div>
+    </div>
+
     <div class="dashboard">
         <div><p>Total Items</p><h2 id="totalItems">0</h2></div>
         <div><p>Low Stock Items</p><h2 id="lowStockCount" style="color: #ff4d4d;">0</h2></div>
@@ -83,7 +156,7 @@
     <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; display: inline-block; margin-top:20px;">
         <h4 style="color:white; margin:0 0 10px 0;">+ Add New Stock Item</h4>
         <input id="itemName" class="main-nav" placeholder="Item Name">
-        <input id="itemCat" class="main-nav" placeholder="Category (e.g. Tiles)">
+        <input id="itemCat" class="main-nav" placeholder="Category (e.g. Snacks)">
         <input id="itemSize" class="main-nav" placeholder="Size" style="width:70px;">
         <input id="itemUnit" class="main-nav" placeholder="Unit" style="width:70px;">
         <input id="itemQty" class="main-nav" type="number" placeholder="Qty" style="width:70px;">
@@ -186,6 +259,394 @@
     </div>
 </div>
 
-<script type="module" src="script.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
+  authDomain: "inventory-app-ad3c6.firebaseapp.com",
+  projectId: "inventory-app-ad3c6",
+  storageBucket: "inventory-app-ad3c6.firebasestorage.app",
+  messagingSenderId: "150702776400",
+  appId: "1:150702776400:web:b492e1e811e14c80063155",
+  measurementId: "G-4D6KQBVWLR"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+window.emailLogin = () => {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    if(!email || !password) return alert("Please enter email and password");
+    
+    signInWithEmailAndPassword(auth, email, password)
+        .catch(e => alert("Login Error: " + e.message));
+};
+
+window.signup = () => {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    if(!email || !password) return alert("Please enter email and password");
+
+    createUserWithEmailAndPassword(auth, email, password)
+        .catch(e => alert("Signup Error: " + e.message));
+};
+
+window.googleLogin = () => {
+    signInWithPopup(auth, googleProvider)
+        .catch(e => alert("Google Login Error: " + e.message));
+};
+
+window.handleLogout = () => {
+    signOut(auth).then(() => {
+        location.reload();
+    }).catch(e => alert(e.message));
+};
+
+onAuthStateChanged(auth, (user) => {
+    if(user) {
+        document.getElementById("loginPage").classList.add("hidden");
+        document.getElementById("rolePage").classList.remove("hidden");
+    }
+});
+</script>
+
+<script>
+let inventory = JSON.parse(localStorage.getItem("inv")) || [];
+let historyLog = JSON.parse(localStorage.getItem("history_log")) || [];
+let wsData = JSON.parse(localStorage.getItem("ws_settings"));
+let staff = JSON.parse(localStorage.getItem("staff_list")) || [];
+let attendanceRecords = JSON.parse(localStorage.getItem("attendance_log")) || [];
+let geoFenceSettings = JSON.parse(localStorage.getItem("geo_settings")) || null;
+let activeUser = { role: null, name: "" };
+let editIdx = -1;
+
+function chooseAdminPath() {
+    document.getElementById("rolePage").classList.add("hidden");
+    document.getElementById("adminChoicePage").classList.remove("hidden");
+}
+
+function backToRoles() {
+    document.getElementById("adminChoicePage").classList.add("hidden");
+    document.getElementById("rolePage").classList.remove("hidden");
+}
+
+function openWorkspace(role, mode) {
+    document.getElementById("rolePage").classList.add("hidden");
+    document.getElementById("adminChoicePage").classList.add("hidden");
+    document.getElementById("wsEntryPage").classList.remove("hidden");
+
+    if(role === 'admin') {
+        document.getElementById("adminArea").classList.remove("hidden");
+        document.getElementById("empArea").classList.add("hidden");
+        if(mode === 'new') {
+            document.getElementById("setupView").classList.remove("hidden");
+            document.getElementById("loginCompView").classList.add("hidden");
+            document.getElementById("loginPassView").classList.add("hidden");
+            document.getElementById("wsTitle").innerText = "Setup New Company";
+        } else {
+            document.getElementById("loginCompView").classList.remove("hidden");
+            document.getElementById("setupView").classList.add("hidden");
+            document.getElementById("loginPassView").classList.add("hidden");
+            document.getElementById("wsTitle").innerText = "Enter Company Name";
+        }
+    } else {
+        document.getElementById("empArea").classList.remove("hidden");
+        document.getElementById("adminArea").classList.add("hidden");
+        document.getElementById("wsTitle").innerText = "Employee Join";
+    }
+}
+
+function setupWS() {
+    const name = document.getElementById("cName").value;
+    const pass = document.getElementById("aPass").value;
+    const code = document.getElementById("jCode").value;
+    if(!name || !pass || !code) return alert("Fill all fields");
+    wsData = { name, adminPass: pass, joinCode: code };
+    localStorage.setItem("ws_settings", JSON.stringify(wsData));
+    startApp("ADMIN", "Owner");
+}
+
+function verifyCompName() {
+    if(!wsData) return alert("No company found. Please create one first.");
+    const enteredComp = document.getElementById("adminCompSearch").value.trim();
+    if(!enteredComp) return alert("Please enter your Company Name");
+    
+    if(enteredComp.toLowerCase() === wsData.name.toLowerCase()) {
+        document.getElementById("loginCompView").classList.add("hidden");
+        document.getElementById("loginPassView").classList.remove("hidden");
+        document.getElementById("targetCompLabel").innerText = wsData.name;
+        document.getElementById("wsTitle").innerText = "Admin Password";
+    } else {
+        alert("Company Name not found!");
+    }
+}
+
+function checkAdmin() {
+    if(!wsData) return alert("No company found. Please create one first.");
+    if(document.getElementById("adminKey").value === wsData.adminPass) startApp("ADMIN", "Owner");
+    else alert("Wrong Admin Password");
+}
+
+function checkEmp() {
+    const name = document.getElementById("eName").value;
+    if(!wsData) return alert("Company not set up yet.");
+    if(document.getElementById("eCode").value === wsData.joinCode && name) {
+        if(!staff.includes(name)) staff.push(name);
+        localStorage.setItem("staff_list", JSON.stringify(staff));
+        startApp("EMPLOYEE", name);
+    } else alert("Invalid Code or Name");
+}
+
+function startApp(role, name) {
+    activeUser = { role, name };
+    document.getElementById("wsEntryPage").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    document.getElementById("headerCompName").innerText = wsData ? wsData.name : "COMPANY";
+    document.getElementById("roleTag").innerText = role;
+
+    if(role === 'ADMIN') {
+        document.getElementById("staffDisplay").classList.remove("hidden");
+        document.getElementById("viewAttBtn").classList.remove("hidden");
+        document.getElementById("adminGeoPanel").classList.remove("hidden");
+        document.getElementById("staffNames").innerText = staff.length ? staff.join(", ") : "None";
+    } else {
+        document.getElementById("markAttBtn").classList.remove("hidden");
+    }
+    render();
+}
+
+function logAction(item, action, qty) {
+    historyLog.unshift({
+        time: new Date().toLocaleString(),
+        user: activeUser.name || activeUser.role,
+        item: item,
+        action: action,
+        qty: qty
+    });
+    localStorage.setItem("history_log", JSON.stringify(historyLog));
+}
+
+function updateCategoryDropdown() {
+    const catSelect = document.getElementById("categoryFilter");
+    const selectedVal = catSelect.value;
+    
+    const categories = Array.from(new Set(inventory.map(i => i.category || 'General')));
+    
+    let optionsHTML = '<option value="ALL">All Categories</option>';
+    categories.forEach(cat => {
+        optionsHTML += `<option value="${cat}">${cat}</option>`;
+    });
+    
+    catSelect.innerHTML = optionsHTML;
+    catSelect.value = categories.includes(selectedVal) || selectedVal === "ALL" ? selectedVal : "ALL";
+}
+
+function render(data = inventory) {
+    let h = "", v = 0, lowCount = 0;
+    
+    updateCategoryDropdown();
+
+    inventory.forEach(i => {
+        if (i.qty <= (i.minQty !== undefined ? i.minQty : 5)) lowCount++;
+    });
+
+    data.forEach((i) => {
+        const sub = (i.qty + (i.hold || 0)) * i.price;
+        v += sub;
+        const minAlert = i.minQty !== undefined ? i.minQty : 5;
+        const isLow = i.qty <= minAlert;
+        const rowClass = isLow ? 'class="low-stock-row"' : '';
+
+        h += `<tr ${rowClass}>
+            <td>${i.name || 'Unnamed Item'} ${isLow ? '<span class="badge-low">LOW</span>' : ''}</td>
+            <td><span class="badge-cat">${i.category || 'General'}</span></td>
+            <td>${i.size || '-'}</td>
+            <td>${i.unit || '-'}</td>
+            <td><b>${i.qty}</b></td>
+            <td>${minAlert}</td>
+            <td style="color:purple"><b>${i.hold || 0}</b></td>
+            <td>₹${i.price}</td>
+            <td>₹${sub.toLocaleString()}</td>
+            <td><button class="edit-btn main-nav" onclick="openModal(${inventory.indexOf(i)})">Update</button></td>
+        </tr>`;
+    });
+
+    document.getElementById("list").innerHTML = h;
+    document.getElementById("totalItems").innerText = inventory.length;
+    document.getElementById("lowStockCount").innerText = lowCount;
+    document.getElementById("totalValue").innerText = v.toLocaleString();
+}
+
+function addItem() {
+    const name = document.getElementById("itemName").value.trim() || "Unnamed Item";
+    const category = document.getElementById("itemCat").value.trim() || "General";
+    const qty = +document.getElementById("itemQty").value || 0;
+    const price = +document.getElementById("itemPrice").value || 0;
+    const minQty = +document.getElementById("itemMinQty").value || 5;
+
+    inventory.push({ 
+        name, 
+        category,
+        size: document.getElementById("itemSize").value || "-", 
+        unit: document.getElementById("itemUnit").value || "-", 
+        qty, 
+        hold: 0, 
+        price,
+        minQty
+    });
+
+    logAction(name, "ADD ITEM", qty);
+    localStorage.setItem("inv", JSON.stringify(inventory));
+    
+    document.getElementById("itemName").value = "";
+    document.getElementById("itemCat").value = "";
+    document.getElementById("itemSize").value = "";
+    document.getElementById("itemUnit").value = "";
+    document.getElementById("itemQty").value = "";
+    document.getElementById("itemPrice").value = "";
+    document.getElementById("itemMinQty").value = "5";
+
+    render();
+}
+
+function openModal(index) {
+    editIdx = index;
+    const item = inventory[index];
+    document.getElementById("modalTitle").innerText = "Item: " + (item.name || 'Unnamed Item');
+    document.getElementById("curStock").innerText = item.qty;
+    document.getElementById("curHold").innerText = item.hold || 0;
+    document.getElementById("transAmt").value = "";
+    
+    if(activeUser.role === "ADMIN") {
+        document.getElementById("adminEditGroup").classList.remove("hidden");
+        document.getElementById("adminDeleteGroup").classList.remove("hidden");
+        document.getElementById("editName").value = item.name || "";
+        document.getElementById("editCat").value = item.category || "General";
+        document.getElementById("editSize").value = item.size || "-";
+        document.getElementById("editUnit").value = item.unit || "-";
+        document.getElementById("editPrice").value = item.price || 0;
+        document.getElementById("editMinQty").value = item.minQty !== undefined ? item.minQty : 5;
+    } else {
+        document.getElementById("adminEditGroup").classList.add("hidden");
+        document.getElementById("adminDeleteGroup").classList.add("hidden");
+    }
+    document.getElementById("editModal").style.display = "flex";
+}
+
+function saveItemDetails() {
+    if(editIdx < 0) return;
+    const item = inventory[editIdx];
+
+    item.name = document.getElementById("editName").value.trim() || "Unnamed Item";
+    item.category = document.getElementById("editCat").value.trim() || "General";
+    item.size = document.getElementById("editSize").value || "-";
+    item.unit = document.getElementById("editUnit").value || "-";
+    item.price = +document.getElementById("editPrice").value || 0;
+    item.minQty = +document.getElementById("editMinQty").value || 5;
+
+    logAction(item.name, "UPDATE DETAILS", 0);
+    localStorage.setItem("inv", JSON.stringify(inventory));
+    render();
+    closeModal();
+}
+
+function doTrans(mode) {
+    const amt = +document.getElementById("transAmt").value || 0;
+    const item = inventory[editIdx];
+
+    if(activeUser.role === "ADMIN") {
+        item.name = document.getElementById("editName").value.trim() || "Unnamed Item";
+        item.category = document.getElementById("editCat").value.trim() || "General";
+        item.size = document.getElementById("editSize").value || "-";
+        item.unit = document.getElementById("editUnit").value || "-";
+        item.price = +document.getElementById("editPrice").value || 0;
+        item.minQty = +document.getElementById("editMinQty").value || 5;
+    }
+
+    if(mode === 'in') { item.qty += amt; logAction(item.name, "STOCK IN", amt); }
+    else if(mode === 'out') { 
+        if(item.qty < amt) return alert("Low Stock"); 
+        item.qty -= amt; 
+        logAction(item.name, "STOCK OUT", amt); 
+    }
+    else if(mode === 'hold') { 
+        if(item.qty < amt) return alert("Low Stock"); 
+        item.qty -= amt; 
+        item.hold = (item.hold || 0) + amt; 
+        logAction(item.name, "HOLD", amt); 
+    }
+    else if(mode === 'rel') { 
+        item.qty += (item.hold || 0); 
+        logAction(item.name, "RELEASE HOLD", item.hold); 
+        item.hold = 0; 
+    }
+    else if(mode === 'fin') { 
+        logAction(item.name, "FINAL OUT", item.hold); 
+        item.hold = 0; 
+    }
+
+    localStorage.setItem("inv", JSON.stringify(inventory));
+    render(); closeModal();
+}
+
+function deleteItem() {
+    if(confirm("Delete this item?")) {
+        const item = inventory[editIdx];
+        logAction(item.name, "DELETE ITEM", item.qty);
+        inventory.splice(editIdx, 1);
+        localStorage.setItem("inv", JSON.stringify(inventory));
+        render(); closeModal();
+    }
+}
+
+function closeModal() { document.getElementById("editModal").style.display = "none"; }
+
+function filterItems() { 
+    const query = document.getElementById("search").value.toLowerCase(); 
+    const cat = document.getElementById("categoryFilter").value;
+
+    const filtered = inventory.filter(i => {
+        const matchesQuery = (i.name || "").toLowerCase().includes(query);
+        const matchesCat = (cat === "ALL") || ((i.category || "General") === cat);
+        return matchesQuery && matchesCat;
+    });
+
+    render(filtered); 
+}
+
+function showHistoryModal() {
+    const body = document.getElementById("historyTableBody");
+    body.innerHTML = historyLog.map(rec => `<tr><td>${rec.time}</td><td>${rec.user}</td><td>${rec.item}</td><td><b>${rec.action}</b></td><td>${rec.qty}</td></tr>`).join("");
+    document.getElementById("historyModal").style.display = "flex";
+}
+function closeHistoryModal() { document.getElementById("historyModal").style.display = "none"; }
+
+function showAttendanceModal() {
+    const body = document.getElementById("attendanceTableBody");
+    body.innerHTML = attendanceRecords.map(rec => `<tr><td>${rec.name}</td><td>${rec.date}</td><td>${rec.time}</td></tr>`).join("");
+    document.getElementById("attendanceModal").style.display = "flex";
+}
+function closeAttendanceModal() { document.getElementById("attendanceModal").style.display = "none"; }
+
+document.addEventListener("keydown", (e) => {
+    const isModalOpen = document.getElementById("editModal").style.display === "flex";
+    if (document.activeElement.id === "search" && e.key === "ArrowDown") {
+        e.preventDefault();
+        const firstBtn = document.querySelector("#list .edit-btn");
+        if (firstBtn) firstBtn.focus();
+        return;
+    }
+    const els = Array.from(document.querySelectorAll(isModalOpen ? ".modal-nav" : ".main-nav"));
+    const i = els.indexOf(document.activeElement);
+    if (i !== -1) {
+        if(e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); (els[i+1] || els[0]).focus(); }
+        if(e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); (els[i-1] || els[els.length-1]).focus(); }
+    }
+});
+</script>
 </body>
 </html>
