@@ -1,1 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pro Inventory - Live Workspace</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage" class="auth-box">
+    <h2>Inventory Login</h2>
+    <input id="email" type="email" placeholder="Email" style="width:90%"><br>
+    <input id="password" type="password" placeholder="Password" style="width:90%"><br><br>
+    <button class="auth-btn" onclick="emailLogin()" style="width:45%">Login</button>
+    <button class="auth-btn" onclick="signup()" style="width:45%">Signup</button>
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+    <button class="google-btn" onclick="googleLogin()">Sign in with Google</button>
+</div>
+
+<!-- ROLE -->
+<div id="rolePage" class="auth-box hidden">
+    <h2>Select Role</h2>
+    <button class="role-btn" onclick="chooseAdmin()">Owner (Admin)</button>
+    <button class="role-btn" style="background:#6f42c1" onclick="chooseEmployee()">Employee</button>
+    <br><br>
+    <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout / Switch Account</button>
+</div>
+
+<!-- ADMIN CHOICE -->
+<div id="adminChoicePage" class="auth-box hidden">
+    <h2>Admin Portal</h2>
+    <p>Do you have a company already?</p>
+    <button class="role-btn" style="background:#28a745" onclick="showCreateCompany()">Create New Company</button>
+    <button class="role-btn" style="background:#222" onclick="showCompanyLogin()">Existing Company Login</button>
+    <br><br>
+    <button onclick="backToRole()" style="color:#666; background:none; text-decoration:underline;">Back</button>
+</div>
+
+<!-- CREATE COMPANY -->
+<div id="createCompanyPage" class="auth-box hidden">
+    <h2>Setup New Company</h2>
+    <input id="companyName" placeholder="Company Name" style="width:90%">
+    <input id="adminPassword" type="password" placeholder="Set Admin Password" style="width:90%">
+    <input id="joinCode" placeholder="Set Employee Join Code" style="width:90%">
+    <button class="auth-btn" onclick="createCompany()" style="width:90%; margin-top:10px;">Initialize Company</button>
+    <br><button onclick="backToAdminChoice()" style="color:#666; background:none; text-decoration:underline;">Back</button>
+</div>
+
+<!-- EXISTING COMPANY: NAME -->
+<div id="companyLoginPage" class="auth-box hidden">
+    <h2>Enter Company Name</h2>
+    <input id="loginCompany" placeholder="Company Name" style="width:90%">
+    <button class="auth-btn" onclick="findCompany()" style="width:90%; margin-top:10px;">Next</button>
+    <br><button onclick="backToAdminChoice()" style="color:#666; background:none; text-decoration:underline;">Back</button>
+</div>
+
+<!-- EXISTING COMPANY: PASSWORD -->
+<div id="adminPasswordPage" class="auth-box hidden">
+    <h2>Admin Password</h2>
+    <p style="margin: 5px 0 15px 0; color: #555;">Company: <strong id="companyLabel"></strong></p>
+    <input id="loginAdminPassword" type="password" placeholder="Enter Admin Password" style="width:90%">
+    <button class="auth-btn" onclick="adminLogin()" style="width:90%; margin-top:10px;">Login to Dashboard</button>
+    <br><button onclick="backToAdminChoice()" style="color:#666; background:none; text-decoration:underline;">Back</button>
+</div>
+
+<!-- EMPLOYEE -->
+<div id="employeePage" class="auth-box hidden">
+    <h2>Employee Join</h2>
+    <input id="employeeName" placeholder="Your Name" style="width:90%">
+    <input id="employeeCompanyName" placeholder="Company Name" style="width:90%">
+    <input id="employeeJoinCode" placeholder="Company Join Code" style="width:90%">
+    <button class="auth-btn" onclick="employeeLogin()" style="width:90%; margin-top:10px;">Join Dashboard</button>
+    <br><button onclick="backToRole()" style="color:#666; background:none; text-decoration:underline;">Back</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden">
+    <header id="workspaceHeader">
+        <div>
+            <strong id="companyTitle">COMPANY</strong>
+            <span id="roleBadge" style="font-size:0.7em; background:var(--neon); color:black; padding:2px 6px; border-radius:4px; margin-left:5px;"></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div id="staffDisplay" class="staff-list hidden">Staff: <span id="staffNames">None</span></div>
+            <button id="historyBtn" class="auth-btn hidden" onclick="showHistoryModal()" style="background:#17a2b8;">📜 Audit History</button>
+            <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
+            <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Mark Attendance</button>
+            <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout</button>
+        </div>
+    </header>
+
+    <div id="adminGeoPanel" class="geo-panel hidden">
+        <h4 style="margin:0 0 10px 0; color:var(--neon);">📍 Attendance Geo-Fence Configuration</h4>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; align-items:center;">
+            <input id="geoLat" type="number" step="any" placeholder="Latitude">
+            <input id="geoLng" type="number" step="any" placeholder="Longitude">
+            <input id="geoRadius" type="number" placeholder="Radius (m)" value="20">
+            <button onclick="getCurrentLocation()" style="background:#6f42c1;">Fetch My Location</button>
+            <button onclick="saveGeoSettings()" style="background:#28a745;">Save Geo-Fence</button>
+        </div>
+        <p style="font-size:0.75em; margin:8px 0 0; opacity:0.8;">Tip: 20 m works if the phone has a good GPS signal (accuracy within about 10-15 m). Fetch the location from a phone, outdoors if possible.</p>
+    </div>
+
+    <div class="dashboard">
+        <div><p>Total Items</p><h2 id="totalItems">0</h2></div>
+        <div><p>Low Stock Items</p><h2 id="lowStock" style="color:#ff4d4d;">0</h2></div>
+        <div><p>Total Valuation</p><h2>₹<span id="totalValue">0</span></h2></div>
+    </div>
+
+    <div class="add-panel">
+        <h4>+ Add New Stock Item</h4>
+        <input id="itemName" class="main-nav" placeholder="Item Name">
+        <input id="itemCategory" class="main-nav" placeholder="Category (e.g. Snacks)">
+        <input id="itemSize" class="main-nav" placeholder="Size" style="width:70px;">
+        <input id="itemUnit" class="main-nav" placeholder="Unit" style="width:70px;">
+        <input id="itemQty" class="main-nav" type="number" min="0" placeholder="Qty" style="width:70px;">
+        <input id="itemPrice" class="main-nav" type="number" min="0" placeholder="Price" style="width:90px;">
+        <input id="itemMinQty" class="main-nav" type="number" min="0" placeholder="Min Alert" style="width:80px;" value="5">
+        <button class="main-nav" style="background:#0056b3" onclick="addItem()">Save</button>
+        <button class="main-nav" style="background:#555" onclick="exportInventory()">Export CSV</button>
+        <button id="importBtn" class="main-nav hidden" style="background:#217346" onclick="document.getElementById('importFile').click()">📥 Import Excel</button>
+        <button id="templateBtn" class="main-nav hidden" style="background:#6c757d" onclick="downloadTemplate()">Template</button>
+        <input id="importFile" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importInventory(this)">
+    </div>
+
+    <div class="filter-row">
+        <input id="search" class="main-nav" placeholder="🔍 Search product..." oninput="filterInventory()" style="width:40%; min-width:200px; border-radius:20px;">
+        <select id="categoryFilter" class="main-nav" onchange="filterInventory()" style="border-radius:20px;">
+            <option value="ALL">All Categories</option>
+        </select>
+    </div>
+
+    <div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th><th>Category</th><th>Size</th><th>Unit</th><th>Stock</th>
+                <th>Hold</th><th>Min Alert</th><th>Price</th><th>Total</th><th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="inventoryBody"></tbody>
+    </table>
+    </div>
+</div>
+
+<!-- ATTENDANCE MODAL -->
+<div id="attendanceModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Staff Attendance Log</h3>
+        <table style="width:100%; color:#333;">
+            <thead><tr><th>Employee</th><th>Time</th><th>Distance</th></tr></thead>
+            <tbody id="attendanceBody"></tbody>
+        </table>
+        <br><button onclick="closeAttendanceModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div id="historyModal" class="modal-overlay">
+    <div class="modal-content" style="width:650px;">
+        <h3>📜 Stock Transaction Audit History</h3>
+        <table style="width:100%; color:#333; font-size:0.85em;">
+            <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Item</th><th>Qty</th></tr></thead>
+            <tbody id="historyBody"></tbody>
+        </table>
+        <br><button onclick="closeHistoryModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- EDIT / TRANSACTION MODAL -->
+<div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 id="modalTitle">Edit Item</h3>
+
+        <div id="adminEditGroup" class="hidden">
+            <input id="editName" class="modal-nav" placeholder="Item Name" style="width:90%">
+            <input id="editCategory" class="modal-nav" placeholder="Category Name" style="width:90%">
+            <div style="display:flex; gap:5px; justify-content:center;">
+                <input id="editSize" class="modal-nav" placeholder="Size" style="width:44%">
+                <input id="editUnit" class="modal-nav" placeholder="Unit" style="width:44%">
+            </div>
+            <div style="display:flex; gap:5px; justify-content:center;">
+                <input id="editPrice" class="modal-nav" type="number" placeholder="Price" style="width:44%">
+                <input id="editMinQty" class="modal-nav" type="number" placeholder="Min Alert Level" style="width:44%">
+            </div>
+            <button class="modal-nav" onclick="saveItem()" style="background:#28a745; width:93%; margin-top:8px;">💾 Save Details</button>
+            <hr style="margin:15px 0; border:0; border-top:1px solid #ddd;">
+        </div>
+
+        <div style="background:#f8f9fa; padding:10px; border-radius:8px; margin:10px 0;">
+            Stock: <span id="currentStock" style="color:green; font-weight:bold">0</span> |
+            Hold: <span id="currentHold" style="color:purple; font-weight:bold">0</span>
+        </div>
+
+        <input id="transactionQty" class="modal-nav" type="number" min="0" placeholder="Amount..." style="width:90%; text-align:center; font-size:1.2em; border:2px solid #222;">
+        <p style="font-size:0.75em; color:#666; margin:4px 0 10px;">Release / Final Out: leave the amount empty to use the full hold.</p>
+
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <button class="modal-nav" onclick="stockIn()" style="background:#28a745; width:30%">IN</button>
+            <button class="modal-nav" onclick="stockOut()" style="background:#dc3545; width:30%">OUT</button>
+            <button class="modal-nav" onclick="holdStock()" style="background:#6f42c1; width:30%">HOLD</button>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+            <button class="modal-nav" onclick="releaseStock()" style="background:#fd7e14; width:45%">RELEASE</button>
+            <button class="modal-nav" onclick="finalOut()" style="background:#222; width:45%">FINAL OUT</button>
+        </div>
+
+        <div id="adminDeleteGroup" class="hidden">
+            <button class="modal-nav" onclick="deleteItem()" style="background:#dc3545; width:100%; margin-top:10px;">Delete Item</button>
+        </div>
+        <br><button onclick="closeEditModal()" class="modal-nav" style="background:#666; width:100%">Close</button>
+    </div>
+</div>
+
+<div id="toast"></div>
+<div id="loadingOverlay" class="hidden">Loading...</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
 
