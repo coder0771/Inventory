@@ -85,6 +85,7 @@
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <div id="staffDisplay" class="staff-list hidden">Staff: <span id="staffNames">None</span></div>
             <button id="historyBtn" class="auth-btn hidden" onclick="showHistoryModal()" style="background:#17a2b8;">📜 Audit History</button>
+            <button id="movementBtn" class="auth-btn hidden" onclick="showMovementModal()" style="background:#c0392b;">🚶 Movement Log <span id="moveBadge" class="badge-low hidden">0</span></button>
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
             <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Mark Attendance</button>
             <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout</button>
@@ -102,6 +103,21 @@
         </div>
         <p style="font-size:0.75em; margin:8px 0 0; opacity:0.8;">Tip: 20 m works if the phone has a good GPS signal (accuracy within about 10-15 m). Fetch the location from a phone, outdoors if possible.</p>
     </div>
+
+    <div id="adminShopPanel" class="geo-panel hidden">
+        <h4 style="margin:0 0 10px 0; color:var(--neon);">🏪 Shop Radius - Employee Movement Tracking</h4>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; align-items:center;">
+            <input id="shopLat" type="number" step="any" placeholder="Shop Latitude">
+            <input id="shopLng" type="number" step="any" placeholder="Shop Longitude">
+            <input id="shopRadius" type="number" placeholder="Radius (m)" value="100">
+            <button onclick="getShopLocation()" style="background:#6f42c1;">Fetch My Location</button>
+            <button onclick="saveShopRadius()" style="background:#28a745;">Save Shop Radius</button>
+            <button onclick="disableShopTracking()" style="background:#dc3545;">Turn Off</button>
+        </div>
+        <p style="font-size:0.75em; margin:8px 0 0; opacity:0.8;">You get an alert at the top right when an employee leaves or re-enters this radius. It works while the employee has this app open on their phone.</p>
+    </div>
+
+    <div id="trackStatus" class="track-status hidden"></div>
 
     <div class="dashboard">
         <div><p>Total Items</p><h2 id="totalItems">0</h2></div>
@@ -154,6 +170,19 @@
             <tbody id="attendanceBody"></tbody>
         </table>
         <br><button onclick="closeAttendanceModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- MOVEMENT MODAL -->
+<div id="movementModal" class="modal-overlay">
+    <div class="modal-content" style="width:650px;">
+        <h3>🚶 Employee Movement Log</h3>
+        <div id="presenceList" style="text-align:left; margin-bottom:12px;"></div>
+        <table style="width:100%; color:#333; font-size:0.85em;">
+            <thead><tr><th>Employee</th><th>Event</th><th>Time</th><th>Distance</th></tr></thead>
+            <tbody id="movementBody"></tbody>
+        </table>
+        <br><button onclick="closeMovementModal()" class="auth-btn" style="width:100%">Close</button>
     </div>
 </div>
 
@@ -214,6 +243,7 @@
     </div>
 </div>
 
+<div id="alertStack"></div>
 <div id="toast"></div>
 <div id="loadingOverlay" class="hidden">Loading...</div>
 
@@ -221,4 +251,3 @@
 <script type="module" src="app.js"></script>
 </body>
 </html>
-
