@@ -272,3 +272,12 @@ tr.low-stock-row {
 .filter-row { margin-top: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .table-wrap { overflow-x: auto; }
 
+/* --- MOVEMENT ALERTS (top right) --- */
+#alertStack { position: fixed; top: 70px; right: 15px; z-index: 2500; display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: 90%; }
+.move-alert { text-align: left; padding: 12px 14px; border-radius: 10px; color: white; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,0.4); animation: slideIn 0.3s ease; }
+.move-alert.left { background: #c0392b; border-left: 6px solid #ff8f8f; }
+.move-alert.enter { background: #1e7e34; border-left: 6px solid var(--neon); }
+@keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.badge-in { background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
+#moveBadge { margin-left: 4px; }
+.track-status { background: rgba(0,0,0,0.6); color: var(--neon); padding: 8px 15px; font-size: 0.9em; border-bottom: 1px solid var(--neon); }
