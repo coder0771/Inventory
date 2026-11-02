@@ -1,4 +1,3 @@
-
 // ==========================================
 // PRO INVENTORY - APP.JS (Firebase Auth + Firestore)
 // All company / inventory / staff data lives in Firestore,
@@ -41,6 +40,9 @@ let selectedItem = null;
 let currentRole = "";
 let displayName = "";
 let unsubs = [];
+let staffList = [];
+let trackWatchId = null, trackState = null, trackPending = 0, trackBusy = false, wakeLock = null;
+let unreadMoves = 0;
 
 /* ---------- HELPERS ---------- */
 const $ = (id) => document.getElementById(id);
@@ -74,7 +76,7 @@ const PAGES = ["loginPage", "rolePage", "adminChoicePage", "createCompanyPage",
   "companyLoginPage", "adminPasswordPage", "employeePage", "app"];
 function showOnly(id) { PAGES.forEach(hide); show(id); }
 
-function stopListeners() { unsubs.forEach((u) => u()); unsubs = []; }
+function stopListeners() { unsubs.forEach((u) => u()); unsubs = []; stopTracking(); }
 
 /* ---------- AUTH STATE ---------- */
 onAuthStateChanged(auth, (user) => {
@@ -260,7 +262,7 @@ function openDashboard() {
 
   const admin = currentRole === "ADMIN";
   // Admin-only controls: history, attendance log, geo-fence, Excel import
-  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
+  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
   if (!admin) closeHistoryModal();
   admin ? hide("markAttBtn") : show("markAttBtn");
 
@@ -269,12 +271,25 @@ function openDashboard() {
     $("geoLng").value = companyData.geo.lng;
     $("geoRadius").value = companyData.geo.radius;
   }
+  if (admin && companyData.shopGeo) {
+    $("shopLat").value = companyData.shopGeo.lat;
+    $("shopLng").value = companyData.shopGeo.lng;
+    $("shopRadius").value = companyData.shopGeo.radius;
+  }
   startRealtime();
+  if (!admin) startTracking();
 }
 
 function startRealtime() {
   stopListeners();
   const base = ["companies", companyID];
+  unreadMoves = 0;
+  updateMoveBadge();
+
+  // live company settings (so a changed shop radius reaches employees immediately)
+  unsubs.push(onSnapshot(doc(db, ...base), (s) => {
+    if (s.exists()) { companyData = { ...companyData, ...s.data() }; if (currentRole === "EMPLOYEE") updateTrackNow(); }
+  }, (e) => console.error("Company listener:", e)));
 
   unsubs.push(onSnapshot(collection(db, ...base, "inventory"), (snap) => {
     inventory = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -293,9 +308,30 @@ function startRealtime() {
     }, (e) => console.error("History listener:", e)));
 
     unsubs.push(onSnapshot(collection(db, ...base, "staff"), (snap) => {
-      const names = snap.docs.map((d) => escapeHTML(d.data().name));
+      staffList = snap.docs.map((d) => d.data());
+      const names = staffList.map((s) => escapeHTML(s.name));
       $("staffNames").innerHTML = names.length ? names.join(", ") : "None";
+      renderPresence();
     }, (e) => console.error("Staff listener:", e)));
+
+    // employee left / entered shop radius events
+    let firstMoveSnap = true;
+    unsubs.push(onSnapshot(query(collection(db, ...base, "movements"), orderBy("time", "desc")), (snap) => {
+      $("movementBody").innerHTML = snap.docs.map((d) => {
+        const m = d.data();
+        const left = m.type === "LEFT";
+        return `<tr><td>${escapeHTML(m.name)}</td>
+          <td><span class="${left ? "badge-low" : "badge-in"}">${left ? "LEFT radius" : "ENTERED radius"}</span></td>
+          <td>${fmtTime(m.time)}</td><td>${Math.round(m.distance ?? 0)} m${m.note ? " <small>(" + escapeHTML(m.note) + ")</small>" : ""}</td></tr>`;
+      }).join("") || '<tr><td colspan="4">No movement recorded yet</td></tr>';
+
+      if (!firstMoveSnap) {
+        snap.docChanges().forEach((c) => {
+          if (c.type === "added" && !c.doc.metadata.hasPendingWrites) notifyMovement(c.doc.data());
+        });
+      }
+      firstMoveSnap = false;
+    }, (e) => console.error("Movement listener:", e)));
 
     unsubs.push(onSnapshot(query(collection(db, ...base, "attendance"), orderBy("time", "desc")), (snap) => {
       $("attendanceBody").innerHTML = snap.docs.map((d) => {
@@ -508,18 +544,20 @@ function getPosition({ targetAccuracy = 15, maxWait = 12000 } = {}) {
   });
 }
 
-window.getCurrentLocation = async function () {
+async function fetchInto(latId, lngId) {
   try {
     loading(true);
     toast("Getting precise location... stay still for a few seconds");
     const p = await getPosition({ targetAccuracy: 10, maxWait: 15000 });
-    $("geoLat").value = p.coords.latitude;
-    $("geoLng").value = p.coords.longitude;
+    $(latId).value = p.coords.latitude;
+    $(lngId).value = p.coords.longitude;
     toast(`Location fetched (accuracy ±${Math.round(p.coords.accuracy)} m)` +
       (p.coords.accuracy > 25 ? " - weak signal! Move outdoors and fetch again before saving" : ""));
   } catch (err) { toast(err.message); }
   finally { loading(false); }
-};
+}
+window.getCurrentLocation = () => fetchInto("geoLat", "geoLng");
+window.getShopLocation = () => fetchInto("shopLat", "shopLng");
 
 window.saveGeoSettings = async function () {
   const lat = parseFloat($("geoLat").value), lng = parseFloat($("geoLng").value);
@@ -567,6 +605,145 @@ window.markAttendance = async function () {
   } catch (err) { console.error(err); toast(err.message); }
   finally { loading(false); }
 };
+
+
+/* ---------- SHOP RADIUS (employee movement tracking) ---------- */
+window.saveShopRadius = async function () {
+  const lat = parseFloat($("shopLat").value), lng = parseFloat($("shopLng").value);
+  const radius = parseFloat($("shopRadius").value);
+  if (isNaN(lat) || isNaN(lng) || isNaN(radius) || radius <= 0) return toast("Enter valid latitude, longitude and radius");
+  try {
+    await updateDoc(doc(db, "companies", companyID), { shopGeo: { lat, lng, radius } });
+    companyData.shopGeo = { lat, lng, radius };
+    toast("Shop radius saved. Employees are now tracked against it.");
+  } catch (err) { console.error(err); toast(err.message); }
+};
+
+window.disableShopTracking = async function () {
+  try {
+    await updateDoc(doc(db, "companies", companyID), { shopGeo: null });
+    companyData.shopGeo = null;
+    ["shopLat", "shopLng"].forEach((i) => ($(i).value = ""));
+    toast("Employee tracking turned off");
+  } catch (err) { console.error(err); toast(err.message); }
+};
+
+/* ---------- EMPLOYEE SIDE: watch position, log LEFT / ENTERED ----------
+   Works only while the employee has this page open (browsers pause web pages in the background). */
+function setTrackStatus(text) { const el = $("trackStatus"); if (el) { el.innerText = text; show("trackStatus"); } }
+
+function startTracking() {
+  stopTracking();
+  if (currentRole !== "EMPLOYEE") return;
+  if (!navigator.geolocation) return setTrackStatus("📍 Location is not supported on this device");
+  trackState = null; trackPending = 0;
+  trackWatchId = navigator.geolocation.watchPosition(onTrackPosition,
+    (e) => setTrackStatus("📍 Location error: " + e.message + ". Allow location access to continue."),
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+  requestWakeLock();
+  setTrackStatus("📍 Starting location tracking...");
+}
+
+function stopTracking() {
+  if (trackWatchId !== null) { navigator.geolocation.clearWatch(trackWatchId); trackWatchId = null; }
+  releaseWakeLock();
+  hide("trackStatus");
+}
+
+let lastTrackPos = null;
+function updateTrackNow() { if (lastTrackPos) onTrackPosition(lastTrackPos); }
+
+async function onTrackPosition(pos) {
+  lastTrackPos = pos;
+  const g = companyData?.shopGeo;
+  if (!g) { trackState = null; return setTrackStatus("📍 Tracking is off (the owner has not set a shop radius)"); }
+  const acc = pos.coords.accuracy;
+  if (acc > 50) return setTrackStatus(`📍 Waiting for a better GPS signal (±${Math.round(acc)} m)`);
+  if (trackBusy) return;
+  trackBusy = true;
+  try {
+    const d = distanceMeters(pos.coords.latitude, pos.coords.longitude, g.lat, g.lng);
+
+    if (trackState === null) {
+      // first reading: compare with the last saved state so reloads don't create duplicate events
+      const computed = d > g.radius + acc ? "OUT" : "IN";
+      let stored = null;
+      try { stored = (await getDoc(doc(db, "companies", companyID, "staff", currentUser.uid))).data()?.presence ?? null; } catch (e) {}
+      trackState = computed;
+      if (stored !== computed && !(stored === null && computed === "IN")) {
+        await logMovement(computed, d, acc, stored === null ? "outside when app opened" : "");
+      }
+    } else {
+      // Needs 2 readings in a row to change state, and uses GPS error as margin, to avoid false alerts
+      const want = trackState === "IN" ? (d > g.radius + acc ? "OUT" : "IN") : (d <= g.radius ? "IN" : "OUT");
+      if (want === trackState) trackPending = 0;
+      else if (++trackPending >= 2) {
+        trackState = want; trackPending = 0;
+        await logMovement(want, d, acc, "");
+      }
+    }
+    setTrackStatus(`📍 Tracking on: you are ${trackState === "IN" ? "inside" : "outside"} the shop radius (${Math.round(d)} m from shop)`);
+  } finally { trackBusy = false; }
+}
+
+async function logMovement(state, distance, accuracy, note) {
+  try {
+    await addDoc(collection(db, "companies", companyID, "movements"), {
+      uid: currentUser.uid, name: displayName || currentUser.email || "Employee",
+      type: state === "OUT" ? "LEFT" : "ENTERED", distance, accuracy, note, time: serverTimestamp()
+    });
+    await setDoc(doc(db, "companies", companyID, "staff", currentUser.uid),
+      { presence: state, presenceAt: serverTimestamp() }, { merge: true });
+  } catch (err) { console.error("Movement log error:", err); }
+}
+
+async function requestWakeLock() {
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+function releaseWakeLock() { try { wakeLock?.release(); } catch (e) {} wakeLock = null; }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && trackWatchId !== null) requestWakeLock();
+});
+
+/* ---------- ADMIN SIDE: alerts + movement log ---------- */
+function fmtTime(t) { return t?.toDate ? t.toDate().toLocaleString() : new Date().toLocaleString(); }
+
+function updateMoveBadge() {
+  const b = $("moveBadge");
+  if (!b) return;
+  b.innerText = unreadMoves;
+  unreadMoves > 0 ? b.classList.remove("hidden") : b.classList.add("hidden");
+}
+
+function notifyMovement(m) {
+  const left = m.type === "LEFT";
+  const card = document.createElement("div");
+  card.className = "move-alert " + (left ? "left" : "enter");
+  card.innerHTML = `<b>${left ? "🚪 Left" : "✅ Entered"}</b> - ${escapeHTML(m.name)}<br>
+    <small>${left ? "left" : "came back inside"} the shop radius at ${fmtTime(m.time)} (${Math.round(m.distance ?? 0)} m)</small>`;
+  card.onclick = () => card.remove();
+  $("alertStack").prepend(card);
+  setTimeout(() => card.remove(), 20000);
+  unreadMoves++;
+  updateMoveBadge();
+}
+
+function renderPresence() {
+  const el = $("presenceList");
+  if (!el) return;
+  el.innerHTML = staffList.length ? staffList.map((s) => {
+    const st = s.presence === "OUT" ? '<span class="badge-low">Outside</span>'
+      : s.presence === "IN" ? '<span class="badge-in">Inside</span>' : '<span class="badge-cat" style="background:#888">No data</span>';
+    return `<div style="margin:4px 0">${escapeHTML(s.name)} ${st}</div>`;
+  }).join("") : "No staff have joined yet";
+}
+
+window.showMovementModal = () => {
+  if (currentRole !== "ADMIN") return;
+  unreadMoves = 0; updateMoveBadge(); renderPresence();
+  $("movementModal").classList.add("open");
+};
+window.closeMovementModal = () => $("movementModal").classList.remove("open");
 
 /* ---------- RENDER / SEARCH / CATEGORY FILTER ---------- */
 function updateDashboard() {
