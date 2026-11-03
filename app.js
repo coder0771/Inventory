@@ -11,7 +11,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
-  getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch
+  getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -147,12 +147,26 @@ window.showCreateCompany = () => showOnly("createCompanyPage");
 window.showCompanyLogin = () => showOnly("companyLoginPage");
 window.backToAdminChoice = () => showOnly("adminChoicePage");
 
-/* ---------- COMPANY LOOKUP (case-insensitive, supports old records) ---------- */
-async function findCompanyDoc(name) {
-  const lower = name.toLowerCase();
-  let snap = await getDocs(query(collection(db, "companies"), where("companyNameLower", "==", lower)));
-  if (snap.empty) snap = await getDocs(query(collection(db, "companies"), where("companyName", "==", name)));
-  return snap.empty ? null : snap.docs[0];
+/* =====================================================================
+   SECURE ACCESS MODEL
+   companyDirectory/{sha256(name)} -> {companyId, companyName, ownerUid}   (look up by name only)
+   companies/{id}/private/access   -> {adminPassHash, joinCodeHash}        (owner can read; rules compare)
+   companies/{id}/members/{uid}    -> {role: ADMIN | EMPLOYEE, accessCode} (decides what a user may do)
+   The password / join code are never stored as plain data that other users can read.
+   ===================================================================== */
+const nameKey = (name) => sha256(normalizeString(name).toLowerCase());
+const codeHash = (cid, kind, secret) => sha256(`${cid}:${kind}:${secret}`);
+let pending = null; // company found by name, waiting for the admin password
+
+async function lookupCompany(name) {
+  const dir = await getDoc(doc(db, "companyDirectory", await nameKey(name)));
+  return dir.exists() ? { id: dir.data().companyId, name: dir.data().companyName } : null;
+}
+
+async function loadCompany(id) {
+  const snap = await getDoc(doc(db, "companies", id));
+  if (!snap.exists()) throw new Error("Company data not found");
+  return snap.data();
 }
 
 /* ---------- CREATE COMPANY ---------- */
@@ -164,28 +178,31 @@ window.createCompany = async function () {
 
   try {
     loading(true);
-    if (await findCompanyDoc(companyName)) return toast("Company already exists");
+    const dirRef = doc(db, "companyDirectory", await nameKey(companyName));
+    if ((await getDoc(dirRef)).exists()) return toast("Company already exists");
 
-    const salt = crypto.randomUUID();
+    const compRef = doc(collection(db, "companies"));
+    const id = compRef.id;
+    const uid = currentUser.uid;
+    const adminHash = await codeHash(id, "admin", adminPassword);
+
+    await setDoc(dirRef, { companyId: id, companyName, ownerUid: uid });
     const payload = {
-      companyName,
-      companyNameLower: companyName.toLowerCase(),
-      companyCode: code,
-      joinCode: code,
-      adminSalt: salt,
-      adminPassHash: await sha256(salt + adminPassword), // no plain-text password stored
-      adminUID: currentUser.uid, // creator only; NOT used to block other accounts
-      geo: null,
-      createdAt: serverTimestamp()
+      companyName, companyNameLower: companyName.toLowerCase(),
+      ownerUid: uid, geo: null, shopGeo: null, createdAt: serverTimestamp()
     };
-    const ref = await addDoc(collection(db, "companies"), payload);
-    companyID = ref.id;
-    companyData = payload;
-    currentRole = "ADMIN";
-    displayName = "Owner";
+    await setDoc(compRef, payload);
+    await setDoc(doc(db, "companies", id, "private", "access"), {
+      adminPassHash: adminHash, joinCodeHash: await codeHash(id, "join", code), joinCode: code
+    });
+    await setDoc(doc(db, "companies", id, "members", uid), {
+      uid, role: "ADMIN", accessCode: adminHash, name: "Owner", email: currentUser.email || "", createdAt: serverTimestamp()
+    });
+
+    companyID = id; companyData = payload; currentRole = "ADMIN"; displayName = "Owner";
     openDashboard();
     toast("Company Created Successfully");
-  } catch (err) { console.error(err); toast("Firestore Write Failed: " + err.message); }
+  } catch (err) { console.error(err); toast("Could not create company: " + err.message); }
   finally { loading(false); }
 };
 
@@ -195,34 +212,69 @@ window.findCompany = async function () {
   if (!name) return toast("Enter Company Name");
   try {
     loading(true);
-    const snap = await findCompanyDoc(name);
-    if (!snap) return toast("Company not found");
-    companyID = snap.id;
-    companyData = snap.data();
-    $("companyLabel").innerText = companyData.companyName;
+    const found = await lookupCompany(name);
+    if (found) pending = { ...found, legacy: null };
+    else {
+      // company made before the security upgrade: only the Google account that created it can open it once
+      const snap = await getDocs(query(collection(db, "companies"), where("adminUID", "==", currentUser.uid)));
+      const m = snap.docs.find((d) => normalizeString(d.data().companyName).toLowerCase() === name.toLowerCase());
+      if (!m) return toast("Company not found");
+      pending = { id: m.id, name: m.data().companyName, legacy: m.data() };
+    }
+    $("companyLabel").innerText = pending.name;
     showOnly("adminPasswordPage");
-  } catch (err) { console.error(err); toast("Firestore Read Error: " + err.message); }
+  } catch (err) { console.error(err); toast("Could not look up company: " + err.message); }
   finally { loading(false); }
 };
 
+async function migrateLegacy(id, d, password) {
+  const uid = currentUser.uid;
+  const adminHash = await codeHash(id, "admin", password);
+  const join = normalizeString(d.companyCode || d.joinCode);
+  await setDoc(doc(db, "companyDirectory", await nameKey(d.companyName)), { companyId: id, companyName: d.companyName, ownerUid: uid });
+  await updateDoc(doc(db, "companies", id), {
+    ownerUid: uid, adminPassHash: deleteField(), adminSalt: deleteField(), adminPassword: deleteField(),
+    joinCode: deleteField(), companyCode: deleteField()
+  });
+  await setDoc(doc(db, "companies", id, "private", "access"), {
+    adminPassHash: adminHash, joinCodeHash: join ? await codeHash(id, "join", join) : "", joinCode: join
+  });
+  await setDoc(doc(db, "companies", id, "members", uid), {
+    uid, role: "ADMIN", accessCode: adminHash, name: "Owner", email: currentUser.email || "", createdAt: serverTimestamp()
+  });
+}
+
 window.adminLogin = async function () {
   const password = normalizeString($("loginAdminPassword")?.value);
-  if (!companyData || !companyID) return toast("Enter the company name first");
+  if (!pending) return toast("Enter the company name first");
   if (!password) return toast("Enter admin password");
 
-  let ok = false;
-  if (companyData.adminPassHash) {
-    ok = (await sha256(companyData.adminSalt + password)) === companyData.adminPassHash;
-  } else {
-    ok = password === companyData.adminPassword; // legacy records
-  }
-  if (!ok) return toast("Wrong Password");
-
-  // FIX: the old `currentUser.uid !== adminUID` check was removed - it locked out every other account
-  currentRole = "ADMIN";
-  displayName = "Owner";
-  $("loginAdminPassword").value = "";
-  openDashboard();
+  try {
+    loading(true);
+    const id = pending.id;
+    if (pending.legacy) {
+      const d = pending.legacy;
+      const ok = d.adminPassHash ? (await sha256(d.adminSalt + password)) === d.adminPassHash : password === d.adminPassword;
+      if (!ok) return toast("Wrong Password");
+      await migrateLegacy(id, d, password);
+      toast("Company upgraded to the secure format. Employees must join again with the join code.");
+    } else {
+      const hash = await codeHash(id, "admin", password);
+      try {
+        // the Firestore rules accept this write ONLY if the hash matches the stored admin password
+        await setDoc(doc(db, "companies", id, "members", currentUser.uid),
+          { uid: currentUser.uid, role: "ADMIN", accessCode: hash, name: "Owner", email: currentUser.email || "" }, { merge: true });
+      } catch (err) {
+        if (err.code === "permission-denied") return toast("Wrong Password");
+        throw err;
+      }
+    }
+    companyData = await loadCompany(id);
+    companyID = id; currentRole = "ADMIN"; displayName = "Owner"; pending = null;
+    $("loginAdminPassword").value = "";
+    openDashboard();
+  } catch (err) { console.error(err); toast("Login failed: " + err.message); }
+  finally { loading(false); }
 };
 
 /* ---------- EMPLOYEE LOGIN ---------- */
@@ -234,23 +286,31 @@ window.employeeLogin = async function () {
 
   try {
     loading(true);
-    const snap = await findCompanyDoc(companyName);
-    if (!snap) return toast("Invalid Company Name");
-    const data = snap.data();
-    if (normalizeString(data.companyCode || data.joinCode) !== code) return toast("Invalid Company Code");
+    const found = await lookupCompany(companyName);
+    if (!found) return toast("Invalid Company Name");
 
-    companyID = snap.id;
-    companyData = data;
-    currentRole = "EMPLOYEE";
-    displayName = name;
+    const memRef = doc(db, "companies", found.id, "members", currentUser.uid);
+    const cur = await getDoc(memRef);
+    if (cur.exists() && cur.data().role === "ADMIN") {
+      return toast("This Google account is an admin of this company. Use a different Google account to join as an employee.");
+    }
+    try {
+      // accepted by the rules ONLY if the join code hash matches
+      await setDoc(memRef, { uid: currentUser.uid, role: "EMPLOYEE", accessCode: await codeHash(found.id, "join", code),
+        name, email: currentUser.email || "" }, { merge: true });
+    } catch (err) {
+      if (err.code === "permission-denied") return toast("Invalid Company Code");
+      throw err;
+    }
 
-    // one staff record per user (no duplicates on re-login)
+    companyData = await loadCompany(found.id);
+    companyID = found.id; currentRole = "EMPLOYEE"; displayName = name;
+
     await setDoc(doc(db, "companies", companyID, "staff", currentUser.uid),
-      { uid: currentUser.uid, name, email: currentUser.email || "", joinedAt: serverTimestamp() },
-      { merge: true });
+      { uid: currentUser.uid, name, email: currentUser.email || "", joinedAt: serverTimestamp() }, { merge: true });
 
     openDashboard();
-  } catch (err) { console.error(err); toast("Firestore Error: " + err.message); }
+  } catch (err) { console.error(err); toast("Could not join: " + err.message); }
   finally { loading(false); }
 };
 
@@ -262,9 +322,10 @@ function openDashboard() {
 
   const admin = currentRole === "ADMIN";
   // Admin-only controls: history, attendance log, geo-fence, Excel import
-  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
+  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "taskMgmtBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
   if (!admin) closeHistoryModal();
   admin ? hide("markAttBtn") : show("markAttBtn");
+  admin ? hide("taskEmpBtn") : show("taskEmpBtn");
 
   if (admin && companyData.geo) {
     $("geoLat").value = companyData.geo.lat;
@@ -277,6 +338,7 @@ function openDashboard() {
     $("shopRadius").value = companyData.shopGeo.radius;
   }
   startRealtime();
+  startTasks();
   if (!admin) startTracking();
 }
 
@@ -901,6 +963,437 @@ window.exportInventory = function () {
   a.click();
   URL.revokeObjectURL(url);
 };
+
+
+/* =====================================================================
+   TASK MANAGEMENT
+   companies/{id}/tasks      -> assigned tasks
+   companies/{id}/adminTasks -> owner's private notes
+   Every task has: assignees {uid:name}, completions {uid:{status,...}}, extensions {uid:endMs}
+   status: SUBMITTED (waiting) | APPROVED | DECLINED
+   ===================================================================== */
+let tasks = [];
+let adminTasks = [];
+let taskView = "menu";
+let taskDraft = {};
+let extendTarget = null;
+let confirmResolve = null;
+const FORM_VIEWS = ["assignAll", "assignSingle", "adminTasks"];
+
+const dtLocal = (ms) => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+const fmtMs = (ms) => (ms ? new Date(ms).toLocaleString() : "-");
+const effEnd = (t, uid) => (t.extensions && t.extensions[uid]) || t.endAt;
+
+function pushAlert(html, cls) {
+  const card = document.createElement("div");
+  card.className = "move-alert " + cls;
+  card.innerHTML = html;
+  card.onclick = () => card.remove();
+  $("alertStack").prepend(card);
+  setTimeout(() => card.remove(), 20000);
+}
+
+function askConfirm(msg) {
+  return new Promise((res) => {
+    $("confirmText").innerText = msg;
+    $("confirmModal").classList.add("open");
+    confirmResolve = res;
+  });
+}
+window.confirmAnswer = (yes) => {
+  $("confirmModal").classList.remove("open");
+  if (confirmResolve) confirmResolve(yes);
+  confirmResolve = null;
+};
+
+function startTasks() {
+  tasks = []; adminTasks = []; taskView = "menu"; extendTarget = null;
+  const base = ["companies", companyID];
+  const admin = currentRole === "ADMIN";
+  const col = collection(db, ...base, "tasks");
+  // employees run two simple queries (tasks for everyone + their own private ones) and the results are merged
+  const sources = admin ? [["all", col]] : [
+    ["pub", query(col, where("visibleTo", "array-contains", "ALL"))],
+    ["mine", query(col, where("visibleTo", "array-contains", currentUser.uid))]
+  ];
+
+  const parts = {}, firstSnap = {}, prevStatus = {}, prevExt = {};
+  sources.forEach(([key, q]) => {
+    firstSnap[key] = true;
+    unsubs.push(onSnapshot(q, (snap) => {
+      parts[key] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const seen = {};
+      tasks = Object.values(parts).flat().filter((t) => !seen[t.id] && (seen[t.id] = true));
+
+      if (!admin) {
+        const uid = currentUser.uid;
+        snap.docChanges().forEach((c) => {
+          const t = c.doc.data();
+          const my = t.completions && t.completions[uid] ? t.completions[uid].status : null;
+          const ext = t.extensions ? t.extensions[uid] : null;
+          if (!firstSnap[key] && !c.doc.metadata.hasPendingWrites) {
+            if (c.type === "added") pushAlert(`<b>📋 New task</b><br><small>${escapeHTML(t.title)}</small>`, "enter");
+            else if (c.type === "modified") {
+              if (my === "DECLINED" && prevStatus[c.doc.id] !== "DECLINED")
+                pushAlert(`<b>❌ Task declined</b><br><small>${escapeHTML(t.title)}<br>Please do it again and re-submit.</small>`, "left");
+              else if (my === "APPROVED" && prevStatus[c.doc.id] !== "APPROVED")
+                pushAlert(`<b>✅ Task approved</b><br><small>${escapeHTML(t.title)}</small>`, "enter");
+              if (ext && ext !== prevExt[c.doc.id])
+                pushAlert(`<b>⏳ Deadline extended</b><br><small>${escapeHTML(t.title)}<br>New end: ${fmtMs(ext)}</small>`, "enter");
+            }
+          }
+          prevStatus[c.doc.id] = my; prevExt[c.doc.id] = ext;
+        });
+      }
+      firstSnap[key] = false;
+      refreshTaskUI();
+    }, (e) => console.error("Task listener:", e)));
+  });
+
+  if (admin) {
+    unsubs.push(onSnapshot(collection(db, ...base, "adminTasks"), (snap) => {
+      adminTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((x, y) => (y.createdAt?.toMillis?.() || Date.now()) - (x.createdAt?.toMillis?.() || Date.now()));
+      renderAdminTaskList();
+    }, (e) => console.error("Admin task listener:", e)));
+  }
+  const h = setInterval(refreshTaskUI, 30000); // so expired tasks move to "Incompleted" by themselves
+  unsubs.push(() => clearInterval(h));
+}
+
+function refreshTaskUI() { updateTaskBadges(); renderTaskAdmin(false); renderEmpTasks(); }
+
+/* one row per (task, employee) */
+function taskRows() {
+  const rows = [];
+  tasks.forEach((t) => {
+    const ids = new Set([...Object.keys(t.assignees || {}), ...Object.keys(t.completions || {})]);
+    ids.forEach((uid) => {
+      const c = t.completions ? t.completions[uid] : null;
+      rows.push({
+        t, uid, c,
+        name: (t.assignees && t.assignees[uid]) || (c && c.name) || "Employee",
+        assigned: !!(t.assignees && t.assignees[uid]),
+        end: effEnd(t, uid),
+        status: c ? c.status : "PENDING"
+      });
+    });
+  });
+  return rows;
+}
+const isIncomplete = (r) => r.assigned && Date.now() > r.end && r.status !== "SUBMITTED" && r.status !== "APPROVED";
+
+function alertList() {
+  const m = {};
+  taskRows().filter(isIncomplete).forEach((r) => {
+    if (!m[r.uid]) m[r.uid] = { name: r.name, titles: [] };
+    m[r.uid].titles.push(r.t.title);
+  });
+  return Object.values(m).filter((x) => x.titles.length >= 3);
+}
+
+function setBadge(id, n) {
+  const b = $(id);
+  if (!b) return;
+  b.innerText = n;
+  n > 0 ? b.classList.remove("hidden") : b.classList.add("hidden");
+}
+
+function updateTaskBadges() {
+  if (currentRole === "ADMIN") {
+    setBadge("taskBadge", taskRows().filter((r) => r.status === "SUBMITTED").length + alertList().length);
+  } else if (currentRole === "EMPLOYEE" && currentUser) {
+    const uid = currentUser.uid, now = Date.now();
+    setBadge("taskEmpBadge", tasks.filter((t) => {
+      const st = t.completions && t.completions[uid] ? t.completions[uid].status : "PENDING";
+      const mine = t.scope === "ALL" || (t.assignees && t.assignees[uid]);
+      return mine && st !== "SUBMITTED" && st !== "APPROVED" && now >= t.startAt && now <= effEnd(t, uid);
+    }).length);
+  }
+}
+
+/* ---------- ADMIN: Task Management window ---------- */
+window.showTaskModal = () => {
+  if (currentRole !== "ADMIN") return;
+  taskView = "menu"; extendTarget = null;
+  $("taskModal").classList.add("open");
+  renderTaskAdmin(true);
+};
+window.closeTaskModal = () => $("taskModal").classList.remove("open");
+window.taskGo = (v) => { taskView = v; extendTarget = null; renderTaskAdmin(true); };
+
+const backBtn = (to) => `<button class="auth-btn" style="background:#666; width:100%; margin-top:12px" onclick="taskGo('${to}')">← Back</button>`;
+
+function infoHTML(r) {
+  const t = r.t;
+  const type = t.scope === "ALL" ? "All employees" : "Single employee - " + (t.privacy === "PUBLIC" ? "Public" : "Private");
+  return `<div class="task-title">${escapeHTML(t.title)}</div>
+    <div class="task-meta">👤 ${escapeHTML(r.name)} &middot; ${type}<br>
+    🟢 Start: ${fmtMs(t.startAt)}<br>🔴 End: ${fmtMs(r.end)}
+    ${r.c && r.c.submittedAt ? "<br>📨 Submitted: " + fmtMs(r.c.submittedAt) : ""}</div>`;
+}
+
+function renderTaskAdmin(force) {
+  const body = $("taskBody");
+  if (!body || !$("taskModal").classList.contains("open")) return;
+  if (!force && (FORM_VIEWS.includes(taskView) || extendTarget)) return; // never wipe what the owner is typing
+
+  const rows = taskRows();
+  const approvals = rows.filter((r) => r.c).sort((x, y) => (y.c.submittedAt || 0) - (x.c.submittedAt || 0));
+  const incomplete = rows.filter(isIncomplete);
+  const alerts = alertList();
+  const titles = { menu: "📋 Task Management", assignType: "📝 Task Assignment", pick: "Choose Employee", assignAll: "Task for All Employees",
+    assignSingle: "Task for " + (taskDraft.name || ""), adminTasks: "🔒 Admin Task (only you can see)",
+    approval: "✅ Task Complete Approval", incomplete: "⏰ Incompleted Tasks", alerts: "🚨 Alerts" };
+  $("taskTitle").innerText = titles[taskView] || "Task Management";
+  let h = "";
+
+  if (taskView === "menu") {
+    const pend = approvals.filter((r) => r.status === "SUBMITTED").length;
+    h = `<button class="role-btn" onclick="taskGo('assignType')">1. Task Assignment</button>
+      <button class="role-btn" onclick="taskGo('adminTasks')">2. Admin Task</button>
+      <button class="role-btn" onclick="taskGo('approval')">3. Task Complete Approval ${pend ? `<span class="badge-low">${pend}</span>` : ""}</button>
+      <button class="role-btn" onclick="taskGo('incomplete')">4. Incompleted Task ${incomplete.length ? `<span class="badge-low">${incomplete.length}</span>` : ""}</button>
+      <button class="role-btn" onclick="taskGo('alerts')">5. Alert ${alerts.length ? `<span class="badge-low">${alerts.length}</span>` : ""}</button>`;
+  }
+
+  else if (taskView === "assignType") {
+    h = `<p>Is this task for a single employee or for all employees?</p>
+      <button class="role-btn" style="background:#6f42c1" onclick="taskGo('pick')">👤 Single Employee</button>
+      <button class="role-btn" style="background:#28a745" onclick="taskGo('assignAll')">👥 All Employees</button>${backBtn("menu")}`;
+  }
+
+  else if (taskView === "pick") {
+    h = staffList.length
+      ? staffList.map((s) => `<button class="role-btn" style="background:#222" onclick="pickEmployee('${escapeHTML(s.uid)}')">${escapeHTML(s.name)}</button>`).join("")
+      : "<p>No employees have joined yet.</p>";
+    h += backBtn("assignType");
+  }
+
+  else if (taskView === "assignAll" || taskView === "assignSingle") {
+    const single = taskView === "assignSingle";
+    h = `<textarea id="taskText" class="task-input" rows="3" placeholder="Type the task here..."></textarea>
+      <label class="task-label">Start date &amp; time</label>
+      <input id="taskStart" type="datetime-local" value="${dtLocal(Date.now())}" style="width:95%">
+      <label class="task-label">End date &amp; time (task must be completed by)</label>
+      <input id="taskEnd" type="datetime-local" value="${dtLocal(Date.now() + 86400000)}" style="width:95%">
+      ${single ? `<label class="task-label">Privacy</label>
+        <div class="task-radio"><label><input type="radio" name="taskPrivacy" value="PUBLIC" checked> Public (all employees can see it)</label><br>
+        <label><input type="radio" name="taskPrivacy" value="PRIVATE"> Private (only ${escapeHTML(taskDraft.name || "this employee")} can see it)</label></div>` : ""}
+      <button class="role-btn" style="background:#28a745" onclick="submitTask('${single ? "SINGLE" : "ALL"}')">Submit Task</button>
+      ${backBtn(single ? "pick" : "assignType")}`;
+  }
+
+  else if (taskView === "adminTasks") {
+    h = `<div style="display:flex; gap:6px"><input id="adminTaskText" class="task-input" style="flex:1; margin:0" placeholder="Type your own task...">
+      <button class="auth-btn" style="background:#28a745" onclick="addAdminTask()">Add</button></div>
+      <div id="adminTaskList" style="margin-top:12px"></div>${backBtn("menu")}`;
+  }
+
+  else if (taskView === "approval") {
+    h = approvals.length ? approvals.map((r) => {
+      const ok = r.status === "APPROVED", no = r.status === "DECLINED";
+      return `<div class="task-card">
+        <button class="bin" title="Delete" onclick="deleteRow('${r.t.id}','${escapeHTML(r.uid)}')">🗑</button>
+        <div class="task-info">${infoHTML(r)}<div class="task-note">${ok ? "✅ Approved" : no ? "❌ Declined" : "⏳ Waiting for your decision"}</div></div>
+        <div class="decide-col">
+          <div class="decide"><div class="dlabel ok">✔</div><div class="dbox ${ok ? "on-ok" : ""}" onclick="decideTask('${r.t.id}','${escapeHTML(r.uid)}','APPROVED')">${ok ? "✔" : ""}</div></div>
+          <div class="decide"><div class="dlabel no">✖</div><div class="dbox ${no ? "on-no" : ""}" onclick="decideTask('${r.t.id}','${escapeHTML(r.uid)}','DECLINED')">${no ? "✖" : ""}</div></div>
+        </div></div>`;
+    }).join("") : "<p>No tasks have been completed by employees yet.</p>";
+    h += backBtn("menu");
+  }
+
+  else if (taskView === "incomplete") {
+    h = incomplete.length ? incomplete.map((r) => {
+      const open = extendTarget && extendTarget.id === r.t.id && extendTarget.uid === r.uid;
+      return `<div class="task-card" style="flex-wrap:wrap">
+        <div class="task-info">${infoHTML(r)}<div class="task-note">❌ Not completed before the end time</div></div>
+        <div class="decide-col">
+          <button class="edit-btn" onclick="openExtend('${r.t.id}','${escapeHTML(r.uid)}')">⏳ Extend end time</button>
+          <button class="bin" title="Delete" onclick="deleteRow('${r.t.id}','${escapeHTML(r.uid)}')">🗑</button>
+        </div>
+        ${open ? `<div style="width:100%; margin-top:8px"><label class="task-label">New end date &amp; time</label>
+          <input id="extendEnd" type="datetime-local" value="${dtLocal(Date.now() + 86400000)}">
+          <button class="auth-btn" style="background:#28a745" onclick="submitExtend()">Submit</button>
+          <button class="auth-btn" style="background:#666" onclick="closeExtend()">Cancel</button></div>` : ""}
+      </div>`;
+    }).join("") : "<p>No incompleted tasks 🎉</p>";
+    h += backBtn("menu");
+  }
+
+  else if (taskView === "alerts") {
+    h = alerts.length ? alerts.map((a) => `<div class="task-card" style="border-left:6px solid #dc3545">
+      <div class="task-info"><div class="task-title">🚨 ${escapeHTML(a.name)}</div>
+      <div class="task-meta">${escapeHTML(a.name)} has not completed his ${a.titles.length} tasks:<br>• ${a.titles.map(escapeHTML).join("<br>• ")}</div></div></div>`).join("")
+      : "<p>No alerts. No employee has 3 or more incompleted tasks.</p>";
+    h += backBtn("menu");
+  }
+
+  body.innerHTML = h;
+  if (taskView === "adminTasks") renderAdminTaskList();
+}
+
+window.pickEmployee = (uid) => {
+  const s = staffList.find((x) => x.uid === uid);
+  if (!s) return;
+  taskDraft = { uid: s.uid, name: s.name };
+  taskGo("assignSingle");
+};
+
+window.submitTask = async (scope) => {
+  const title = normalizeString($("taskText")?.value);
+  const s = new Date($("taskStart").value).getTime(), e = new Date($("taskEnd").value).getTime();
+  if (!title) return toast("Type the task first");
+  if (isNaN(s) || isNaN(e)) return toast("Set the start and end date & time");
+  if (e <= s) return toast("End time must be after the start time");
+  if (e <= Date.now()) return toast("End time has already passed. Choose a future time");
+
+  const assignees = {};
+  let privacy = "ALL", visibleTo = ["ALL"];
+  if (scope === "ALL") {
+    staffList.forEach((x) => (assignees[x.uid] = x.name));
+  } else {
+    assignees[taskDraft.uid] = taskDraft.name;
+    privacy = document.querySelector('input[name="taskPrivacy"]:checked')?.value || "PUBLIC";
+    visibleTo = privacy === "PRIVATE" ? [taskDraft.uid] : ["ALL"];
+  }
+  try {
+    loading(true);
+    await addDoc(collection(db, "companies", companyID, "tasks"), {
+      title, scope, privacy, visibleTo, assignees, completions: {}, extensions: {},
+      startAt: s, endAt: e, createdAt: serverTimestamp(), createdBy: currentUser.uid
+    });
+    toast("Task submitted to " + (scope === "ALL" ? "all employees" : taskDraft.name));
+    taskGo("menu");
+  } catch (err) { console.error(err); toast("Could not save task: " + err.message); }
+  finally { loading(false); }
+};
+
+/* admin-only notes */
+function renderAdminTaskList() {
+  const el = $("adminTaskList");
+  if (!el) return;
+  el.innerHTML = adminTasks.length ? adminTasks.map((t) => `<div class="task-card">
+      <div class="task-info"><div class="task-title">${escapeHTML(t.text)}</div></div>
+      <button class="bin" title="Delete" onclick="delAdminTask('${t.id}')">🗑</button></div>`).join("")
+    : "<p>No admin tasks yet.</p>";
+}
+window.addAdminTask = async () => {
+  const text = normalizeString($("adminTaskText")?.value);
+  if (!text) return toast("Type a task first");
+  try {
+    await addDoc(collection(db, "companies", companyID, "adminTasks"), { text, createdAt: serverTimestamp() });
+    $("adminTaskText").value = "";
+  } catch (err) { console.error(err); toast(err.message); }
+};
+window.delAdminTask = async (id) => {
+  if (!(await askConfirm("Are you sure you want to delete this task?"))) return;
+  try { await deleteDoc(doc(db, "companies", companyID, "adminTasks", id)); toast("Task deleted"); }
+  catch (err) { console.error(err); toast(err.message); }
+};
+
+/* approve / decline */
+window.decideTask = async (id, uid, status) => {
+  const t = tasks.find((x) => x.id === id);
+  if (!t || !t.completions || !t.completions[uid] || t.completions[uid].status === status) return;
+  try {
+    await updateDoc(doc(db, "companies", companyID, "tasks", id), {
+      [`completions.${uid}.status`]: status, [`completions.${uid}.decidedAt`]: Date.now()
+    });
+    toast(status === "APPROVED" ? "Task approved" : "Task declined - employee notified");
+  } catch (err) { console.error(err); toast(err.message); }
+};
+
+/* delete one employee's task row (a task for everyone stays for the others) */
+window.deleteRow = async (id, uid) => {
+  const t = tasks.find((x) => x.id === id);
+  if (!t) return;
+  if (!(await askConfirm("Are you sure you want to delete this task?"))) return;
+  try {
+    const ref = doc(db, "companies", companyID, "tasks", id);
+    const others = Object.keys(t.assignees || {}).filter((k) => k !== uid).length;
+    if (t.scope === "SINGLE" || others === 0) await deleteDoc(ref);
+    else await updateDoc(ref, {
+      [`assignees.${uid}`]: deleteField(), [`completions.${uid}`]: deleteField(), [`extensions.${uid}`]: deleteField()
+    });
+    toast("Task deleted");
+  } catch (err) { console.error(err); toast(err.message); }
+};
+
+/* extend end time */
+window.openExtend = (id, uid) => { extendTarget = { id, uid }; renderTaskAdmin(true); };
+window.closeExtend = () => { extendTarget = null; renderTaskAdmin(true); };
+window.submitExtend = async () => {
+  const ms = new Date($("extendEnd").value).getTime();
+  if (isNaN(ms) || ms <= Date.now()) return toast("Choose a new end time in the future");
+  try {
+    await updateDoc(doc(db, "companies", companyID, "tasks", extendTarget.id), { [`extensions.${extendTarget.uid}`]: ms });
+    toast("End time extended - employee notified");
+    extendTarget = null;
+    renderTaskAdmin(true);
+  } catch (err) { console.error(err); toast(err.message); }
+};
+
+/* ---------- EMPLOYEE: My Tasks window ---------- */
+window.showEmpTaskModal = () => { if (currentRole === "EMPLOYEE") { $("empTaskModal").classList.add("open"); renderEmpTasks(); } };
+window.closeEmpTaskModal = () => $("empTaskModal").classList.remove("open");
+
+function empCard(t, uid) {
+  const mine = t.scope === "ALL" || !!(t.assignees && t.assignees[uid]);
+  const c = t.completions ? t.completions[uid] : null;
+  const st = c ? c.status : "PENDING";
+  const end = effEnd(t, uid), now = Date.now();
+  const declined = st === "DECLINED" ? "❌ Declined by owner. " : "";
+  let cls = "open", mark = "", note = declined;
+  if (!mine) { cls = "locked"; note = `🔒 Given to ${escapeHTML(Object.values(t.assignees || {})[0] || "another employee")}. Only they can complete it`; }
+  else if (st === "SUBMITTED") { cls = "done"; mark = "✔"; note = "Submitted - waiting for owner approval"; }
+  else if (st === "APPROVED") { cls = "approved"; mark = "✔"; note = "✅ Approved by owner"; }
+  else if (now < t.startAt) { cls = "locked"; note += "Starts " + fmtMs(t.startAt); }
+  else if (now > end) { cls = "locked"; note += "⏰ Time is over"; }
+  else if (!declined) note = "Tap the box when you finish";
+  else note += "Do it again and tap the box to re-submit";
+
+  const forWho = t.scope === "SINGLE" && t.privacy === "PUBLIC" ? `👤 For: ${escapeHTML(Object.values(t.assignees || {})[0] || "")}<br>` : "";
+  return `<div class="task-card">
+    <div class="task-info"><div class="task-title">${escapeHTML(t.title)}</div>
+    <div class="task-meta">${forWho}🟢 Start: ${fmtMs(t.startAt)}<br>🔴 End: ${fmtMs(end)}</div>
+    <div class="task-note">${note}</div></div>
+    <div class="tbox ${cls}" ${cls === "open" ? `onclick="completeTask('${t.id}')"` : ""}>${mark}</div></div>`;
+}
+
+function renderEmpTasks() {
+  const el = $("empTaskBody");
+  if (!el || currentRole !== "EMPLOYEE" || !currentUser) return;
+  const uid = currentUser.uid;
+  const sections = [
+    ["📢 Public tasks (for all employees)", (t) => t.scope === "ALL"],
+    ["👥 Tasks given to employees (everyone can see)", (t) => t.scope === "SINGLE" && t.privacy === "PUBLIC"],
+    ["🔒 My private tasks", (t) => t.scope === "SINGLE" && t.privacy === "PRIVATE"]
+  ];
+  el.innerHTML = sections.map(([title, f]) => {
+    const list = tasks.filter(f).sort((x, y) => (x.endAt || 0) - (y.endAt || 0));
+    return `<h4 class="task-sec">${title}</h4>` + (list.map((t) => empCard(t, uid)).join("") || '<p class="empty">No tasks</p>');
+  }).join("");
+}
+
+window.completeTask = async (id) => {
+  const t = tasks.find((x) => x.id === id);
+  if (!t || !currentUser) return;
+  const uid = currentUser.uid, now = Date.now();
+  const st = t.completions && t.completions[uid] ? t.completions[uid].status : null;
+  if (st === "SUBMITTED" || st === "APPROVED") return;
+  if (!(t.scope === "ALL" || (t.assignees && t.assignees[uid]))) return toast("This task is not assigned to you");
+  if (now < t.startAt) return toast("This task has not started yet");
+  if (now > effEnd(t, uid)) return toast("Time is over for this task");
+  try {
+    await updateDoc(doc(db, "companies", companyID, "tasks", id), {
+      [`completions.${uid}`]: { name: displayName || currentUser.email || "Employee", status: "SUBMITTED", submittedAt: now }
+    });
+    toast("Task submitted for approval");
+  } catch (err) { console.error(err); toast(err.message); }
+};
+
 
 /* ---------- KEYBOARD NAVIGATION ---------- */
 document.addEventListener("keydown", (e) => {
