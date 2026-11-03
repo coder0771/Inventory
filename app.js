@@ -7,7 +7,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import {
   getAuth, GoogleAuthProvider, signInWithPopup,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signOut, onAuthStateChanged
+  signOut, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
@@ -50,6 +50,8 @@ const $ = (id) => document.getElementById(id);
 const show = (id) => $(id)?.classList.remove("hidden");
 const hide = (id) => $(id)?.classList.add("hidden");
 const loading = (on) => (on ? show("loadingOverlay") : hide("loadingOverlay"));
+// phone-number accounts have no email, so fall back to the phone number
+const contactOf = (u) => (u && (u.email || u.phoneNumber)) || "";
 const normalizeString = (v) => (v === null || v === undefined ? "" : String(v).trim());
 
 let toastTimer;
@@ -131,10 +133,81 @@ window.googleLogin = async function () {
   finally { loading(false); }
 };
 
+
+/* ---------- MOBILE NUMBER (OTP) LOGIN ---------- */
+let confirmationResult = null, recaptchaVerifier = null, otpTimer = null;
+
+function resetRecaptcha() {
+  try { recaptchaVerifier && recaptchaVerifier.clear(); } catch (e) {}
+  recaptchaVerifier = null;
+}
+
+function phoneError(err) {
+  const m = {
+    "auth/invalid-phone-number": "Invalid mobile number. Use the country code, e.g. +919876543210",
+    "auth/missing-phone-number": "Enter your mobile number",
+    "auth/too-many-requests": "Too many attempts. Please wait a while and try again",
+    "auth/quota-exceeded": "SMS limit reached for today. Try again later",
+    "auth/invalid-verification-code": "Wrong OTP. Check the code and try again",
+    "auth/code-expired": "OTP expired. Tap Send OTP again",
+    "auth/operation-not-allowed": "Phone sign-in is not enabled in Firebase (Authentication > Sign-in method > Phone)",
+    "auth/captcha-check-failed": "reCAPTCHA failed. Refresh the page and try again",
+    "auth/billing-not-enabled": "Firebase needs the Blaze plan to send real SMS. Use a test number or enable billing"
+  };
+  return m[err.code] || err.message;
+}
+
+window.sendOtp = async function () {
+  let phone = normalizeString($("phone")?.value).replace(/[\s()-]/g, "");
+  if (/^\d{10}$/.test(phone)) phone = "+91" + phone; // 10-digit numbers are treated as Indian numbers
+  if (!/^\+\d{8,15}$/.test(phone)) return toast("Enter the number with country code, e.g. +919876543210");
+
+  try {
+    loading(true);
+    if (!recaptchaVerifier) recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", { size: "invisible" });
+    confirmationResult = await signInWithPhoneNumber(auth, phone, recaptchaVerifier);
+    show("otpBox");
+    $("otp").value = "";
+    $("otp").focus();
+    toast("OTP sent to " + phone);
+
+    // 30 second wait before the button can be used again
+    const btn = $("sendOtpBtn");
+    let left = 30;
+    btn.disabled = true;
+    clearInterval(otpTimer);
+    otpTimer = setInterval(() => {
+      btn.innerText = `Resend OTP (${left--}s)`;
+      if (left < 0) { clearInterval(otpTimer); btn.disabled = false; btn.innerText = "Resend OTP"; }
+    }, 1000);
+  } catch (err) {
+    console.error(err);
+    resetRecaptcha();
+    toast(phoneError(err));
+  } finally { loading(false); }
+};
+
+window.verifyOtp = async function () {
+  const code = normalizeString($("otp")?.value);
+  if (!confirmationResult) return toast("Tap Send OTP first");
+  if (!/^\d{6}$/.test(code)) return toast("Enter the 6-digit OTP");
+  try {
+    loading(true);
+    await confirmationResult.confirm(code); // onAuthStateChanged takes over from here
+    confirmationResult = null;
+    clearInterval(otpTimer);
+    hide("otpBox");
+    $("phone").value = "";
+    toast("Mobile login successful");
+  } catch (err) { console.error(err); toast(phoneError(err)); }
+  finally { loading(false); }
+};
+
 window.logout = async function () {
   try {
     stopListeners();
     resetSession();
+    confirmationResult = null;
     await signOut(auth);
     toast("Logged Out");
   } catch (err) { console.error(err); toast(err.message); }
@@ -197,7 +270,7 @@ window.createCompany = async function () {
       adminPassHash: adminHash, joinCodeHash: await codeHash(id, "join", code), joinCode: code
     });
     await setDoc(doc(db, "companies", id, "members", uid), {
-      uid, admin: true, adminCode: adminHash, email: currentUser.email || "", createdAt: serverTimestamp()
+      uid, admin: true, adminCode: adminHash, email: contactOf(currentUser), createdAt: serverTimestamp()
     });
 
     companyID = id; companyData = payload; currentRole = "ADMIN"; displayName = "Owner";
@@ -241,7 +314,7 @@ async function migrateLegacy(id, d, password) {
     adminPassHash: adminHash, joinCodeHash: join ? await codeHash(id, "join", join) : "", joinCode: join
   });
   await setDoc(doc(db, "companies", id, "members", uid), {
-    uid, admin: true, adminCode: adminHash, email: currentUser.email || "", createdAt: serverTimestamp()
+    uid, admin: true, adminCode: adminHash, email: contactOf(currentUser), createdAt: serverTimestamp()
   });
 }
 
@@ -264,7 +337,7 @@ window.adminLogin = async function () {
       try {
         // the Firestore rules accept this write ONLY if the hash matches the stored admin password
         await setDoc(doc(db, "companies", id, "members", currentUser.uid),
-          { uid: currentUser.uid, admin: true, adminCode: hash, email: currentUser.email || "" }, { merge: true });
+          { uid: currentUser.uid, admin: true, adminCode: hash, email: contactOf(currentUser) }, { merge: true });
       } catch (err) {
         if (err.code === "permission-denied") return toast("Wrong Password");
         throw err;
@@ -294,7 +367,7 @@ window.employeeLogin = async function () {
     try {
       // accepted by the rules ONLY if the join code hash matches
       await setDoc(memRef, { uid: currentUser.uid, employee: true, joinCode: await codeHash(found.id, "join", code),
-        email: currentUser.email || "" }, { merge: true });
+        email: contactOf(currentUser) }, { merge: true });
     } catch (err) {
       if (err.code === "permission-denied") return toast("Invalid Company Code");
       throw err;
@@ -304,7 +377,7 @@ window.employeeLogin = async function () {
     companyID = found.id; currentRole = "EMPLOYEE"; displayName = name;
 
     await setDoc(doc(db, "companies", companyID, "staff", currentUser.uid),
-      { uid: currentUser.uid, name, email: currentUser.email || "", joinedAt: serverTimestamp() }, { merge: true });
+      { uid: currentUser.uid, name, email: contactOf(currentUser), joinedAt: serverTimestamp() }, { merge: true });
 
     openDashboard();
   } catch (err) { console.error(err); toast("Could not join: " + err.message); }
@@ -548,7 +621,7 @@ async function updateStock(type) {
       tx.update(itemRef, { qty: stock, hold, broken });
       tx.set(doc(collection(db, "companies", companyID, "history")), {
         action: ACTION_LABEL[type], qty: amt, item: d.name,
-        user: displayName || currentUser.email || "Unknown", time: serverTimestamp()
+        user: displayName || contactOf(currentUser) || "Unknown", time: serverTimestamp()
       });
     });
     toast("Stock Updated");
@@ -568,7 +641,7 @@ window.brokenOut = () => updateStock("BROKENOUT");
 async function addHistory(action, qty, item) {
   try {
     await addDoc(collection(db, "companies", companyID, "history"), {
-      action, qty, item, user: displayName || currentUser.email || "Unknown", time: serverTimestamp()
+      action, qty, item, user: displayName || contactOf(currentUser) || "Unknown", time: serverTimestamp()
     });
   } catch (err) { console.error("Audit log error:", err); }
 }
@@ -663,7 +736,7 @@ window.markAttendance = async function () {
       }
     }
     await addDoc(collection(db, "companies", companyID, "attendance"), {
-      name: displayName || currentUser.email || "Employee",
+      name: displayName || contactOf(currentUser) || "Employee",
       uid: currentUser.uid,
       latitude: pos.coords.latitude,
       longitude: pos.coords.longitude,
@@ -759,7 +832,7 @@ async function onTrackPosition(pos) {
 async function logMovement(state, distance, accuracy, note) {
   try {
     await addDoc(collection(db, "companies", companyID, "movements"), {
-      uid: currentUser.uid, name: displayName || currentUser.email || "Employee",
+      uid: currentUser.uid, name: displayName || contactOf(currentUser) || "Employee",
       type: state === "OUT" ? "LEFT" : "ENTERED", distance, accuracy, note, time: serverTimestamp()
     });
     await setDoc(doc(db, "companies", companyID, "staff", currentUser.uid),
@@ -1460,7 +1533,7 @@ window.completeTask = async (id) => {
   if (now > effEnd(t, uid)) return toast("Time is over for this task");
   try {
     await updateDoc(doc(db, "companies", companyID, "tasks", id), {
-      [`completions.${uid}`]: { name: displayName || currentUser.email || "Employee", status: "SUBMITTED", submittedAt: now }
+      [`completions.${uid}`]: { name: displayName || contactOf(currentUser) || "Employee", status: "SUBMITTED", submittedAt: now }
     });
     toast("Task submitted for approval");
   } catch (err) { console.error(err); toast(err.message); }
@@ -1510,7 +1583,7 @@ window.devNext = async () => {
     loading(true);
     // the server checks this proof against appConfig/developer before it allows developer access
     const proof = await sha256("PI-DEV-PROOF|" + devAnswers.join("|"));
-    await setDoc(doc(db, "developers", currentUser.uid), { uid: currentUser.uid, proof, email: currentUser.email || "" });
+    await setDoc(doc(db, "developers", currentUser.uid), { uid: currentUser.uid, proof, email: contactOf(currentUser) });
     devActive = true;
     showOnly("developerPage");
     await loadDevData();
@@ -1554,7 +1627,7 @@ function renderDevData() {
         <button class="bin" onclick="devDeleteCompany('${escapeHTML(c.id)}')">🗑 Delete Company</button>
       </div>
       <table style="width:100%; margin:10px 0 0; font-size:0.85em; color:#333">
-        <thead><tr><th>#</th><th>Employee</th><th>Email</th><th>Joined</th></tr></thead>
+        <thead><tr><th>#</th><th>Employee</th><th>Email / Phone</th><th>Joined</th></tr></thead>
         <tbody>${c.staff.length ? c.staff.map((s, n) => `<tr><td>${n + 1}</td><td>${escapeHTML(s.name)}</td><td>${escapeHTML(s.email || "-")}</td>
           <td>${s.joinedAt?.toDate ? s.joinedAt.toDate().toLocaleDateString() : "-"}</td></tr>`).join("") : '<tr><td colspan="4">No employees</td></tr>'}</tbody>
       </table></div>`).join("") : "<p style='color:white'>No companies exist.</p>";
