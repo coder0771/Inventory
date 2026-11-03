@@ -281,3 +281,27 @@ tr.low-stock-row {
 .badge-in { background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
 #moveBadge { margin-left: 4px; }
 .track-status { background: rgba(0,0,0,0.6); color: var(--neon); padding: 8px 15px; font-size: 0.9em; border-bottom: 1px solid var(--neon); }
+
+/* --- TASK MANAGEMENT --- */
+textarea, .task-input { width: 95%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; outline: none; margin: 5px 0; font-size: 0.95em; font-family: inherit; }
+.task-label { display: block; margin: 10px 0 2px; font-weight: 600; font-size: 0.85em; color: #444; }
+.task-radio { font-size: 0.9em; line-height: 1.8; margin-bottom: 8px; }
+.task-sec { margin: 18px 0 6px; color: #1f4011; border-bottom: 2px solid var(--neon); padding-bottom: 4px; }
+.empty { color: #888; font-size: 0.9em; }
+.task-card { display: flex; align-items: center; gap: 12px; background: #f8f9fa; border: 1px solid #e3e3e3; border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.task-info { flex: 1; min-width: 0; }
+.task-title { font-weight: bold; color: #222; white-space: pre-wrap; word-break: break-word; }
+.task-meta { font-size: 0.8em; color: #555; margin-top: 4px; line-height: 1.6; }
+.task-note { font-size: 0.8em; margin-top: 4px; font-weight: 600; color: #6f42c1; }
+.bin { background: #dc3545; padding: 8px 10px; font-size: 1em; }
+.decide-col { display: flex; gap: 12px; align-items: flex-start; }
+.decide { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.dlabel { font-size: 1.3em; font-weight: bold; }
+.dlabel.ok { color: #28a745; } .dlabel.no { color: #dc3545; }
+.dbox, .tbox { width: 38px; height: 38px; border: 3px solid #444; border-radius: 8px; background: white; display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: bold; cursor: pointer; flex-shrink: 0; transition: transform 0.1s; }
+.dbox:hover, .tbox.open:hover { transform: scale(1.08); }
+.dbox.on-ok, .tbox.approved { background: #28a745; border-color: #1e7e34; color: white; }
+.dbox.on-no { background: #dc3545; border-color: #a71d2a; color: white; }
+.tbox.done { background: #ffc107; border-color: #d39e00; color: #222; cursor: default; }
+.tbox.open { border-color: var(--dark-neon); }
+.tbox.locked { background: #e9ecef; border-color: #bbb; cursor: not-allowed; }
