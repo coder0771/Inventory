@@ -52,6 +52,31 @@ const hide = (id) => $(id)?.classList.add("hidden");
 const loading = (on) => (on ? show("loadingOverlay") : hide("loadingOverlay"));
 // phone-number accounts have no email, so fall back to the phone number
 const contactOf = (u) => (u && (u.email || u.phoneNumber)) || "";
+// ---- dates are ALWAYS shown as DD/MM/YYYY ----
+const pad2 = (n) => String(n).padStart(2, "0");
+const fmtD = (d) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+const fmtDT = (d) => d.toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).replace(",", "");
+
+// date picker made of Day / Month / Year drop-downs + time, so the order is always DD / MM / YYYY
+function dtPicker(id, ms) {
+  const d = new Date(ms), y = new Date().getFullYear();
+  const opts = (from, to, sel, f) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
+    .map((v) => `<option value="${v}" ${v === sel ? "selected" : ""}>${f(v)}</option>`).join("");
+  return `<div class="dt-picker">
+    <select id="${id}D">${opts(1, 31, d.getDate(), pad2)}</select> /
+    <select id="${id}M">${opts(1, 12, d.getMonth() + 1, pad2)}</select> /
+    <select id="${id}Y">${opts(Math.min(y - 1, d.getFullYear()), Math.max(y + 5, d.getFullYear()), d.getFullYear(), String)}</select>
+    <input id="${id}T" type="time" value="${pad2(d.getHours())}:${pad2(d.getMinutes())}">
+  </div>`;
+}
+function readDT(id) {
+  const D = +$(id + "D").value, M = +$(id + "M").value, Y = +$(id + "Y").value;
+  const [hh, mm] = ($(id + "T").value || "").split(":").map(Number);
+  if (isNaN(hh) || isNaN(mm)) return NaN;
+  const dt = new Date(Y, M - 1, D, hh, mm);
+  return dt.getDate() === D && dt.getMonth() === M - 1 ? dt.getTime() : NaN; // rejects e.g. 31/02
+}
+
 const normalizeString = (v) => (v === null || v === undefined ? "" : String(v).trim());
 
 let toastTimer;
@@ -433,7 +458,7 @@ function startRealtime() {
     unsubs.push(onSnapshot(query(collection(db, ...base, "history"), orderBy("time", "desc")), (snap) => {
       $("historyBody").innerHTML = snap.docs.map((d) => {
         const h = d.data();
-        const t = h.time?.toDate ? h.time.toDate().toLocaleString() : "";
+        const t = h.time?.toDate ? fmtDT(h.time.toDate()) : "";
         return `<tr><td>${t}</td><td>${escapeHTML(h.user)}</td><td><b>${escapeHTML(h.action)}</b></td>
           <td>${escapeHTML(h.item)}</td><td>${escapeHTML(h.qty)}</td></tr>`;
       }).join("");
@@ -468,7 +493,7 @@ function startRealtime() {
     unsubs.push(onSnapshot(query(collection(db, ...base, "attendance"), orderBy("time", "desc")), (snap) => {
       $("attendanceBody").innerHTML = snap.docs.map((d) => {
         const a = d.data();
-        const t = a.time?.toDate ? a.time.toDate().toLocaleString() : "";
+        const t = a.time?.toDate ? fmtDT(a.time.toDate()) : "";
         const dist = a.distance !== undefined && a.distance !== null
           ? Math.round(a.distance) + " m" + (a.accuracy ? " (±" + Math.round(a.accuracy) + ")" : "") : "-";
         return `<tr><td>${escapeHTML(a.name)}</td><td>${t}</td><td>${dist}</td></tr>`;
@@ -849,7 +874,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 /* ---------- ADMIN SIDE: alerts + movement log ---------- */
-function fmtTime(t) { return t?.toDate ? t.toDate().toLocaleString() : new Date().toLocaleString(); }
+function fmtTime(t) { return fmtDT(t?.toDate ? t.toDate() : new Date()); }
 
 function updateMoveBadge() {
   const b = $("moveBadge");
@@ -890,7 +915,7 @@ function renderStaffTable() {
     const st = s.presence === "OUT" ? '<span class="badge-low">Outside</span>'
       : s.presence === "IN" ? '<span class="badge-in">Inside</span>' : '<span class="badge-cat" style="background:#888">No data</span>';
     return `<tr><td>${n + 1}</td><td><b>${escapeHTML(s.name)}</b></td><td>${escapeHTML(s.email || "-")}</td>
-      <td>${s.joinedAt?.toDate ? s.joinedAt.toDate().toLocaleDateString() : "-"}</td><td>${st}</td>
+      <td>${s.joinedAt?.toDate ? fmtD(s.joinedAt.toDate()) : "-"}</td><td>${st}</td>
       <td><button class="bin" onclick="removeEmployee('${escapeHTML(s.uid)}')">🗑 Remove</button></td></tr>`;
   }).join("") : '<tr><td colspan="6">No employees have joined yet</td></tr>';
 }
@@ -900,10 +925,13 @@ window.closeStaffModal = () => $("staffModal").classList.remove("open");
 window.removeEmployee = async (uid) => {
   const s = staffList.find((x) => x.uid === uid);
   if (!s) return;
-  if (!(await askConfirm(`Remove ${s.name} from your company? They will lose access immediately.`))) return;
+  if (!(await askConfirm(`Remove ${s.name} from your company? They will lose access immediately. Their past task records are kept.`))) return;
   try {
     loading(true);
-    await updateDoc(doc(db, "companies", companyID, "members", uid), { employee: false });
+    const memberRef = doc(db, "companies", companyID, "members", uid);
+    // Works for every employee, whatever tasks they have (or have not) done, and even if the old record is missing
+    try { await updateDoc(memberRef, { employee: false }); }
+    catch (e1) { await deleteDoc(memberRef); }
     await deleteDoc(doc(db, "companies", companyID, "staff", uid));
     toast(s.name + " removed");
   } catch (err) { console.error(err); toast("Could not remove: " + err.message); }
@@ -1101,10 +1129,11 @@ let taskView = "menu";
 let taskDraft = {};
 let extendTarget = null;
 let confirmResolve = null;
-const FORM_VIEWS = ["assignAll", "assignSingle", "adminTasks"];
+const FORM_VIEWS = ["assignAll", "assignSingle", "adminTasks", "editTask"];
+let editTaskId = null;
+const isActiveStaff = (uid) => staffList.some((s) => s.uid === uid);
 
-const dtLocal = (ms) => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-const fmtMs = (ms) => (ms ? new Date(ms).toLocaleString() : "-");
+const fmtMs = (ms) => (ms ? fmtDT(new Date(ms)) : "-");
 const effEnd = (t, uid) => (t.extensions && t.extensions[uid]) || t.endAt;
 
 function pushAlert(html, cls) {
@@ -1204,7 +1233,7 @@ function taskRows() {
   });
   return rows;
 }
-const isIncomplete = (r) => r.assigned && Date.now() > r.end && r.status !== "SUBMITTED" && r.status !== "APPROVED";
+const isIncomplete = (r) => r.assigned && isActiveStaff(r.uid) && Date.now() > r.end && r.status !== "SUBMITTED" && r.status !== "APPROVED";
 
 function alertList() {
   const m = {};
@@ -1267,7 +1296,7 @@ function renderTaskAdmin(force) {
   const alerts = alertList();
   const titles = { menu: "📋 Task Management", assignType: "📝 Task Assignment", pick: "Choose Employee", assignAll: "Task for All Employees",
     assignSingle: "Task for " + (taskDraft.name || ""), adminTasks: "🔒 Admin Task (only you can see)",
-    approval: "✅ Task Complete Approval", incomplete: "⏰ Incompleted Tasks", alerts: "🚨 Alerts", assigned: "📑 Assigned Tasks" };
+    approval: "✅ Task Complete Approval", incomplete: "⏰ Incompleted Tasks", alerts: "🚨 Alerts", assigned: "📑 Assigned Tasks", editTask: "✏ Edit Task" };
   $("taskTitle").innerText = titles[taskView] || "Task Management";
   let h = "";
 
@@ -1297,10 +1326,10 @@ function renderTaskAdmin(force) {
   else if (taskView === "assignAll" || taskView === "assignSingle") {
     const single = taskView === "assignSingle";
     h = `<textarea id="taskText" class="task-input" rows="3" placeholder="Type the task here..."></textarea>
-      <label class="task-label">Start date &amp; time</label>
-      <input id="taskStart" type="datetime-local" value="${dtLocal(Date.now())}" style="width:95%">
-      <label class="task-label">End date &amp; time (task must be completed by)</label>
-      <input id="taskEnd" type="datetime-local" value="${dtLocal(Date.now() + 86400000)}" style="width:95%">
+      <label class="task-label">Start (DD / MM / YYYY and time)</label>
+      ${dtPicker("taskStart", Date.now())}
+      <label class="task-label">End (DD / MM / YYYY and time) - task must be completed by</label>
+      ${dtPicker("taskEnd", Date.now() + 86400000)}
       ${single ? `<label class="task-label">Privacy</label>
         <div class="task-radio"><label><input type="radio" name="taskPrivacy" value="PUBLIC" checked> Public (all employees can see it)</label><br>
         <label><input type="radio" name="taskPrivacy" value="PRIVATE"> Private (only ${escapeHTML(taskDraft.name || "this employee")} can see it)</label></div>` : ""}
@@ -1338,7 +1367,7 @@ function renderTaskAdmin(force) {
           <button class="bin" title="Delete" onclick="deleteRow('${r.t.id}','${escapeHTML(r.uid)}')">🗑</button>
         </div>
         ${open ? `<div style="width:100%; margin-top:8px"><label class="task-label">New end date &amp; time</label>
-          <input id="extendEnd" type="datetime-local" value="${dtLocal(Date.now() + 86400000)}">
+          ${dtPicker("extendEnd", Date.now() + 86400000)}
           <button class="auth-btn" style="background:#28a745" onclick="submitExtend()">Submit</button>
           <button class="auth-btn" style="background:#666" onclick="closeExtend()">Cancel</button></div>` : ""}
       </div>`;
@@ -1359,20 +1388,47 @@ function renderTaskAdmin(force) {
     h = list.length ? list.map((t) => {
       const type = t.scope === "ALL" ? "All employees" : "Single employee - " + (t.privacy === "PUBLIC" ? "Public (everyone can see)" : "Private (only that employee)");
       const people = rows.filter((r) => r.t.id === t.id);
-      const label = (r) => r.status === "APPROVED" ? "✅ Approved" : r.status === "SUBMITTED" ? "🕒 Submitted, waiting for approval"
+      const label = (r) => !isActiveStaff(r.uid) ? "🚫 Removed from company" : r.status === "APPROVED" ? "✅ Approved" : r.status === "SUBMITTED" ? "🕒 Submitted, waiting for approval"
         : r.status === "DECLINED" ? "❌ Declined" : Date.now() > r.end ? "⏰ Overdue" : Date.now() < t.startAt ? "🗓 Not started" : "⏳ Pending";
       const done = people.filter((r) => r.status === "APPROVED").length;
       return `<div class="task-card" style="flex-direction:column; align-items:stretch">
         <div class="task-title">${escapeHTML(t.title)}</div>
         <div class="task-meta">📌 ${type}<br>
-          🗓 Created: ${t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString() : "just now"}<br>
+          🗓 Created: ${t.createdAt?.toDate ? fmtDT(t.createdAt.toDate()) : "just now"}<br>
           🟢 Start: ${fmtMs(t.startAt)}<br>🔴 End: ${fmtMs(t.endAt)}<br>
           ✅ Approved: ${done} of ${people.length || (t.scope === "ALL" ? "all employees" : 0)}</div>
         <div class="task-meta" style="margin-top:6px">${people.length ? people.map((r) =>
           `<div>👤 <b>${escapeHTML(r.name)}</b> - ${label(r)}${effEnd(t, r.uid) !== t.endAt ? " (extended to " + fmtMs(effEnd(t, r.uid)) + ")" : ""}</div>`).join("") : "<div>No employee has joined yet.</div>"}</div>
+        <div style="display:flex; gap:8px; margin-top:10px; justify-content:flex-end">
+          <button class="edit-btn" onclick="editTask('${t.id}')">✏ Edit</button>
+          <button class="bin" onclick="deleteTask('${t.id}')">🗑 Delete</button>
+        </div>
       </div>`;
     }).join("") : "<p>You have not assigned any tasks yet.</p>";
     h += backBtn("menu");
+  }
+
+  else if (taskView === "editTask") {
+    const t = tasks.find((x) => x.id === editTaskId);
+    if (!t) h = "<p>This task no longer exists.</p>" + backBtn("assigned");
+    else {
+      const single = t.scope === "SINGLE";
+      const curUid = Object.keys(t.assignees || {})[0];
+      h = `<textarea id="editTaskText" class="task-input" rows="3">${escapeHTML(t.title)}</textarea>
+        <label class="task-label">Task is for</label>
+        <div class="task-radio"><label><input type="radio" name="editScope" value="ALL" ${single ? "" : "checked"} onchange="editScopeChanged()"> All employees</label><br>
+        <label><input type="radio" name="editScope" value="SINGLE" ${single ? "checked" : ""} onchange="editScopeChanged()"> Single employee</label></div>
+        <div id="editSingleBox" class="${single ? "" : "hidden"}">
+          <label class="task-label">Employee</label>
+          <select id="editEmployee" style="width:95%">${staffList.map((s) => `<option value="${escapeHTML(s.uid)}" ${s.uid === curUid ? "selected" : ""}>${escapeHTML(s.name)}</option>`).join("")}</select>
+          <label class="task-label">Privacy</label>
+          <div class="task-radio"><label><input type="radio" name="editPrivacy" value="PUBLIC" ${t.privacy === "PRIVATE" ? "" : "checked"}> Public (all employees can see it)</label><br>
+          <label><input type="radio" name="editPrivacy" value="PRIVATE" ${t.privacy === "PRIVATE" ? "checked" : ""}> Private (only that employee can see it)</label></div>
+        </div>
+        <label class="task-label">Start (DD / MM / YYYY and time)</label>${dtPicker("editStart", t.startAt)}
+        <label class="task-label">End (DD / MM / YYYY and time)</label>${dtPicker("editEnd", t.endAt)}
+        <button class="role-btn" style="background:#28a745" onclick="saveTaskEdit()">💾 Save Changes</button>${backBtn("assigned")}`;
+    }
   }
 
   body.innerHTML = h;
@@ -1388,9 +1444,9 @@ window.pickEmployee = (uid) => {
 
 window.submitTask = async (scope) => {
   const title = normalizeString($("taskText")?.value);
-  const s = new Date($("taskStart").value).getTime(), e = new Date($("taskEnd").value).getTime();
+  const s = readDT("taskStart"), e = readDT("taskEnd");
   if (!title) return toast("Type the task first");
-  if (isNaN(s) || isNaN(e)) return toast("Set the start and end date & time");
+  if (isNaN(s) || isNaN(e)) return toast("Set a valid start and end date & time");
   if (e <= s) return toast("End time must be after the start time");
   if (e <= Date.now()) return toast("End time has already passed. Choose a future time");
 
@@ -1421,6 +1477,7 @@ function renderAdminTaskList() {
   if (!el) return;
   el.innerHTML = adminTasks.length ? adminTasks.map((t) => `<div class="task-card">
       <div class="task-info"><div class="task-title">${escapeHTML(t.text)}</div></div>
+      <button class="edit-btn" title="Edit" onclick="editAdminTask('${t.id}')">✏</button>
       <button class="bin" title="Delete" onclick="delAdminTask('${t.id}')">🗑</button></div>`).join("")
     : "<p>No admin tasks yet.</p>";
 }
@@ -1466,11 +1523,77 @@ window.deleteRow = async (id, uid) => {
   } catch (err) { console.error(err); toast(err.message); }
 };
 
+
+/* ---------- edit / delete an assigned task ---------- */
+window.editTask = (id) => { editTaskId = id; taskView = "editTask"; extendTarget = null; renderTaskAdmin(true); };
+window.editScopeChanged = () => {
+  const single = document.querySelector('input[name="editScope"]:checked')?.value === "SINGLE";
+  $("editSingleBox").classList.toggle("hidden", !single);
+};
+
+window.saveTaskEdit = async () => {
+  const t = tasks.find((x) => x.id === editTaskId);
+  if (!t) return toast("This task no longer exists");
+  const title = normalizeString($("editTaskText")?.value);
+  const s = readDT("editStart"), e = readDT("editEnd");
+  if (!title) return toast("The task cannot be empty");
+  if (isNaN(s) || isNaN(e)) return toast("Set a valid start and end date & time");
+  if (e <= s) return toast("End time must be after the start time");
+
+  const scope = document.querySelector('input[name="editScope"]:checked')?.value || t.scope;
+  const assignees = {};
+  let privacy = "ALL", visibleTo = ["ALL"];
+  if (scope === "ALL") {
+    staffList.forEach((x) => (assignees[x.uid] = x.name));
+  } else {
+    const uid = $("editEmployee")?.value;
+    const emp = staffList.find((x) => x.uid === uid);
+    if (!emp) return toast("Choose an employee");
+    assignees[uid] = emp.name;
+    privacy = document.querySelector('input[name="editPrivacy"]:checked')?.value || "PUBLIC";
+    visibleTo = privacy === "PRIVATE" ? [uid] : ["ALL"];
+  }
+
+  // keep each employee's progress where it still applies
+  const completions = {};
+  Object.entries(t.completions || {}).forEach(([uid, c]) => { if (scope === "ALL" || assignees[uid]) completions[uid] = c; });
+  // personal extensions only survive if the end time was not changed
+  const extensions = {};
+  if (e === t.endAt) Object.entries(t.extensions || {}).forEach(([uid, v]) => { if (assignees[uid]) extensions[uid] = v; });
+
+  try {
+    loading(true);
+    await updateDoc(doc(db, "companies", companyID, "tasks", editTaskId), {
+      title, scope, privacy, visibleTo, assignees, completions, extensions,
+      startAt: s, endAt: e, updatedAt: serverTimestamp()
+    });
+    toast("Task updated");
+    taskGo("assigned");
+  } catch (err) { console.error(err); toast("Could not update task: " + err.message); }
+  finally { loading(false); }
+};
+
+window.deleteTask = async (id) => {
+  if (!(await askConfirm("Are you sure you want to delete this task for everyone?"))) return;
+  try { await deleteDoc(doc(db, "companies", companyID, "tasks", id)); toast("Task deleted"); }
+  catch (err) { console.error(err); toast(err.message); }
+};
+
+window.editAdminTask = async (id) => {
+  const t = adminTasks.find((x) => x.id === id);
+  if (!t) return;
+  const text = prompt("Edit task", t.text);
+  if (text === null) return;
+  if (!normalizeString(text)) return toast("The task cannot be empty");
+  try { await updateDoc(doc(db, "companies", companyID, "adminTasks", id), { text: normalizeString(text) }); toast("Task updated"); }
+  catch (err) { console.error(err); toast(err.message); }
+};
+
 /* extend end time */
 window.openExtend = (id, uid) => { extendTarget = { id, uid }; renderTaskAdmin(true); };
 window.closeExtend = () => { extendTarget = null; renderTaskAdmin(true); };
 window.submitExtend = async () => {
-  const ms = new Date($("extendEnd").value).getTime();
+  const ms = readDT("extendEnd");
   if (isNaN(ms) || ms <= Date.now()) return toast("Choose a new end time in the future");
   try {
     await updateDoc(doc(db, "companies", companyID, "tasks", extendTarget.id), { [`extensions.${extendTarget.uid}`]: ms });
@@ -1622,14 +1745,14 @@ function renderDevData() {
     <div class="task-card" style="flex-direction:column; align-items:stretch; background:rgba(255,255,255,0.95); text-align:left">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
         <div><div class="task-title" style="font-size:1.15em">🏢 ${escapeHTML(c.companyName || "(no name)")}</div>
-          <div class="task-meta">ID: ${escapeHTML(c.id)}<br>Created: ${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : "-"}<br>
+          <div class="task-meta">ID: ${escapeHTML(c.id)}<br>Created: ${c.createdAt?.toDate ? fmtDT(c.createdAt.toDate()) : "-"}<br>
           Admins: ${c.admins.length ? c.admins.map((m) => escapeHTML(m.email || m.uid)).join(", ") : "-"}</div></div>
         <button class="bin" onclick="devDeleteCompany('${escapeHTML(c.id)}')">🗑 Delete Company</button>
       </div>
       <table style="width:100%; margin:10px 0 0; font-size:0.85em; color:#333">
         <thead><tr><th>#</th><th>Employee</th><th>Email / Phone</th><th>Joined</th></tr></thead>
         <tbody>${c.staff.length ? c.staff.map((s, n) => `<tr><td>${n + 1}</td><td>${escapeHTML(s.name)}</td><td>${escapeHTML(s.email || "-")}</td>
-          <td>${s.joinedAt?.toDate ? s.joinedAt.toDate().toLocaleDateString() : "-"}</td></tr>`).join("") : '<tr><td colspan="4">No employees</td></tr>'}</tbody>
+          <td>${s.joinedAt?.toDate ? fmtD(s.joinedAt.toDate()) : "-"}</td></tr>`).join("") : '<tr><td colspan="4">No employees</td></tr>'}</tbody>
       </table></div>`).join("") : "<p style='color:white'>No companies exist.</p>";
 }
 
