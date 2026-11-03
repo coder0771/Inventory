@@ -88,6 +88,8 @@
             <button id="movementBtn" class="auth-btn hidden" onclick="showMovementModal()" style="background:#c0392b;">🚶 Movement Log <span id="moveBadge" class="badge-low hidden">0</span></button>
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
             <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Mark Attendance</button>
+            <button id="taskMgmtBtn" class="auth-btn hidden" onclick="showTaskModal()" style="background:#8e44ad;">📋 Task Management <span id="taskBadge" class="badge-low hidden">0</span></button>
+            <button id="taskEmpBtn" class="auth-btn hidden" onclick="showEmpTaskModal()" style="background:#8e44ad;">📋 Tasks <span id="taskEmpBadge" class="badge-low hidden">0</span></button>
             <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout</button>
         </div>
     </header>
@@ -240,6 +242,33 @@
             <button class="modal-nav" onclick="deleteItem()" style="background:#dc3545; width:100%; margin-top:10px;">Delete Item</button>
         </div>
         <br><button onclick="closeEditModal()" class="modal-nav" style="background:#666; width:100%">Close</button>
+    </div>
+</div>
+
+<!-- TASK MANAGEMENT (ADMIN) -->
+<div id="taskModal" class="modal-overlay">
+    <div class="modal-content" style="width:700px; text-align:left;">
+        <h3 id="taskTitle" style="text-align:center">📋 Task Management</h3>
+        <div id="taskBody"></div>
+        <br><button onclick="closeTaskModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- MY TASKS (EMPLOYEE) -->
+<div id="empTaskModal" class="modal-overlay">
+    <div class="modal-content" style="width:700px; text-align:left;">
+        <h3 style="text-align:center">📋 My Tasks</h3>
+        <div id="empTaskBody"></div>
+        <br><button onclick="closeEmpTaskModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- CONFIRM (YES / NO) -->
+<div id="confirmModal" class="modal-overlay" style="z-index:2200">
+    <div class="modal-content" style="width:380px">
+        <h3 id="confirmText">Are you sure?</h3>
+        <button onclick="confirmAnswer(true)" style="background:#dc3545; width:45%">Yes</button>
+        <button onclick="confirmAnswer(false)" style="background:#555; width:45%">No</button>
     </div>
 </div>
 
