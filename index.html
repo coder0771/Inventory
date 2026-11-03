@@ -24,6 +24,7 @@
     <h2>Select Role</h2>
     <button class="role-btn" onclick="chooseAdmin()">Owner (Admin)</button>
     <button class="role-btn" style="background:#6f42c1" onclick="chooseEmployee()">Employee</button>
+    <button class="role-btn" style="background:#444" onclick="chooseDeveloper()">Developer</button>
     <br><br>
     <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout / Switch Account</button>
 </div>
@@ -75,6 +76,28 @@
     <br><button onclick="backToRole()" style="color:#666; background:none; text-decoration:underline;">Back</button>
 </div>
 
+<!-- DEVELOPER LOGIN -->
+<div id="devLoginPage" class="auth-box hidden">
+    <h2>Developer Access</h2>
+    <p id="devPrompt" style="color:#555">Enter developer name</p>
+    <input id="devInput" type="text" style="width:90%" autocomplete="off" onkeydown="if(event.key==='Enter')devNext()">
+    <button class="auth-btn" onclick="devNext()" style="width:90%; margin-top:10px;">Next</button>
+    <br><button onclick="backToRole()" style="color:#666; background:none; text-decoration:underline;">Back</button>
+</div>
+
+<!-- DEVELOPER CONSOLE -->
+<div id="developerPage" class="hidden">
+    <header id="workspaceHeader">
+        <div><strong>🛠 DEVELOPER CONSOLE</strong> <span style="font-size:0.7em; background:var(--neon); color:black; padding:2px 6px; border-radius:4px; margin-left:5px;"><span id="devCount">0</span> companies</span></div>
+        <div>
+            <button class="auth-btn" onclick="loadDevData()" style="background:#0056b3;">⟳ Refresh</button>
+            <button class="auth-btn" onclick="devExit()">Back</button>
+            <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout</button>
+        </div>
+    </header>
+    <div id="devBody" style="width:90%; max-width:1000px; margin:20px auto;"></div>
+</div>
+
 <!-- MAIN APP -->
 <div id="app" class="hidden">
     <header id="workspaceHeader">
@@ -83,7 +106,7 @@
             <span id="roleBadge" style="font-size:0.7em; background:var(--neon); color:black; padding:2px 6px; border-radius:4px; margin-left:5px;"></span>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-            <div id="staffDisplay" class="staff-list hidden">Staff: <span id="staffNames">None</span></div>
+            <div id="staffDisplay" class="staff-list hidden" onclick="showStaffModal()" title="Click to manage employees" style="cursor:pointer">👥 Staff: <span id="staffNames">None</span></div>
             <button id="historyBtn" class="auth-btn hidden" onclick="showHistoryModal()" style="background:#17a2b8;">📜 Audit History</button>
             <button id="movementBtn" class="auth-btn hidden" onclick="showMovementModal()" style="background:#c0392b;">🚶 Movement Log <span id="moveBadge" class="badge-low hidden">0</span></button>
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
@@ -155,7 +178,7 @@
         <thead>
             <tr>
                 <th>Name</th><th>Category</th><th>Size</th><th>Unit</th><th>Stock</th>
-                <th>Hold</th><th>Min Alert</th><th>Price</th><th>Total</th><th>Action</th>
+                <th>Hold</th><th>Broken</th><th>Min Alert</th><th>Price</th><th>Total</th><th>Action</th>
             </tr>
         </thead>
         <tbody id="inventoryBody"></tbody>
@@ -172,6 +195,19 @@
             <tbody id="attendanceBody"></tbody>
         </table>
         <br><button onclick="closeAttendanceModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- STAFF MODAL -->
+<div id="staffModal" class="modal-overlay">
+    <div class="modal-content" style="width:760px;">
+        <h3>👥 Employees</h3>
+        <div class="table-wrap">
+        <table style="width:100%; color:#333; font-size:0.9em;">
+            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Joined</th><th>Location</th><th>Action</th></tr></thead>
+            <tbody id="staffTableBody"></tbody>
+        </table></div>
+        <br><button onclick="closeStaffModal()" class="auth-btn" style="width:100%">Close</button>
     </div>
 </div>
 
@@ -222,7 +258,8 @@
 
         <div style="background:#f8f9fa; padding:10px; border-radius:8px; margin:10px 0;">
             Stock: <span id="currentStock" style="color:green; font-weight:bold">0</span> |
-            Hold: <span id="currentHold" style="color:purple; font-weight:bold">0</span>
+            Hold: <span id="currentHold" style="color:purple; font-weight:bold">0</span> |
+            Broken: <span id="currentBroken" style="color:#c0392b; font-weight:bold">0</span>
         </div>
 
         <input id="transactionQty" class="modal-nav" type="number" min="0" placeholder="Amount..." style="width:90%; text-align:center; font-size:1.2em; border:2px solid #222;">
@@ -237,6 +274,11 @@
             <button class="modal-nav" onclick="releaseStock()" style="background:#fd7e14; width:45%">RELEASE</button>
             <button class="modal-nav" onclick="finalOut()" style="background:#222; width:45%">FINAL OUT</button>
         </div>
+        <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <button class="modal-nav" onclick="brokenStock()" style="background:#c0392b; width:45%">BROKEN</button>
+            <button class="modal-nav" onclick="brokenOut()" style="background:#7f1d1d; width:45%">BROKEN OUT</button>
+        </div>
+        <p style="font-size:0.75em; color:#666; margin:6px 0 0;">Broken: moves the amount from stock to broken stock. Broken Out: removes the amount from broken stock permanently.</p>
 
         <div id="adminDeleteGroup" class="hidden">
             <button class="modal-nav" onclick="deleteItem()" style="background:#dc3545; width:100%; margin-top:10px;">Delete Item</button>
