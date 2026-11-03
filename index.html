@@ -17,7 +17,16 @@
     <button class="auth-btn" onclick="signup()" style="width:45%">Signup</button>
     <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
     <button class="google-btn" onclick="googleLogin()">Sign in with Google</button>
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+    <p style="margin: 0 0 6px; font-weight: bold;">Sign in with mobile number</p>
+    <input id="phone" type="tel" placeholder="Mobile number e.g. +919876543210" style="width:90%" onkeydown="if(event.key==='Enter')sendOtp()">
+    <button id="sendOtpBtn" class="auth-btn" onclick="sendOtp()" style="width:93%">Send OTP</button>
+    <div id="otpBox" class="hidden">
+        <input id="otp" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit OTP" style="width:90%" onkeydown="if(event.key==='Enter')verifyOtp()">
+        <button class="auth-btn" onclick="verifyOtp()" style="width:93%; background:#28a745;">Verify &amp; Login</button>
+    </div>
 </div>
+<div id="recaptcha-container"></div>
 
 <!-- ROLE -->
 <div id="rolePage" class="auth-box hidden">
@@ -204,7 +213,7 @@
         <h3>👥 Employees</h3>
         <div class="table-wrap">
         <table style="width:100%; color:#333; font-size:0.9em;">
-            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Joined</th><th>Location</th><th>Action</th></tr></thead>
+            <thead><tr><th>#</th><th>Name</th><th>Email / Phone</th><th>Joined</th><th>Location</th><th>Action</th></tr></thead>
             <tbody id="staffTableBody"></tbody>
         </table></div>
         <br><button onclick="closeStaffModal()" class="auth-btn" style="width:100%">Close</button>
