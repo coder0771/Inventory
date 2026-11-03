@@ -40,6 +40,7 @@ let selectedItem = null;
 let currentRole = "";
 let displayName = "";
 let unsubs = [];
+let devActive = false;
 let staffList = [];
 let trackWatchId = null, trackState = null, trackPending = 0, trackBusy = false, wakeLock = null;
 let unreadMoves = 0;
@@ -73,7 +74,7 @@ async function sha256(text) {
 }
 
 const PAGES = ["loginPage", "rolePage", "adminChoicePage", "createCompanyPage",
-  "companyLoginPage", "adminPasswordPage", "employeePage", "app"];
+  "companyLoginPage", "adminPasswordPage", "employeePage", "devLoginPage", "developerPage", "app"];
 function showOnly(id) { PAGES.forEach(hide); show(id); }
 
 function stopListeners() { unsubs.forEach((u) => u()); unsubs = []; stopTracking(); }
@@ -83,7 +84,7 @@ onAuthStateChanged(auth, (user) => {
   currentUser = user;
   if (user) {
     // don't kick the person out of the dashboard on token refresh
-    if (!companyID) showOnly("rolePage");
+    if (!companyID && !devActive) showOnly("rolePage");
   } else {
     stopListeners();
     resetSession();
@@ -93,7 +94,7 @@ onAuthStateChanged(auth, (user) => {
 
 function resetSession() {
   companyID = ""; companyData = null; inventory = [];
-  selectedItem = null; currentRole = ""; displayName = "";
+  selectedItem = null; currentRole = ""; displayName = ""; devActive = false;
 }
 
 /* ---------- EMAIL / GOOGLE AUTH ---------- */
@@ -196,7 +197,7 @@ window.createCompany = async function () {
       adminPassHash: adminHash, joinCodeHash: await codeHash(id, "join", code), joinCode: code
     });
     await setDoc(doc(db, "companies", id, "members", uid), {
-      uid, role: "ADMIN", accessCode: adminHash, name: "Owner", email: currentUser.email || "", createdAt: serverTimestamp()
+      uid, admin: true, adminCode: adminHash, email: currentUser.email || "", createdAt: serverTimestamp()
     });
 
     companyID = id; companyData = payload; currentRole = "ADMIN"; displayName = "Owner";
@@ -240,7 +241,7 @@ async function migrateLegacy(id, d, password) {
     adminPassHash: adminHash, joinCodeHash: join ? await codeHash(id, "join", join) : "", joinCode: join
   });
   await setDoc(doc(db, "companies", id, "members", uid), {
-    uid, role: "ADMIN", accessCode: adminHash, name: "Owner", email: currentUser.email || "", createdAt: serverTimestamp()
+    uid, admin: true, adminCode: adminHash, email: currentUser.email || "", createdAt: serverTimestamp()
   });
 }
 
@@ -263,7 +264,7 @@ window.adminLogin = async function () {
       try {
         // the Firestore rules accept this write ONLY if the hash matches the stored admin password
         await setDoc(doc(db, "companies", id, "members", currentUser.uid),
-          { uid: currentUser.uid, role: "ADMIN", accessCode: hash, name: "Owner", email: currentUser.email || "" }, { merge: true });
+          { uid: currentUser.uid, admin: true, adminCode: hash, email: currentUser.email || "" }, { merge: true });
       } catch (err) {
         if (err.code === "permission-denied") return toast("Wrong Password");
         throw err;
@@ -290,14 +291,10 @@ window.employeeLogin = async function () {
     if (!found) return toast("Invalid Company Name");
 
     const memRef = doc(db, "companies", found.id, "members", currentUser.uid);
-    const cur = await getDoc(memRef);
-    if (cur.exists() && cur.data().role === "ADMIN") {
-      return toast("This Google account is an admin of this company. Use a different Google account to join as an employee.");
-    }
     try {
       // accepted by the rules ONLY if the join code hash matches
-      await setDoc(memRef, { uid: currentUser.uid, role: "EMPLOYEE", accessCode: await codeHash(found.id, "join", code),
-        name, email: currentUser.email || "" }, { merge: true });
+      await setDoc(memRef, { uid: currentUser.uid, employee: true, joinCode: await codeHash(found.id, "join", code),
+        email: currentUser.email || "" }, { merge: true });
     } catch (err) {
       if (err.code === "permission-denied") return toast("Invalid Company Code");
       throw err;
@@ -339,7 +336,7 @@ function openDashboard() {
   }
   startRealtime();
   startTasks();
-  if (!admin) startTracking();
+  if (!admin) { startTracking(); watchMembership(); }
 }
 
 function startRealtime() {
@@ -420,6 +417,7 @@ window.addItem = async function () {
       unit: normalizeString($("itemUnit")?.value) || "-",
       qty: Math.max(0, Number($("itemQty")?.value) || 0),
       hold: 0,
+      broken: 0,
       price: Math.max(0, Number($("itemPrice")?.value) || 0),
       minQty: Math.max(0, Number($("itemMinQty")?.value) || 5),
       createdBy: currentUser.uid,
@@ -438,6 +436,7 @@ window.editItem = function (id) {
   $("modalTitle").innerText = "Item: " + (selectedItem.name || "Unnamed Item");
   $("currentStock").innerText = selectedItem.qty ?? 0;
   $("currentHold").innerText = selectedItem.hold ?? 0;
+  $("currentBroken").innerText = selectedItem.broken ?? 0;
   $("transactionQty").value = "";
 
   if (currentRole === "ADMIN") {
@@ -498,7 +497,7 @@ window.deleteItem = async function () {
    - reads fresh data inside a transaction, so two users can't overwrite each other
    - FINAL OUT permanently removes held stock (hold goes down, stock is NOT changed)
    - negative / zero / decimal amounts are rejected                                      */
-const ACTION_LABEL = { IN: "STOCK IN", OUT: "STOCK OUT", HOLD: "HOLD", RELEASE: "RELEASE HOLD", FINAL: "FINAL OUT" };
+const ACTION_LABEL = { IN: "STOCK IN", OUT: "STOCK OUT", HOLD: "HOLD", RELEASE: "RELEASE HOLD", FINAL: "FINAL OUT", BROKEN: "BROKEN STOCK", BROKENOUT: "BROKEN OUT" };
 
 async function updateStock(type) {
   if (!selectedItem) return;
@@ -519,6 +518,7 @@ async function updateStock(type) {
       const d = snap.data();
       let stock = Number(d.qty) || 0;
       let hold = Number(d.hold) || 0;
+      let broken = Number(d.broken) || 0;
       const amt = useAllHold ? hold : qty;
 
       if (amt <= 0) throw new Error("Nothing is on hold");
@@ -537,9 +537,15 @@ async function updateStock(type) {
         case "FINAL":
           if (hold < amt) throw new Error("Only " + hold + " on hold");
           hold -= amt; break;
+        case "BROKEN": // move from good stock to broken stock
+          if (stock < amt) throw new Error("Insufficient Stock");
+          stock -= amt; broken += amt; break;
+        case "BROKENOUT": // remove from broken stock permanently
+          if (broken < amt) throw new Error("Only " + broken + " in broken stock");
+          broken -= amt; break;
       }
 
-      tx.update(itemRef, { qty: stock, hold });
+      tx.update(itemRef, { qty: stock, hold, broken });
       tx.set(doc(collection(db, "companies", companyID, "history")), {
         action: ACTION_LABEL[type], qty: amt, item: d.name,
         user: displayName || currentUser.email || "Unknown", time: serverTimestamp()
@@ -556,6 +562,8 @@ window.stockOut = () => updateStock("OUT");
 window.holdStock = () => updateStock("HOLD");
 window.releaseStock = () => updateStock("RELEASE");
 window.finalOut = () => updateStock("FINAL");
+window.brokenStock = () => updateStock("BROKEN");
+window.brokenOut = () => updateStock("BROKENOUT");
 
 async function addHistory(action, qty, item) {
   try {
@@ -798,6 +806,45 @@ function renderPresence() {
       : s.presence === "IN" ? '<span class="badge-in">Inside</span>' : '<span class="badge-cat" style="background:#888">No data</span>';
     return `<div style="margin:4px 0">${escapeHTML(s.name)} ${st}</div>`;
   }).join("") : "No staff have joined yet";
+  renderStaffTable();
+}
+
+/* ---------- STAFF TABLE: view and remove employees ---------- */
+function renderStaffTable() {
+  const el = $("staffTableBody");
+  if (!el) return;
+  el.innerHTML = staffList.length ? staffList.map((s, n) => {
+    const st = s.presence === "OUT" ? '<span class="badge-low">Outside</span>'
+      : s.presence === "IN" ? '<span class="badge-in">Inside</span>' : '<span class="badge-cat" style="background:#888">No data</span>';
+    return `<tr><td>${n + 1}</td><td><b>${escapeHTML(s.name)}</b></td><td>${escapeHTML(s.email || "-")}</td>
+      <td>${s.joinedAt?.toDate ? s.joinedAt.toDate().toLocaleDateString() : "-"}</td><td>${st}</td>
+      <td><button class="bin" onclick="removeEmployee('${escapeHTML(s.uid)}')">🗑 Remove</button></td></tr>`;
+  }).join("") : '<tr><td colspan="6">No employees have joined yet</td></tr>';
+}
+window.showStaffModal = () => { if (currentRole !== "ADMIN") return; renderStaffTable(); $("staffModal").classList.add("open"); };
+window.closeStaffModal = () => $("staffModal").classList.remove("open");
+
+window.removeEmployee = async (uid) => {
+  const s = staffList.find((x) => x.uid === uid);
+  if (!s) return;
+  if (!(await askConfirm(`Remove ${s.name} from your company? They will lose access immediately.`))) return;
+  try {
+    loading(true);
+    await updateDoc(doc(db, "companies", companyID, "members", uid), { employee: false });
+    await deleteDoc(doc(db, "companies", companyID, "staff", uid));
+    toast(s.name + " removed");
+  } catch (err) { console.error(err); toast("Could not remove: " + err.message); }
+  finally { loading(false); }
+};
+
+// employee side: if the owner removes this employee, sign them out of the company straight away
+function watchMembership() {
+  unsubs.push(onSnapshot(doc(db, "companies", companyID, "members", currentUser.uid), (s) => {
+    if (currentRole === "EMPLOYEE" && (!s.exists() || s.data().employee !== true)) {
+      toast("You were removed from this company by the owner");
+      logout();
+    }
+  }, () => {}));
 }
 
 window.showMovementModal = () => {
@@ -830,7 +877,7 @@ function updateCategoryDropdown() {
 
 function renderInventory(list) {
   $("inventoryBody").innerHTML = list.map((i) => {
-    const qty = Number(i.qty) || 0, hold = Number(i.hold) || 0, price = Number(i.price) || 0;
+    const qty = Number(i.qty) || 0, hold = Number(i.hold) || 0, broken = Number(i.broken) || 0, price = Number(i.price) || 0;
     const min = i.minQty ?? 5;
     const low = qty <= min;
     return `<tr ${low ? 'class="low-stock-row"' : ""}>
@@ -840,6 +887,7 @@ function renderInventory(list) {
       <td>${escapeHTML(i.unit || "-")}</td>
       <td><b>${qty}</b></td>
       <td style="color:purple"><b>${hold}</b></td>
+      <td style="color:#c0392b"><b>${broken}</b></td>
       <td>${min}</td>
       <td>₹${price}</td>
       <td>₹${((qty + hold) * price).toLocaleString()}</td>
@@ -866,7 +914,7 @@ const HEADER_MAP = {
   category: "category", cat: "category",
   size: "size", unit: "unit",
   qty: "qty", quantity: "qty", stock: "qty",
-  hold: "hold",
+  hold: "hold", broken: "broken",
   minqty: "minQty", "min qty": "minQty", "min alert": "minQty", min: "minQty",
   price: "price", rate: "price"
 };
@@ -874,8 +922,8 @@ const HEADER_MAP = {
 window.downloadTemplate = function () {
   if (!window.XLSX) return toast("Excel library failed to load");
   const ws = XLSX.utils.aoa_to_sheet([
-    ["Name", "Category", "Size", "Unit", "Qty", "Hold", "MinQty", "Price"],
-    ["Sample Item", "Snacks", "100", "g", 50, 0, 5, 20]
+    ["Name", "Category", "Size", "Unit", "Qty", "Hold", "Broken", "MinQty", "Price"],
+    ["Sample Item", "Snacks", "100", "g", 50, 0, 0, 5, 20]
   ]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Inventory");
@@ -911,6 +959,7 @@ window.importInventory = async function (input) {
         unit: normalizeString(r.unit) || "-",
         qty: num(r.qty, 0),
         hold: r.hold === undefined ? undefined : num(r.hold, 0),
+        broken: r.broken === undefined ? undefined : num(r.broken, 0),
         minQty: num(r.minQty, 5),
         price: num(r.price, 0)
       });
@@ -932,11 +981,12 @@ window.importInventory = async function (input) {
         const match = existing.get(key(it.name, it.size));
         const data = { ...it };
         if (data.hold === undefined) delete data.hold;
+        if (data.broken === undefined) delete data.broken;
         if (match) {
           batch.update(doc(db, "companies", companyID, "inventory", match.id), data);
         } else {
           batch.set(doc(collection(db, "companies", companyID, "inventory")),
-            { hold: 0, ...data, createdBy: currentUser.uid, createdAt: serverTimestamp() });
+            { hold: 0, broken: 0, ...data, createdBy: currentUser.uid, createdAt: serverTimestamp() });
         }
       });
       await batch.commit();
@@ -952,9 +1002,9 @@ window.importInventory = async function (input) {
 window.exportInventory = function () {
   if (!inventory.length) return toast("No inventory data to export");
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  let csv = "Name,Category,Size,Unit,Qty,Hold,MinQty,Price\n";
+  let csv = "Name,Category,Size,Unit,Qty,Hold,Broken,MinQty,Price\n";
   inventory.forEach((i) => {
-    csv += [q(i.name), q(i.category), q(i.size), q(i.unit), i.qty, i.hold, i.minQty, i.price].join(",") + "\n";
+    csv += [q(i.name), q(i.category), q(i.size), q(i.unit), i.qty, i.hold, i.broken || 0, i.minQty, i.price].join(",") + "\n";
   });
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   const a = document.createElement("a");
@@ -1144,7 +1194,7 @@ function renderTaskAdmin(force) {
   const alerts = alertList();
   const titles = { menu: "📋 Task Management", assignType: "📝 Task Assignment", pick: "Choose Employee", assignAll: "Task for All Employees",
     assignSingle: "Task for " + (taskDraft.name || ""), adminTasks: "🔒 Admin Task (only you can see)",
-    approval: "✅ Task Complete Approval", incomplete: "⏰ Incompleted Tasks", alerts: "🚨 Alerts" };
+    approval: "✅ Task Complete Approval", incomplete: "⏰ Incompleted Tasks", alerts: "🚨 Alerts", assigned: "📑 Assigned Tasks" };
   $("taskTitle").innerText = titles[taskView] || "Task Management";
   let h = "";
 
@@ -1154,7 +1204,8 @@ function renderTaskAdmin(force) {
       <button class="role-btn" onclick="taskGo('adminTasks')">2. Admin Task</button>
       <button class="role-btn" onclick="taskGo('approval')">3. Task Complete Approval ${pend ? `<span class="badge-low">${pend}</span>` : ""}</button>
       <button class="role-btn" onclick="taskGo('incomplete')">4. Incompleted Task ${incomplete.length ? `<span class="badge-low">${incomplete.length}</span>` : ""}</button>
-      <button class="role-btn" onclick="taskGo('alerts')">5. Alert ${alerts.length ? `<span class="badge-low">${alerts.length}</span>` : ""}</button>`;
+      <button class="role-btn" onclick="taskGo('alerts')">5. Alert ${alerts.length ? `<span class="badge-low">${alerts.length}</span>` : ""}</button>
+      <button class="role-btn" onclick="taskGo('assigned')">6. Assigned Tasks ${tasks.length ? `<span class="badge-cat">${tasks.length}</span>` : ""}</button>`;
   }
 
   else if (taskView === "assignType") {
@@ -1227,6 +1278,27 @@ function renderTaskAdmin(force) {
       <div class="task-info"><div class="task-title">🚨 ${escapeHTML(a.name)}</div>
       <div class="task-meta">${escapeHTML(a.name)} has not completed his ${a.titles.length} tasks:<br>• ${a.titles.map(escapeHTML).join("<br>• ")}</div></div></div>`).join("")
       : "<p>No alerts. No employee has 3 or more incompleted tasks.</p>";
+    h += backBtn("menu");
+  }
+
+  else if (taskView === "assigned") {
+    const list = [...tasks].sort((x, y) => (y.createdAt?.toMillis?.() || y.startAt || 0) - (x.createdAt?.toMillis?.() || x.startAt || 0));
+    h = list.length ? list.map((t) => {
+      const type = t.scope === "ALL" ? "All employees" : "Single employee - " + (t.privacy === "PUBLIC" ? "Public (everyone can see)" : "Private (only that employee)");
+      const people = rows.filter((r) => r.t.id === t.id);
+      const label = (r) => r.status === "APPROVED" ? "✅ Approved" : r.status === "SUBMITTED" ? "🕒 Submitted, waiting for approval"
+        : r.status === "DECLINED" ? "❌ Declined" : Date.now() > r.end ? "⏰ Overdue" : Date.now() < t.startAt ? "🗓 Not started" : "⏳ Pending";
+      const done = people.filter((r) => r.status === "APPROVED").length;
+      return `<div class="task-card" style="flex-direction:column; align-items:stretch">
+        <div class="task-title">${escapeHTML(t.title)}</div>
+        <div class="task-meta">📌 ${type}<br>
+          🗓 Created: ${t.createdAt?.toDate ? t.createdAt.toDate().toLocaleString() : "just now"}<br>
+          🟢 Start: ${fmtMs(t.startAt)}<br>🔴 End: ${fmtMs(t.endAt)}<br>
+          ✅ Approved: ${done} of ${people.length || (t.scope === "ALL" ? "all employees" : 0)}</div>
+        <div class="task-meta" style="margin-top:6px">${people.length ? people.map((r) =>
+          `<div>👤 <b>${escapeHTML(r.name)}</b> - ${label(r)}${effEnd(t, r.uid) !== t.endAt ? " (extended to " + fmtMs(effEnd(t, r.uid)) + ")" : ""}</div>`).join("") : "<div>No employee has joined yet.</div>"}</div>
+      </div>`;
+    }).join("") : "<p>You have not assigned any tasks yet.</p>";
     h += backBtn("menu");
   }
 
@@ -1392,6 +1464,122 @@ window.completeTask = async (id) => {
     });
     toast("Task submitted for approval");
   } catch (err) { console.error(err); toast(err.message); }
+};
+
+
+
+/* =====================================================================
+   DEVELOPER CONSOLE
+   Step checks below only compare HASHES (no passwords in this file).
+   The real protection is on the server: the Firestore rules give developer
+   powers only to an account whose proof matches appConfig/developer.
+   ===================================================================== */
+const DEV_STEPS = [
+  { label: "Enter developer name", secret: false, lower: true, hash: "992c8c79e7568f0fcded18b890311ecbc0f5182347f08118177ae6b9b686d8ce" },
+  { label: "Enter developer password 1", secret: true, lower: false, hash: "5790c19241fd40d679a2dc25ef848f849c45e659e167a0f8683d2c25998fb6f3" },
+  { label: "Enter developer password 2", secret: true, lower: false, hash: "6b7d61e562b96f19e67f276d213c0157af5d53f96ae9878d54cf834d0554ca8c" },
+  { label: "Enter website name", secret: false, lower: true, hash: "fc33fd094cd5722535875017c04174e17d2940e09ac5ba870b71aeb5e42412d0" }
+];
+let devStep = 0, devAnswers = [], devFails = 0, devCompanies = [];
+
+window.chooseDeveloper = () => { devStep = 0; devAnswers = []; devFails = 0; showOnly("devLoginPage"); renderDevStep(); };
+
+function renderDevStep() {
+  const st = DEV_STEPS[devStep], input = $("devInput");
+  $("devPrompt").innerText = st.label;
+  input.type = st.secret ? "password" : "text";
+  input.placeholder = st.label;
+  input.value = "";
+  input.focus();
+}
+
+window.devNext = async () => {
+  const st = DEV_STEPS[devStep];
+  let val = normalizeString($("devInput").value);
+  if (st.lower) val = val.toLowerCase();
+  if ((await sha256(`PI-DEV|${devStep}|${val}`)) !== st.hash) {
+    devFails++;
+    if (devFails >= 5) { toast("Too many wrong attempts"); return backToRole(); }
+    return toast(devStep === 0 ? "Developer not recognised" : "Wrong entry. Try again");
+  }
+  devAnswers.push(val);
+  devStep++;
+  if (devStep < DEV_STEPS.length) return renderDevStep();
+
+  try {
+    loading(true);
+    // the server checks this proof against appConfig/developer before it allows developer access
+    const proof = await sha256("PI-DEV-PROOF|" + devAnswers.join("|"));
+    await setDoc(doc(db, "developers", currentUser.uid), { uid: currentUser.uid, proof, email: currentUser.email || "" });
+    devActive = true;
+    showOnly("developerPage");
+    await loadDevData();
+  } catch (err) {
+    console.error(err);
+    toast("Server refused developer access. Create the appConfig/developer document first (see setup steps).");
+  } finally { loading(false); }
+};
+
+window.devExit = () => { devActive = false; showOnly("rolePage"); };
+
+window.loadDevData = async function () {
+  try {
+    loading(true);
+    const snap = await getDocs(collection(db, "companies"));
+    devCompanies = [];
+    for (const c of snap.docs) {
+      const [staff, members] = await Promise.all([
+        getDocs(collection(db, "companies", c.id, "staff")),
+        getDocs(collection(db, "companies", c.id, "members"))
+      ]);
+      devCompanies.push({
+        id: c.id, ...c.data(),
+        staff: staff.docs.map((d) => d.data()),
+        admins: members.docs.map((d) => d.data()).filter((m) => m.admin === true || m.role === "ADMIN")
+      });
+    }
+    renderDevData();
+  } catch (err) { console.error(err); toast("Could not load companies: " + err.message); }
+  finally { loading(false); }
+};
+
+function renderDevData() {
+  $("devCount").innerText = devCompanies.length;
+  $("devBody").innerHTML = devCompanies.length ? devCompanies.map((c) => `
+    <div class="task-card" style="flex-direction:column; align-items:stretch; background:rgba(255,255,255,0.95); text-align:left">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
+        <div><div class="task-title" style="font-size:1.15em">🏢 ${escapeHTML(c.companyName || "(no name)")}</div>
+          <div class="task-meta">ID: ${escapeHTML(c.id)}<br>Created: ${c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : "-"}<br>
+          Admins: ${c.admins.length ? c.admins.map((m) => escapeHTML(m.email || m.uid)).join(", ") : "-"}</div></div>
+        <button class="bin" onclick="devDeleteCompany('${escapeHTML(c.id)}')">🗑 Delete Company</button>
+      </div>
+      <table style="width:100%; margin:10px 0 0; font-size:0.85em; color:#333">
+        <thead><tr><th>#</th><th>Employee</th><th>Email</th><th>Joined</th></tr></thead>
+        <tbody>${c.staff.length ? c.staff.map((s, n) => `<tr><td>${n + 1}</td><td>${escapeHTML(s.name)}</td><td>${escapeHTML(s.email || "-")}</td>
+          <td>${s.joinedAt?.toDate ? s.joinedAt.toDate().toLocaleDateString() : "-"}</td></tr>`).join("") : '<tr><td colspan="4">No employees</td></tr>'}</tbody>
+      </table></div>`).join("") : "<p style='color:white'>No companies exist.</p>";
+}
+
+window.devDeleteCompany = async (id) => {
+  const c = devCompanies.find((x) => x.id === id);
+  if (!c) return;
+  if (!(await askConfirm(`Delete "${c.companyName}" and ALL its inventory, employees, tasks and history permanently?`))) return;
+  try {
+    loading(true);
+    for (const sub of ["inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private"]) {
+      const docs = (await getDocs(collection(db, "companies", id, sub))).docs;
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+    if (c.companyName) await deleteDoc(doc(db, "companyDirectory", await nameKey(c.companyName)));
+    await deleteDoc(doc(db, "companies", id));
+    toast("Company deleted");
+    await loadDevData();
+  } catch (err) { console.error(err); toast("Delete failed: " + err.message); }
+  finally { loading(false); }
 };
 
 
