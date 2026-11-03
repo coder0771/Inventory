@@ -305,3 +305,7 @@ textarea, .task-input { width: 95%; padding: 10px; border-radius: 6px; border: 1
 .tbox.done { background: #ffc107; border-color: #d39e00; color: #222; cursor: default; }
 .tbox.open { border-color: var(--dark-neon); }
 .tbox.locked { background: #e9ecef; border-color: #bbb; cursor: not-allowed; }
+
+/* --- DD / MM / YYYY date picker --- */
+.dt-picker { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin: 4px 0 8px; }
+.dt-picker select, .dt-picker input { padding: 8px; border-radius: 6px; border: 1px solid #ccc; margin: 0; font-size: 0.95em; background: white; }
