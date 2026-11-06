@@ -13,6 +13,7 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initSuite } from "./suite.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
@@ -42,7 +43,7 @@ let displayName = "";
 let unsubs = [];
 let devActive = false;
 let staffList = [];
-let trackWatchId = null, trackState = null, trackPending = 0, trackBusy = false, wakeLock = null;
+let trackPlace = "", trackWatchId = null, trackState = null, trackPending = 0, trackBusy = false, wakeLock = null;
 let unreadMoves = 0;
 
 /* ---------- HELPERS ---------- */
@@ -58,7 +59,7 @@ const fmtD = (d) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-di
 const fmtDT = (d) => d.toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).replace(",", "");
 
 // date picker made of Day / Month / Year drop-downs + time, so the order is always DD / MM / YYYY
-function dtPicker(id, ms) {
+function dtPicker(id, ms, noTime) {
   const d = new Date(ms), y = new Date().getFullYear();
   const opts = (from, to, sel, f) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
     .map((v) => `<option value="${v}" ${v === sel ? "selected" : ""}>${f(v)}</option>`).join("");
@@ -66,12 +67,13 @@ function dtPicker(id, ms) {
     <select id="${id}D">${opts(1, 31, d.getDate(), pad2)}</select> /
     <select id="${id}M">${opts(1, 12, d.getMonth() + 1, pad2)}</select> /
     <select id="${id}Y">${opts(Math.min(y - 1, d.getFullYear()), Math.max(y + 5, d.getFullYear()), d.getFullYear(), String)}</select>
-    <input id="${id}T" type="time" value="${pad2(d.getHours())}:${pad2(d.getMinutes())}">
+    ${noTime ? "" : `<input id="${id}T" type="time" value="${pad2(d.getHours())}:${pad2(d.getMinutes())}">`}
   </div>`;
 }
 function readDT(id) {
   const D = +$(id + "D").value, M = +$(id + "M").value, Y = +$(id + "Y").value;
-  const [hh, mm] = ($(id + "T").value || "").split(":").map(Number);
+  const tEl = $(id + "T");
+  const [hh, mm] = tEl ? (tEl.value || "").split(":").map(Number) : [0, 0];
   if (isNaN(hh) || isNaN(mm)) return NaN;
   const dt = new Date(Y, M - 1, D, hh, mm);
   return dt.getDate() === D && dt.getMonth() === M - 1 ? dt.getTime() : NaN; // rejects e.g. 31/02
@@ -100,21 +102,133 @@ async function sha256(text) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-const PAGES = ["loginPage", "rolePage", "adminChoicePage", "createCompanyPage",
+const PAGES = ["boot", "loginPage", "rolePage", "adminChoicePage", "createCompanyPage",
   "companyLoginPage", "adminPasswordPage", "employeePage", "devLoginPage", "developerPage", "app"];
-function showOnly(id) { PAGES.forEach(hide); show(id); }
+let pageStack = []; // the pages the person has walked through, so BACK can go one step back
+const showPage = (id) => { PAGES.forEach(hide); show(id); };
+function showOnly(id) {
+  showPage(id);
+  if (id === "boot") return;
+  ensureTrap();
+  const i = pageStack.indexOf(id);
+  if (i !== -1) pageStack = pageStack.slice(0, i + 1); // returning to a page already visited
+  else pageStack.push(id);
+  try { sessionStorage.setItem("pi_page", id); } catch (e) {}
+}
+
+/* ---------- keep the person signed in to their company after a refresh ---------- */
+const SESSION_KEY = "pi_session";
+function saveSession(extra) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ uid: currentUser.uid, companyID, role: currentRole, name: displayName, ...extra })); } catch (e) {}
+}
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem("pi_page"); } catch (e) {}
+}
+async function restoreSession(user) {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
+  if (!s || s.uid !== user.uid) return false;
+  try {
+    loading(true);
+    if (s.dev) { // developer panel: the server still decides (developers/{uid} must exist)
+      if (!(await getDoc(doc(db, "developers", user.uid))).exists()) return false;
+      devActive = true; pageStack = ["rolePage"];
+      showOnly("developerPage");
+      await loadDevData();
+      return true;
+    }
+    // the server must still list this account as admin / employee of the company
+    const m = await getDoc(doc(db, "companies", s.companyID, "members", user.uid));
+    const f = m.exists() ? m.data() : {};
+    if (s.role === "ADMIN" ? f.admin !== true : f.employee !== true) return false;
+    companyData = await loadCompany(s.companyID);
+    companyID = s.companyID; currentRole = s.role; displayName = s.name;
+    openDashboard();
+    return true;
+  } catch (e) {
+    console.error("Could not restore the session", e);
+    companyID = ""; companyData = null; devActive = false;
+    return false;
+  } finally { loading(false); }
+}
+
+/* ---------- phone BACK button: close a window, or go one step back, never out to the login ---------- */
+const modalStack = [];
+let trapN = 0, curN = 0, gestureTrap = false;
+function pushTrap() { history.pushState({ pi: ++trapN }, ""); curN = trapN; }
+// after BACK was pressed on the first screen we sit on the base entry; re-arm as soon as the person moves on
+const ensureTrap = () => { if (curN === 0) pushTrap(); };
+new MutationObserver((muts) => muts.forEach((m) => {
+  const el = m.target, i = modalStack.indexOf(el.id);
+  if (el.classList.contains("open")) { if (i === -1) { modalStack.push(el.id); ensureTrap(); } }
+  else if (i !== -1) modalStack.splice(i, 1);
+})).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["class"] });
+
+const TASK_PARENT = { assignType: "menu", pick: "assignType", assignAll: "assignType", assignSingle: "pick", adminTasks: "menu",
+  approval: "menu", incomplete: "menu", alerts: "menu", assigned: "menu", editTask: "assigned" };
+function taskBackStep() {
+  if (taskView === "menu") return false;
+  window.taskGo(TASK_PARENT[taskView] || "menu");
+  return true;
+}
+
+function appBack() {
+  const top = modalStack.filter((id) => $(id) && $(id).classList.contains("modal-overlay") && $(id).classList.contains("open")).pop();
+  if (top) {
+    if (top === "taskModal" && taskBackStep()) return true;
+    if (top === "suiteModal" && window.SU && window.SU.back()) return true;
+    if (top === "confirmModal") window.confirmAnswer(false);
+    else if (top === "formModal") window.SU.formClose();
+    else if (top === "editModal") closeEditModal();
+    else $(top).classList.remove("open");
+    return true;
+  }
+  if (pageStack.length > 1) {
+    const cur = pageStack.pop();
+    if (cur === "app" || cur === "developerPage") { stopListeners(); resetSession(); clearSession(); }
+    showPage(pageStack[pageStack.length - 1]);
+    return true;
+  }
+  return false; // already on the first screen: let the browser handle it
+}
+
+(function initBackTrap() {
+  const s = history.state;
+  if (s && typeof s.pi === "number" && s.pi > 0) { trapN = curN = s.pi; }      // page was refreshed: entries are still there
+  else { history.replaceState({ pi: 0 }, ""); curN = 0; trapN = 0; pushTrap(); }
+  // Chrome ignores history entries added before the first tap, so add one after the first tap as well
+  document.addEventListener("pointerdown", () => { if (!gestureTrap) { gestureTrap = true; pushTrap(); } }, { once: true, capture: true });
+  window.addEventListener("popstate", (e) => {
+    const n = e.state && typeof e.state.pi === "number" ? e.state.pi : null;
+    if (n === null) return;
+    const wasBack = n < curN;
+    curN = n;
+    if (!wasBack) return;
+    const handled = appBack();
+    if (handled && n === 0) pushTrap();  // re-arm so the next BACK press is caught too
+  });
+})();
 
 function stopListeners() { unsubs.forEach((u) => u()); unsubs = []; stopTracking(); }
 
 /* ---------- AUTH STATE ---------- */
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   if (user) {
-    // don't kick the person out of the dashboard on token refresh
-    if (!companyID && !devActive) showOnly("rolePage");
+    if (companyID || devActive) return; // already inside, nothing to do
+    if (await restoreSession(user)) return; // refresh: go straight back to the dashboard
+    pageStack = [];
+    showOnly("rolePage");
+    // refreshed on a step before the dashboard: stay on that step instead of starting again
+    const last = sessionStorage.getItem("pi_page");
+    const page = { adminPasswordPage: "companyLoginPage", devLoginPage: "employeePage" }[last] || last;
+    const chains = { adminChoicePage: [], createCompanyPage: ["adminChoicePage"], companyLoginPage: ["adminChoicePage"], employeePage: [] };
+    if (page in chains) { chains[page].forEach(showOnly); showOnly(page); }
   } else {
     stopListeners();
     resetSession();
+    clearSession();
+    pageStack = [];
     showOnly("loginPage");
   }
 });
@@ -232,6 +346,8 @@ window.logout = async function () {
   try {
     stopListeners();
     resetSession();
+    clearSession();
+    pageStack = [];
     confirmationResult = null;
     await signOut(auth);
     toast("Logged Out");
@@ -381,6 +497,7 @@ window.employeeLogin = async function () {
   const name = normalizeString($("employeeName")?.value);
   const companyName = normalizeString($("employeeCompanyName")?.value);
   const code = normalizeString($("employeeJoinCode")?.value);
+  if (name && !companyName && !code && (await isDevName(name))) return startDevFlow();
   if (!name || !companyName || !code) return toast("Please fill all fields");
 
   try {
@@ -411,16 +528,19 @@ window.employeeLogin = async function () {
 
 /* ---------- DASHBOARD ---------- */
 function openDashboard() {
+  pageStack = ["rolePage"]; // BACK from the dashboard goes to "Select Role", never to the login
   showOnly("app");
+  saveSession();
   $("companyTitle").innerText = companyData.companyName;
   $("roleBadge").innerText = currentRole;
 
   const admin = currentRole === "ADMIN";
   // Admin-only controls: history, attendance log, geo-fence, Excel import
-  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "taskMgmtBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
+  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "taskMgmtBtn", "suiteBtn", "placesBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
   if (!admin) closeHistoryModal();
   admin ? hide("markAttBtn") : show("markAttBtn");
   admin ? hide("taskEmpBtn") : show("taskEmpBtn");
+  admin ? hide("myWorkBtn") : show("myWorkBtn");
 
   if (admin && companyData.geo) {
     $("geoLat").value = companyData.geo.lat;
@@ -434,7 +554,12 @@ function openDashboard() {
   }
   startRealtime();
   startTasks();
-  if (!admin) { startTracking(); watchMembership(); }
+  suite.start();
+  if (!admin) {
+    startTracking(); watchMembership(); checkLocationAccess(); refreshAttendanceButton();
+    const h = setInterval(refreshAttendanceButton, 300000); // a new day: the button works again
+    unsubs.push(() => clearInterval(h));
+  }
 }
 
 function startRealtime() {
@@ -442,6 +567,12 @@ function startRealtime() {
   const base = ["companies", companyID];
   unreadMoves = 0;
   updateMoveBadge();
+
+  // extra attendance places added by the owner
+  unsubs.push(onSnapshot(collection(db, ...base, "places"), (snap) => {
+    placesList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderPlaces();
+  }, (e) => console.error("Places listener:", e)));
 
   // live company settings (so a changed shop radius reaches employees immediately)
   unsubs.push(onSnapshot(doc(db, ...base), (s) => {
@@ -478,7 +609,7 @@ function startRealtime() {
         const m = d.data();
         const left = m.type === "LEFT";
         return `<tr><td>${escapeHTML(m.name)}</td>
-          <td><span class="${left ? "badge-low" : "badge-in"}">${left ? "LEFT radius" : "ENTERED radius"}</span></td>
+          <td><span class="${left ? "badge-low" : "badge-in"}">${left ? "LEFT radius" : "ENTERED radius"}</span>${m.place && m.place !== "Shop" ? "<br><small>" + escapeHTML(m.place) + "</small>" : ""}</td>
           <td>${fmtTime(m.time)}</td><td>${Math.round(m.distance ?? 0)} m${m.note ? " <small>(" + escapeHTML(m.note) + ")</small>" : ""}</td></tr>`;
       }).join("") || '<tr><td colspan="4">No movement recorded yet</td></tr>';
 
@@ -705,7 +836,7 @@ function getPosition({ targetAccuracy = 15, maxWait = 12000 } = {}) {
         if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
         if (best.coords.accuracy <= targetAccuracy) finish();
       },
-      (e) => { if (!best) { done = true; navigator.geolocation.clearWatch(watchId); clearTimeout(timer); reject(new Error("Location Error: " + e.message)); } },
+      (e) => { if (!best) { done = true; navigator.geolocation.clearWatch(watchId); clearTimeout(timer); reject(Object.assign(new Error("Location Error: " + e.message), { code: e.code })); } },
       { enableHighAccuracy: true, maximumAge: 0, timeout: maxWait }
     );
     timer = setTimeout(finish, maxWait);
@@ -738,41 +869,123 @@ window.saveGeoSettings = async function () {
   } catch (err) { console.error(err); toast(err.message); }
 };
 
+const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const attendanceRef = () => doc(db, "companies", companyID, "attendance", `${currentUser.uid}_${todayKey()}`);
+
+function setAttendanceButton(done, time) {
+  const b = $("markAttBtn");
+  if (!b) return;
+  b.disabled = done;
+  b.innerText = done ? "✅ Attendance marked" + (time ? " (" + time + ")" : "") : "✅ Mark Attendance";
+  b.style.opacity = done ? "0.7" : "1";
+}
+async function refreshAttendanceButton() {
+  if (currentRole !== "EMPLOYEE" || !companyID) return;
+  try {
+    const s = await getDoc(attendanceRef());
+    const t = s.exists() && s.data().time && s.data().time.toDate ? s.data().time.toDate() : null;
+    setAttendanceButton(s.exists(), t ? t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true }) : "");
+  } catch (e) { setAttendanceButton(false); }
+}
+
 window.markAttendance = async function () {
   try {
     loading(true);
+    // ONE attendance per day: the record id is  userId_date,  so a second one is refused (also by the server rules)
+    let existing = null;
+    try { existing = await getDoc(attendanceRef()); } catch (e) {}
+    if (existing && existing.exists()) {
+      setAttendanceButton(true);
+      return toast("Your attendance is already marked today. You can mark it again tomorrow.");
+    }
+
     toast("Getting precise location... stay still for a few seconds");
     const pos = await getPosition({ targetAccuracy: 10, maxWait: 15000 });
     const acc = pos.coords.accuracy;
 
-    // a 20 m fence is only meaningful if the reading itself is reasonably precise
+    // a small fence is only meaningful if the reading itself is reasonably precise
     if (acc > 30) {
       return toast(`GPS signal too weak (±${Math.round(acc)} m). Move near a window or outdoors, keep GPS on, and try again.`);
     }
 
     const fresh = (await getDoc(doc(db, "companies", companyID))).data(); // latest geo-fence
     let distance = null;
-    if (fresh?.geo) {
+    if (fresh && fresh.geo) {
       distance = distanceMeters(pos.coords.latitude, pos.coords.longitude, fresh.geo.lat, fresh.geo.lng);
-      // FIX: both the saved point and this reading have GPS error, so allow for it
-      const allowed = fresh.geo.radius + acc;
-      if (distance > allowed) {
+      // both the saved point and this reading have GPS error, so allow for it
+      if (distance > fresh.geo.radius + acc) {
         return toast(`You are about ${Math.round(distance)} m away (allowed ${fresh.geo.radius} m + GPS error ±${Math.round(acc)} m).`);
       }
     }
-    await addDoc(collection(db, "companies", companyID, "attendance"), {
+    await setDoc(attendanceRef(), {
       name: displayName || contactOf(currentUser) || "Employee",
       uid: currentUser.uid,
       latitude: pos.coords.latitude,
       longitude: pos.coords.longitude,
       distance,
       accuracy: acc,
+      date: todayKey(),
       time: serverTimestamp()
     });
+    setAttendanceButton(true);
     toast("Attendance Marked");
-  } catch (err) { console.error(err); toast(err.message); }
+    refreshAttendanceButton();
+  } catch (err) {
+    console.error(err);
+    if (err.code === 1) showLocBanner("Location access is blocked. Tap Allow location to continue.");
+    toast(err.code === "permission-denied" ? "Your attendance is already marked today." : err.message);
+  } finally { loading(false); }
+};
+
+/* ---------- EXTRA GEO-FENCE PLACES (owner) ---------- */
+let placesList = [], editPlaceId = null;
+function renderPlaces() {
+  const el = $("placesBody");
+  if (!el) return;
+  el.innerHTML = placesList.length ? placesList.map((p) => `<tr><td><b>${escapeHTML(p.name)}</b></td>
+    <td>${Number(p.lat).toFixed(5)}, ${Number(p.lng).toFixed(5)}</td><td>${escapeHTML(p.radius)} m</td>
+    <td style="white-space:nowrap"><button class="edit-btn" onclick="editPlace('${escapeHTML(p.id)}')">✏</button>
+    <button class="bin" onclick="deletePlace('${escapeHTML(p.id)}')">🗑</button></td></tr>`).join("")
+    : '<tr><td colspan="4">No extra places yet</td></tr>';
+}
+function resetPlaceForm() {
+  editPlaceId = null;
+  ["placeName", "placeLat", "placeLng"].forEach((i) => ($(i).value = ""));
+  $("placeRadius").value = 50;
+  $("placeSaveBtn").innerText = "➕ Add Place";
+}
+window.showPlacesModal = () => { if (currentRole !== "ADMIN") return; renderPlaces(); $("placesModal").classList.add("open"); };
+window.closePlacesModal = () => $("placesModal").classList.remove("open");
+window.getPlaceLocation = () => fetchInto("placeLat", "placeLng");
+window.savePlace = async function () {
+  const name = normalizeString($("placeName").value);
+  const lat = parseFloat($("placeLat").value), lng = parseFloat($("placeLng").value), radius = parseFloat($("placeRadius").value);
+  if (!name) return toast("Enter the name of the place");
+  if (isNaN(lat) || isNaN(lng) || isNaN(radius) || radius <= 0) return toast("Enter a valid latitude, longitude and radius");
+  try {
+    loading(true);
+    const data = { name, lat, lng, radius, updatedAt: serverTimestamp() };
+    if (editPlaceId) await updateDoc(doc(db, "companies", companyID, "places", editPlaceId), data);
+    else await addDoc(collection(db, "companies", companyID, "places"), { ...data, createdAt: serverTimestamp() });
+    toast(editPlaceId ? "Place updated" : "Place added");
+    resetPlaceForm();
+  } catch (err) { console.error(err); toast("Could not save place: " + err.message); }
   finally { loading(false); }
 };
+window.editPlace = (id) => {
+  const p = placesList.find((x) => x.id === id);
+  if (!p) return;
+  editPlaceId = id;
+  $("placeName").value = p.name; $("placeLat").value = p.lat; $("placeLng").value = p.lng; $("placeRadius").value = p.radius;
+  $("placeSaveBtn").innerText = "💾 Update Place";
+};
+window.deletePlace = async (id) => {
+  const p = placesList.find((x) => x.id === id);
+  if (!p || !(await askConfirm(`Delete the place "${p.name}"? Employees will no longer be able to mark attendance there.`))) return;
+  try { await deleteDoc(doc(db, "companies", companyID, "places", id)); toast("Place deleted"); if (editPlaceId === id) resetPlaceForm(); }
+  catch (err) { console.error(err); toast(err.message); }
+};
+
 
 
 /* ---------- SHOP RADIUS (employee movement tracking) ---------- */
@@ -805,60 +1018,117 @@ function startTracking() {
   if (currentRole !== "EMPLOYEE") return;
   if (!navigator.geolocation) return setTrackStatus("📍 Location is not supported on this device");
   trackState = null; trackPending = 0;
-  trackWatchId = navigator.geolocation.watchPosition(onTrackPosition,
-    (e) => setTrackStatus("📍 Location error: " + e.message + ". Allow location access to continue."),
+  trackWatchId = navigator.geolocation.watchPosition((p) => { hide("locBanner"); onTrackPosition(p); },
+    (e) => {
+      setTrackStatus("📍 Location error: " + e.message + ". Allow location access to continue.");
+      if (e.code === 1) showLocBanner("Location access is blocked. Attendance and shop tracking need it.");
+    },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
   requestWakeLock();
   setTrackStatus("📍 Starting location tracking...");
 }
 
+
+/* ---------- LOCATION ACCESS (employees): ask again if it was denied ---------- */
+function showLocBanner(msg) { const m = $("locMsg"); if (m) m.innerText = msg; show("locBanner"); }
+
+async function checkLocationAccess() {
+  if (currentRole !== "EMPLOYEE" || !navigator.geolocation || !navigator.permissions || !navigator.permissions.query) return;
+  try {
+    const perm = await navigator.permissions.query({ name: "geolocation" });
+    const apply = () => {
+      if (perm.state === "granted") { hide("locBanner"); if (trackWatchId === null && currentRole === "EMPLOYEE") startTracking(); }
+      else if (perm.state === "denied") showLocBanner("Location access is blocked. Attendance and shop tracking need it.");
+      else showLocBanner("Please allow location access so you can mark attendance.");
+    };
+    perm.onchange = apply; // reacts as soon as the person allows it in the browser settings
+    apply();
+  } catch (e) { /* older browsers: the banner shows when an error happens */ }
+}
+
+window.allowLocation = function () {
+  if (!navigator.geolocation) return toast("This device does not support location");
+  navigator.geolocation.getCurrentPosition(
+    () => { hide("locBanner"); toast("Location allowed"); if (trackWatchId === null) startTracking(); },
+    (e) => {
+      if (e.code === 1) {
+        // browsers do not let a website re-open a blocked permission, so tell the person where the switch is
+        showLocBanner("Still blocked. Tap the lock / info icon next to the web address > Permissions > Location > Allow (iPhone: Settings > Privacy > Location Services > Safari Websites > While Using). Then tap the button again.");
+      } else toast("Could not get your location: " + e.message);
+    },
+    { enableHighAccuracy: true, timeout: 15000 });
+};
+
 function stopTracking() {
   if (trackWatchId !== null) { navigator.geolocation.clearWatch(trackWatchId); trackWatchId = null; }
   releaseWakeLock();
   hide("trackStatus");
+  hide("locBanner");
 }
 
 let lastTrackPos = null;
 function updateTrackNow() { if (lastTrackPos) onTrackPosition(lastTrackPos); }
 
+// every zone an employee may be in: the main shop radius + the extra places the owner added with the top-right Geo-Fence button
+function trackZones() {
+  const z = [];
+  const g = companyData && companyData.shopGeo;
+  if (g) z.push({ name: "Shop", lat: g.lat, lng: g.lng, radius: g.radius });
+  placesList.forEach((p) => z.push({ name: p.name, lat: p.lat, lng: p.lng, radius: p.radius }));
+  return z;
+}
+// nearest zone (by how far outside its edge the person is). GPS error is used as a safety margin before calling someone "outside".
+function evalZones(zones, lat, lng, acc) {
+  let best = null;
+  zones.forEach((z) => {
+    const d = distanceMeters(lat, lng, z.lat, z.lng), over = d - z.radius;
+    if (!best || over < best.over) best = { name: z.name, d, over };
+  });
+  return { name: best.name, d: best.d, inside: best.over <= 0, outsideSure: best.over - acc > 0 };
+}
+
 async function onTrackPosition(pos) {
   lastTrackPos = pos;
-  const g = companyData?.shopGeo;
-  if (!g) { trackState = null; return setTrackStatus("📍 Tracking is off (the owner has not set a shop radius)"); }
+  const zones = trackZones();
+  if (!zones.length) { trackState = null; return setTrackStatus("📍 Tracking is off (the owner has not set a shop radius)"); }
   const acc = pos.coords.accuracy;
   if (acc > 50) return setTrackStatus(`📍 Waiting for a better GPS signal (±${Math.round(acc)} m)`);
   if (trackBusy) return;
   trackBusy = true;
   try {
-    const d = distanceMeters(pos.coords.latitude, pos.coords.longitude, g.lat, g.lng);
+    const r = evalZones(zones, pos.coords.latitude, pos.coords.longitude, acc);
 
     if (trackState === null) {
       // first reading: compare with the last saved state so reloads don't create duplicate events
-      const computed = d > g.radius + acc ? "OUT" : "IN";
+      const computed = r.outsideSure ? "OUT" : "IN";
       let stored = null;
       try { stored = (await getDoc(doc(db, "companies", companyID, "staff", currentUser.uid))).data()?.presence ?? null; } catch (e) {}
       trackState = computed;
+      if (computed === "IN") trackPlace = r.name;
       if (stored !== computed && !(stored === null && computed === "IN")) {
-        await logMovement(computed, d, acc, stored === null ? "outside when app opened" : "");
+        await logMovement(computed, r.d, acc, stored === null ? "outside when app opened" : "", computed === "IN" ? r.name : "");
       }
     } else {
-      // Needs 2 readings in a row to change state, and uses GPS error as margin, to avoid false alerts
-      const want = trackState === "IN" ? (d > g.radius + acc ? "OUT" : "IN") : (d <= g.radius ? "IN" : "OUT");
-      if (want === trackState) trackPending = 0;
+      // Needs 2 readings in a row to change state, and uses GPS error as margin, to avoid false alerts.
+      // Being inside ANY zone counts as inside, so walking from the shop to another added place is not a "left" alert.
+      const want = trackState === "IN" ? (r.outsideSure ? "OUT" : "IN") : (r.inside ? "IN" : "OUT");
+      if (want === trackState) { trackPending = 0; if (want === "IN") trackPlace = r.name; }
       else if (++trackPending >= 2) {
+        const placeForLog = want === "IN" ? r.name : trackPlace;
         trackState = want; trackPending = 0;
-        await logMovement(want, d, acc, "");
+        if (want === "IN") trackPlace = r.name;
+        await logMovement(want, r.d, acc, "", placeForLog);
       }
     }
-    setTrackStatus(`📍 Tracking on: you are ${trackState === "IN" ? "inside" : "outside"} the shop radius (${Math.round(d)} m from shop)`);
+    setTrackStatus(`📍 Tracking on: you are ${trackState === "IN" ? "inside" : "outside"} the shop radius${trackState === "IN" && zones.length > 1 ? " (" + trackPlace + ")" : ""} - ${Math.round(r.d)} m from ${r.name}`);
   } finally { trackBusy = false; }
 }
 
-async function logMovement(state, distance, accuracy, note) {
+async function logMovement(state, distance, accuracy, note, place) {
   try {
     await addDoc(collection(db, "companies", companyID, "movements"), {
       uid: currentUser.uid, name: displayName || contactOf(currentUser) || "Employee",
-      type: state === "OUT" ? "LEFT" : "ENTERED", distance, accuracy, note, time: serverTimestamp()
+      type: state === "OUT" ? "LEFT" : "ENTERED", distance, accuracy, note, place: place || "", time: serverTimestamp()
     });
     await setDoc(doc(db, "companies", companyID, "staff", currentUser.uid),
       { presence: state, presenceAt: serverTimestamp() }, { merge: true });
@@ -888,7 +1158,7 @@ function notifyMovement(m) {
   const card = document.createElement("div");
   card.className = "move-alert " + (left ? "left" : "enter");
   card.innerHTML = `<b>${left ? "🚪 Left" : "✅ Entered"}</b> - ${escapeHTML(m.name)}<br>
-    <small>${left ? "left" : "came back inside"} the shop radius at ${fmtTime(m.time)} (${Math.round(m.distance ?? 0)} m)</small>`;
+    <small>${left ? "left" : "came inside"} ${m.place && m.place !== "Shop" ? escapeHTML(m.place) : "the shop"} radius at ${fmtTime(m.time)} (${Math.round(m.distance ?? 0)} m)</small>`;
   card.onclick = () => card.remove();
   $("alertStack").prepend(card);
   setTimeout(() => card.remove(), 20000);
@@ -954,6 +1224,7 @@ window.showMovementModal = () => {
   $("movementModal").classList.add("open");
 };
 window.closeMovementModal = () => $("movementModal").classList.remove("open");
+
 
 /* ---------- RENDER / SEARCH / CATEGORY FILTER ---------- */
 function updateDashboard() {
@@ -1678,7 +1949,14 @@ const DEV_STEPS = [
 ];
 let devStep = 0, devAnswers = [], devFails = 0, devCompanies = [];
 
-window.chooseDeveloper = () => { devStep = 0; devAnswers = []; devFails = 0; showOnly("devLoginPage"); renderDevStep(); };
+// Name "Dhairya" or "ByteMaster" typed on the employee form with no company name and no join code starts the developer check.
+// The name is already known at that point, so the questions begin with password 1.
+// The name typed on the employee form must be EXACTLY  Dhairya/ByteMaster  (one name, with the slash) and
+// the company name and join code must be empty. "Dhairya" or "ByteMaster" on their own do nothing special.
+// Only a hash is stored here. The questions then continue with password 1, password 2 and the website name.
+const DEV_NAME_HASH = "dc353906a86f2ab7d1e58b5cee28a2ef92af767d92d8e9a80e6381f042c84316";
+const isDevName = async (name) => (await sha256(`PI-DEV|0|${name.trim()}`)) === DEV_NAME_HASH;
+function startDevFlow() { devStep = 1; devAnswers = ["dhairya"]; devFails = 0; showOnly("devLoginPage"); renderDevStep(); }
 
 function renderDevStep() {
   const st = DEV_STEPS[devStep], input = $("devInput");
@@ -1708,7 +1986,9 @@ window.devNext = async () => {
     const proof = await sha256("PI-DEV-PROOF|" + devAnswers.join("|"));
     await setDoc(doc(db, "developers", currentUser.uid), { uid: currentUser.uid, proof, email: contactOf(currentUser) });
     devActive = true;
+    pageStack = ["rolePage"];
     showOnly("developerPage");
+    saveSession({ dev: true });
     await loadDevData();
   } catch (err) {
     console.error(err);
@@ -1716,7 +1996,7 @@ window.devNext = async () => {
   } finally { loading(false); }
 };
 
-window.devExit = () => { devActive = false; showOnly("rolePage"); };
+window.devExit = () => { devActive = false; clearSession(); showOnly("rolePage"); };
 
 window.loadDevData = async function () {
   try {
@@ -1762,7 +2042,8 @@ window.devDeleteCompany = async (id) => {
   if (!(await askConfirm(`Delete "${c.companyName}" and ALL its inventory, employees, tasks and history permanently?`))) return;
   try {
     loading(true);
-    for (const sub of ["inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private"]) {
+    for (const sub of ["inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
+      "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places"]) {
       const docs = (await getDocs(collection(db, "companies", id, sub))).docs;
       for (let i = 0; i < docs.length; i += 400) {
         const batch = writeBatch(db);
@@ -1778,6 +2059,25 @@ window.devDeleteCompany = async (id) => {
   finally { loading(false); }
 };
 
+
+
+/* ---------- BUSINESS SUITE (see suite.js) ---------- */
+async function createTaskDoc({ title, assignees, scope, privacy, startAt, endAt }) {
+  const map = {};
+  assignees.forEach((x) => (map[x.uid] = x.name));
+  const visibleTo = scope === "SINGLE" && privacy === "PRIVATE" ? [assignees[0].uid] : ["ALL"];
+  return addDoc(collection(db, "companies", companyID, "tasks"), {
+    title, scope, privacy: scope === "ALL" ? "ALL" : privacy, visibleTo, assignees: map, completions: {}, extensions: {},
+    startAt, endAt, createdAt: serverTimestamp(), createdBy: currentUser.uid
+  });
+}
+
+const suite = initSuite({
+  db, $, toast, askConfirm, loading, esc: escapeHTML, fmtDT, fmtD, dtPicker, readDT, pushAlert,
+  getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, companyName: companyData ? companyData.companyName : "" }),
+  addUnsub: (fn) => unsubs.push(fn),
+  createTask: createTaskDoc
+});
 
 /* ---------- KEYBOARD NAVIGATION ---------- */
 document.addEventListener("keydown", (e) => {
