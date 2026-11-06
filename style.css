@@ -309,3 +309,46 @@ textarea, .task-input { width: 95%; padding: 10px; border-radius: 6px; border: 1
 /* --- DD / MM / YYYY date picker --- */
 .dt-picker { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin: 4px 0 8px; }
 .dt-picker select, .dt-picker input { padding: 8px; border-radius: 6px; border: 1px solid #ccc; margin: 0; font-size: 0.95em; background: white; }
+
+/* =================== BUSINESS SUITE =================== */
+#loadingOverlay { z-index: 2300; }
+.suite-content { width: 1150px; max-width: 100%; max-height: 90vh; }
+.stabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; border-bottom: 2px solid var(--neon); padding-bottom: 10px; }
+.stab { background: #333; padding: 8px 12px; font-size: 0.9em; }
+.stab.on { background: var(--dark-neon); color: var(--neon); box-shadow: 0 0 8px var(--neon); }
+.auth-btn.on { background: #0056b3; }
+a.lnk { display: inline-block; text-decoration: none; padding: 6px 12px; border-radius: 6px; color: white; background: #17a2b8; font-weight: 600; font-size: 0.9em; margin: 3px; }
+.suite-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.suite-bar select { padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
+.hint { color: #777; font-size: 0.8em; }
+.over { color: #dc3545; font-weight: bold; }
+.chip { display: inline-block; background: #e9ecef; color: #333; padding: 2px 9px; border-radius: 12px; font-size: 0.78em; font-weight: 600; }
+.chip-green { background: #d4edda; color: #1e7e34; } .chip-red { background: #f8d7da; color: #a71d2a; } .chip-yellow { background: #fff3cd; color: #856404; }
+
+.kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; align-items: flex-start; }
+.kcol { min-width: 210px; flex: 1; background: #f1f3f5; border-radius: 10px; padding: 8px; min-height: 120px; }
+.khead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: #222; }
+.kcard { background: white; border: 1px solid #ddd; border-left: 4px solid var(--dark-neon); border-radius: 8px; padding: 8px; margin-bottom: 8px; cursor: grab; text-align: left; }
+.ktitle { font-weight: bold; color: #0056b3; cursor: pointer; word-break: break-word; }
+.kmeta { font-size: 0.78em; color: #555; margin-top: 3px; line-height: 1.5; }
+.kact { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+.kact button, .kact a { background: #eee; color: #222; padding: 3px 8px; margin: 0; font-size: 0.85em; border-radius: 5px; text-decoration: none; }
+.kempty { color: #aaa; text-align: center; font-size: 0.8em; padding: 12px 0; }
+
+.sgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.scard { background: #f8f9fa; border-radius: 10px; padding: 12px; text-align: left; }
+.sval { font-size: 1.35em; font-weight: bold; color: #222; }
+.bars { display: flex; gap: 10px; align-items: flex-end; height: 190px; padding: 10px 0; }
+.bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; font-size: 0.75em; color: #444; }
+.barfill { width: 70%; background: linear-gradient(#39ff14, #1f9d0b); border-radius: 6px 6px 0 0; min-height: 3px; }
+
+.bill-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; align-items: center; }
+.bill-row input { margin: 0; flex: 1; min-width: 120px; } .bill-row select { max-width: 200px; padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px; }
+.grid2 input { margin: 0; width: 100%; }
+.totals { background: #f2fff0; border: 1px solid #b8e6b0; border-radius: 8px; padding: 10px; margin: 10px 0; text-align: right; }
+.stable { width: 100%; margin: 10px 0; font-size: 0.9em; color: #333; }
+.stable th, .stable td { padding: 8px; text-align: left; }
+
+/* --- location permission banner (employees) --- */
+.loc-banner { background: #b8590b; color: white; padding: 10px 15px; font-size: 0.9em; border-bottom: 2px solid #ffc107; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
