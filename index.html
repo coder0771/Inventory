@@ -9,7 +9,10 @@
 <body>
 
 <!-- LOGIN -->
-<div id="loginPage" class="auth-box">
+<!-- shown while the app checks who is signed in (stops the login screen flashing on refresh) -->
+<div id="boot" class="auth-box"><h2>Loading...</h2><p style="color:#777">Please wait</p></div>
+
+<div id="loginPage" class="auth-box hidden">
     <h2>Inventory Login</h2>
     <input id="email" type="email" placeholder="Email" style="width:90%"><br>
     <input id="password" type="password" placeholder="Password" style="width:90%"><br><br>
@@ -33,7 +36,6 @@
     <h2>Select Role</h2>
     <button class="role-btn" onclick="chooseAdmin()">Owner (Admin)</button>
     <button class="role-btn" style="background:#6f42c1" onclick="chooseEmployee()">Employee</button>
-    <button class="role-btn" style="background:#444" onclick="chooseDeveloper()">Developer</button>
     <br><br>
     <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout / Switch Account</button>
 </div>
@@ -91,7 +93,7 @@
     <p id="devPrompt" style="color:#555">Enter developer name</p>
     <input id="devInput" type="text" style="width:90%" autocomplete="off" onkeydown="if(event.key==='Enter')devNext()">
     <button class="auth-btn" onclick="devNext()" style="width:90%; margin-top:10px;">Next</button>
-    <br><button onclick="backToRole()" style="color:#666; background:none; text-decoration:underline;">Back</button>
+    <br><button onclick="chooseEmployee()" style="color:#666; background:none; text-decoration:underline;">Back</button>
 </div>
 
 <!-- DEVELOPER CONSOLE -->
@@ -120,6 +122,9 @@
             <button id="movementBtn" class="auth-btn hidden" onclick="showMovementModal()" style="background:#c0392b;">🚶 Movement Log <span id="moveBadge" class="badge-low hidden">0</span></button>
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
             <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Mark Attendance</button>
+            <button id="placesBtn" class="auth-btn hidden" onclick="showPlacesModal()" style="background:#16a085;">📍 Geo-Fence</button>
+            <button id="suiteBtn" class="auth-btn hidden" onclick="SU.open()" style="background:#e67e22;">🚀 Business Suite <span id="suiteBadge" class="badge-low hidden">0</span></button>
+            <button id="myWorkBtn" class="auth-btn hidden" onclick="SU.openMy()" style="background:#e67e22;">💼 My Work <span id="myWorkBadge" class="badge-low hidden">0</span></button>
             <button id="taskMgmtBtn" class="auth-btn hidden" onclick="showTaskModal()" style="background:#8e44ad;">📋 Task Management <span id="taskBadge" class="badge-low hidden">0</span></button>
             <button id="taskEmpBtn" class="auth-btn hidden" onclick="showEmpTaskModal()" style="background:#8e44ad;">📋 Tasks <span id="taskEmpBadge" class="badge-low hidden">0</span></button>
             <button class="auth-btn" onclick="logout()" style="padding:5px 10px; font-size:0.8em;">Logout</button>
@@ -151,6 +156,8 @@
         <p style="font-size:0.75em; margin:8px 0 0; opacity:0.8;">You get an alert at the top right when an employee leaves or re-enters this radius. It works while the employee has this app open on their phone.</p>
     </div>
 
+    <div id="locBanner" class="loc-banner hidden"><span id="locMsg"></span>
+        <button class="auth-btn" style="background:#28a745" onclick="allowLocation()">📍 Allow location</button></div>
     <div id="trackStatus" class="track-status hidden"></div>
 
     <div class="dashboard">
@@ -204,6 +211,28 @@
             <tbody id="attendanceBody"></tbody>
         </table>
         <br><button onclick="closeAttendanceModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- GEO-FENCE PLACES MODAL -->
+<div id="placesModal" class="modal-overlay">
+    <div class="modal-content" style="width:700px; text-align:left;">
+        <h3>📍 Shop Radius Places</h3>
+        <p class="hint">Add more places for the <b>shop radius</b> (for example a second shop or a warehouse). Employees are tracked against the main shop radius on the dashboard <b>and</b> these places: you get an alert only when an employee is outside all of them. Attendance still uses the main Geo-Fence on the dashboard.</p>
+        <input id="placeName" placeholder="Name of the place (e.g. Warehouse)" style="width:95%">
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            <input id="placeLat" type="number" step="any" placeholder="Latitude">
+            <input id="placeLng" type="number" step="any" placeholder="Longitude">
+            <input id="placeRadius" type="number" placeholder="Radius (m)" value="50" style="width:110px">
+        </div>
+        <button onclick="getPlaceLocation()" class="auth-btn" style="background:#6f42c1">Fetch My Location</button>
+        <button id="placeSaveBtn" onclick="savePlace()" class="auth-btn" style="background:#28a745">➕ Add Place</button>
+        <div class="table-wrap">
+        <table style="width:100%; color:#333; font-size:0.9em;">
+            <thead><tr><th>Place</th><th>Location</th><th>Radius</th><th></th></tr></thead>
+            <tbody id="placesBody"></tbody>
+        </table></div>
+        <br><button onclick="closePlacesModal()" class="auth-btn" style="width:100%">Close</button>
     </div>
 </div>
 
@@ -320,6 +349,41 @@
         <h3 id="confirmText">Are you sure?</h3>
         <button onclick="confirmAnswer(true)" style="background:#dc3545; width:45%">Yes</button>
         <button onclick="confirmAnswer(false)" style="background:#555; width:45%">No</button>
+    </div>
+</div>
+
+<!-- BUSINESS SUITE (ADMIN) -->
+<div id="suiteModal" class="modal-overlay">
+    <div class="modal-content suite-content" style="text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <h3 style="margin:0">🚀 Business Suite</h3>
+            <button class="auth-btn" onclick="SU.close()">✖ Close</button>
+        </div>
+        <div id="suiteTabs" class="stabs"></div>
+        <div id="suiteBody"></div>
+    </div>
+</div>
+
+<!-- MY WORK (EMPLOYEE) -->
+<div id="myWorkModal" class="modal-overlay">
+    <div class="modal-content suite-content" style="text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <h3 style="margin:0">💼 My Work</h3>
+            <button class="auth-btn" onclick="SU.closeMy()">✖ Close</button>
+        </div>
+        <div id="myWorkTabs" class="stabs"></div>
+        <div id="myWorkBody"></div>
+    </div>
+</div>
+
+<!-- GENERIC FORM (used by the Business Suite) -->
+<div id="formModal" class="modal-overlay" style="z-index:2100">
+    <div class="modal-content" style="width:520px; text-align:left;">
+        <h3 id="formTitle"></h3>
+        <div id="formBody"></div>
+        <br>
+        <button id="formSave" class="auth-btn" style="background:#28a745; width:48%" onclick="SU.formSave()">Save</button>
+        <button class="auth-btn" style="background:#666; width:48%" onclick="SU.formClose()">Cancel</button>
     </div>
 </div>
 
