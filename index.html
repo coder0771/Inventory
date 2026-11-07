@@ -113,10 +113,10 @@
 <div id="app" class="hidden">
     <header id="workspaceHeader">
         <div>
-            <strong id="companyTitle">COMPANY</strong>
+            <span class="header-brand" id="companyTitle">COMPANY</span>
             <span id="roleBadge" style="font-size:0.7em; background:var(--neon); color:black; padding:2px 6px; border-radius:4px; margin-left:5px;"></span>
         </div>
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="header-actions">
             <div id="staffDisplay" class="staff-list hidden" onclick="showStaffModal()" title="Click to manage employees" style="cursor:pointer">👥 Staff: <span id="staffNames">None</span></div>
             <button id="historyBtn" class="auth-btn hidden" onclick="showHistoryModal()" style="background:#17a2b8;">📜 Audit History</button>
             <button id="movementBtn" class="auth-btn hidden" onclick="showMovementModal()" style="background:#c0392b;">🚶 Movement Log <span id="moveBadge" class="badge-low hidden">0</span></button>
@@ -162,7 +162,7 @@
 
     <div class="dashboard">
         <div><p>Total Items</p><h2 id="totalItems">0</h2></div>
-        <div><p>Low Stock Items</p><h2 id="lowStock" style="color:#ff4d4d;">0</h2></div>
+        <div><p>Low Stock Items</p><h2 id="lowStock">0</h2></div>
         <div><p>Total Valuation</p><h2>₹<span id="totalValue">0</span></h2></div>
     </div>
 
@@ -193,7 +193,7 @@
     <table>
         <thead>
             <tr>
-                <th>Name</th><th>Category</th><th>Size</th><th>Unit</th><th>Stock</th>
+                <th>Photo</th><th>Name</th><th>Category</th><th>Size</th><th>Unit</th><th>Stock</th>
                 <th>Hold</th><th>Broken</th><th>Min Alert</th><th>Price</th><th>Total</th><th>Action</th>
             </tr>
         </thead>
@@ -384,6 +384,34 @@
         <br>
         <button id="formSave" class="auth-btn" style="background:#28a745; width:48%" onclick="SU.formSave()">Save</button>
         <button class="auth-btn" style="background:#666; width:48%" onclick="SU.formClose()">Cancel</button>
+    </div>
+</div>
+
+<!-- AI WHATSAPP CHATBOT MODAL -->
+<div id="aiChatModal" class="modal-overlay" style="z-index:2150">
+    <div class="modal-content" style="width:620px; padding:0; overflow:hidden; border-radius:16px;">
+        <div class="chatbot-wrap">
+            <div class="chatbot-header">
+                <div class="wa-dot"></div>
+                <h4>🤖 AI WhatsApp Message Writer</h4>
+                <button class="btn-sm" style="margin-left:auto; background:rgba(255,255,255,.1)" onclick="SU.closeAiChat()">✖ Close</button>
+            </div>
+            <div class="quick-chips" id="quickChips">
+                <span class="qchip" onclick="SU.chatQuick('Write a friendly follow-up message')">👋 Follow-up</span>
+                <span class="qchip" onclick="SU.chatQuick('Write a payment reminder')">💰 Payment reminder</span>
+                <span class="qchip" onclick="SU.chatQuick('Write a first contact message')">📩 First contact</span>
+                <span class="qchip" onclick="SU.chatQuick('Write a deal-closed thank-you message')">🎉 Thank you</span>
+                <span class="qchip" onclick="SU.chatQuick('Write a re-engagement message for a cold lead')">❄ Re-engage</span>
+                <span class="qchip" onclick="SU.chatQuick('Write a festive season greeting')">🎊 Festive greeting</span>
+                <span class="qchip" onclick="SU.chatQuick('Write an appointment reminder')">🗓 Appointment</span>
+                <span class="qchip" onclick="SU.chatQuick('Write a feedback request after sale')">⭐ Feedback</span>
+            </div>
+            <div class="chatbot-msgs" id="chatMsgs"></div>
+            <div class="chatbot-row">
+                <input id="chatInput" placeholder="Tell me what message you need…" onkeydown="window.chatEnter(event)">
+                <button onclick="window.chatSend()">Send ➤</button>
+            </div>
+        </div>
     </div>
 </div>
 
