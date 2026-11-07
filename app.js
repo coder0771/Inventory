@@ -647,6 +647,7 @@ window.addItem = async function () {
       qty: Math.max(0, Number($("itemQty")?.value) || 0),
       hold: 0,
       broken: 0,
+      photoUrl: "",
       price: Math.max(0, Number($("itemPrice")?.value) || 0),
       minQty: Math.max(0, Number($("itemMinQty")?.value) || 5),
       createdBy: currentUser.uid,
@@ -697,7 +698,8 @@ window.saveItem = async function () {
       size: normalizeString($("editSize").value) || "-",
       unit: normalizeString($("editUnit").value) || "-",
       price: Math.max(0, Number($("editPrice").value) || 0),
-      minQty: Math.max(0, Number($("editMinQty").value) || 0)
+      minQty: Math.max(0, Number($("editMinQty").value) || 0),
+      photoUrl: ($("editPhotoUrl")?.value || "").trim()
     });
     await addHistory("UPDATE DETAILS", 0, normalizeString($("editName").value));
     toast("Product Updated");
