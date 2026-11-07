@@ -58,6 +58,16 @@ export function initSuite(ctx) {
   const backTo = (tab) => `<button class="auth-btn" style="background:#666; margin-top:10px" onclick="SU.go('${tab}')">← Back</button>`;
   const waLink = (phone, text) => `https://wa.me/${waDigits(phone)}?text=${encodeURIComponent(text)}`;
 
+  const leadScore = (l) => {
+    let sc = 0;
+    if (l.value >= 50000) sc += 3; else if (l.value >= 10000) sc += 1;
+    if (l.phone) sc += 2; if (l.email) sc += 1;
+    if (l.source === "Referral" || l.source === "Walk-in") sc += 2;
+    if (l.followUp && l.followUp > Date.now()) sc += 1;
+    if (sc >= 6) return { cls: "ls-hot", label: "Hot" };
+    if (sc >= 3) return { cls: "ls-warm", label: "Warm" };
+    return { cls: "ls-cold", label: "Cold" };
+  };
   const LEAD_STAGES = ["New", "Contacted", "Qualified", "Proposal", "Won", "Lost"];
   const CAND_STAGES = ["Applied", "Screening", "Interview", "Offer", "Hired", "Rejected"];
   const TICKET_STATUS = ["Open", "In Progress", "Resolved", "Closed"];
@@ -290,21 +300,35 @@ export function initSuite(ctx) {
 
   /* =================== CRM (kanban leads) =================== */
   const leadDue = (l) => l.followUp && l.followUp <= now() && openLead(l);
-  const leadCard = (l) => `<div class="kcard" draggable="true" ondragstart="SU.drag('leads','${l.id}')">
-    <div class="ktitle" onclick="SU.openLead('${l.id}')">${esc(l.name)}</div>
-    <div class="kmeta">${l.value ? inr(l.value) + " · " : ""}${esc(l.source || "")}<br>
-      ${l.assignedName ? "👤 " + esc(l.assignedName) : "<i>Unassigned</i>"}
-      ${l.followUp ? `<br><span class="${leadDue(l) ? "over" : ""}">⏰ ${dtstr(l.followUp)}</span>` : ""}</div>
-    <div class="kact"><button onclick="SU.mv('leads','${l.id}',-1)">◀</button><button onclick="SU.mv('leads','${l.id}',1)">▶</button>
-      <button onclick="SU.wa('leads','${l.id}')">💬</button><a href="tel:${esc(l.phone || "")}">📞</a></div></div>`;
+  const leadCard = (l) => { const sc = leadScore(l);
+    return `<div class="kcard" draggable="true" ondragstart="SU.drag('leads','${l.id}')">
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <div class="lead-score ${sc.cls}" title="${sc.label}">${sc.label[0]}</div>
+      <div style="flex:1"><div class="ktitle" onclick="SU.openLead('${l.id}')">${esc(l.name)}</div>
+      <div class="kmeta">${l.value ? inr(l.value) + " · " : ""}${esc(l.source || "")}<br>
+        ${l.assignedName ? "👤 " + esc(l.assignedName) : "<i>Unassigned</i>"}
+        ${l.followUp ? `<br><span class="${leadDue(l) ? "over" : ""}">⏰ ${dtstr(l.followUp)}</span>` : ""}</div></div></div>
+    <div class="kact" style="margin-top:8px">
+      <button onclick="SU.mv('leads','${l.id}',-1)">◀</button><button onclick="SU.mv('leads','${l.id}',1)">▶</button>
+      <button class="btn-sm" style="background:#25D366" onclick="SU.wa('leads','${l.id}')">💬 WA</button>
+      <a href="tel:${esc(l.phone || "")}">📞</a>
+      <button class="btn-sm" style="background:rgba(142,68,173,.7)" onclick="SU.aiMsg('leads','${l.id}')">🤖 AI</button></div></div>`; };
 
   function viewCrm() {
     if (V.sub === "lead") return viewLead();
-    const pipeline = S.leads.filter(openLead).reduce((s, l) => s + (l.value || 0), 0);
+    const open_ = S.leads.filter(openLead);
+    const hot = S.leads.filter((l) => openLead(l) && leadScore(l).cls === "ls-hot").length;
     const due = S.leads.filter(leadDue).length;
-    return `<div class="suite-bar"><button class="auth-btn" style="background:#28a745" onclick="SU.leadForm()">➕ Add Lead</button>
-      ${chip("Open pipeline " + inr(pipeline))} ${due ? `<span class="badge-low">${due} follow-ups due</span>` : ""}
-      <span class="hint">Drag cards between columns or use ◀ ▶</span></div>` + kanban("leads", S.leads, leadCard);
+    return `<div class="crm-stats">
+      <div class="crm-stat"><div class="sv">${S.leads.filter((l)=>l.stage==="Won").length}</div><div class="sl">Won</div></div>
+      <div class="crm-stat"><div class="sv" style="color:#e74c3c">${hot}</div><div class="sl">Hot leads</div></div>
+      <div class="crm-stat"><div class="sv">${open_.length}</div><div class="sl">Open</div></div>
+      <div class="crm-stat"><div class="sv" style="color:#ffc107">${due}</div><div class="sl">Follow-ups due</div></div>
+      <div class="crm-stat"><div class="sv">${inr(open_.reduce((s,l)=>s+(l.value||0),0))}</div><div class="sl">Pipeline</div></div>
+    </div><div class="suite-bar">
+      <button class="btn-primary btn-sm" onclick="SU.leadForm()">➕ Add Lead</button>
+      <button class="btn-sm" style="background:rgba(142,68,173,.7)" onclick="SU.openAiChatbot('crm')">🤖 AI Message Writer</button>
+    </div>` + kanban("leads", S.leads, leadCard);
   }
 
   function leadForm(id) {
@@ -343,7 +367,8 @@ export function initSuite(ctx) {
       <div class="suite-bar" style="margin-top:10px">
         <select onchange="SU.setStage('leads','${l.id}',this.value)">${LEAD_STAGES.map((s) => `<option ${s === (l.stage || "New") ? "selected" : ""}>${s}</option>`).join("")}</select>
         <button class="auth-btn" onclick="SU.leadForm('${l.id}')">✏ Edit</button>
-        <button class="auth-btn" style="background:#25D366" onclick="SU.wa('leads','${l.id}')">💬 WhatsApp</button>
+        <button class="btn-wa btn-sm" onclick="SU.wa('leads','${l.id}')">💬 WhatsApp</button>
+        <button class="btn-sm" style="background:rgba(142,68,173,.7)" onclick="SU.aiMsg('leads','${l.id}')">🤖 AI Message</button>
         <a class="auth-btn lnk" href="tel:${esc(l.phone || "")}">📞 Call</a>
         <button class="auth-btn" onclick="SU.callForm('leads','${l.id}')">📝 Log call</button>
         <button class="auth-btn" style="background:#8e44ad" onclick="SU.billFromLead('${l.id}','QUOTATION')">🧾 Quote</button>
@@ -877,9 +902,11 @@ export function initSuite(ctx) {
   /* =================== WHATSAPP TEMPLATES & CALL LOG =================== */
   function viewMsg() {
     const calls = [...S.calls].sort((a, b) => b.at - a.at).slice(0, 50);
-    return `<div class="suite-bar"><button class="auth-btn" style="background:#28a745" onclick="SU.tplForm()">➕ New template</button>
-      <button class="auth-btn" style="background:#25D366" onclick="SU.quickWa()">💬 Quick WhatsApp message</button></div>
-      <p class="hint">Messages open in WhatsApp with the text ready, and you press send. Sending automatically needs the official WhatsApp Business API, which is a paid external service.</p>
+    return `<div class="suite-bar">
+      <button class="btn-sm" style="background:rgba(142,68,173,.7)" onclick="SU.openAiChatbot('msg')">🤖 AI Message Writer</button>
+      <button class="auth-btn btn-sm" onclick="SU.tplForm()">➕ Template</button>
+      <button class="btn-wa btn-sm" onclick="SU.quickWa()">💬 Quick WhatsApp</button></div>
+      <p class="hint">The AI writer creates personalised messages — copy them straight into WhatsApp. Auto-sending needs the WhatsApp Business API (a paid external service).</p>
       <h4>Templates (use {name} {company} {number} {amount} {due} {role})</h4>
       ${S.templates.length ? S.templates.map((t) => `<div class="task-card"><div class="task-info"><b>${esc(t.name)}</b><div class="task-meta">${esc(t.text)}</div></div>
         <div class="decide-col"><button class="edit-btn" onclick="SU.tplForm('${t.id}')">✏</button><button class="bin" onclick="SU.delRec('templates','${t.id}')">🗑</button></div></div>`).join("")
@@ -900,6 +927,75 @@ export function initSuite(ctx) {
         { k: "msg", label: "Message", type: "textarea", rows: 5 }],
       onSave: (v) => { window.open(waLink(v.phone, v.msg), "_blank"); } });
   }
+
+
+  /* =================== AI WHATSAPP CHATBOT =================== */
+  let chatHistory = [], chatCtx = {};
+  const CHATBOT_SYSTEM = (ctx) => `You are an expert WhatsApp sales assistant for a business called "${ctx.company || "our company"}". You write short, friendly, professional WhatsApp messages in Indian English (under 150 words unless asked otherwise). When given customer context, personalise every message. Output format: the WhatsApp message text inside a markdown code block, then one short line with tone used and tips.
+Customer context — Name: ${ctx.name||"unknown"}, Phone: ${ctx.phone||"not given"}, Value: ${ctx.value||"unknown"}, Stage: ${ctx.stage||"New"}, Notes: ${ctx.notes||"none"}.`;
+
+  const QUICK_PROMPTS = ["Write a friendly follow-up","Write a payment reminder","Write a first contact message","Write a deal-closed thank-you","Write a re-engagement for a cold lead","Write an appointment reminder","Write a feedback request","Write a festive greeting"];
+
+  async function callAI(messages) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system: CHATBOT_SYSTEM(chatCtx), messages })
+    });
+    if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error((err.error&&err.error.message)||"API error "+res.status); }
+    const data = await res.json();
+    return (data.content||[]).map((b)=>b.text||"").join("").trim();
+  }
+
+  function appendMsg(role, text) {
+    const el = $("chatMsgs"); if (!el) return;
+    const div = document.createElement("div");
+    div.className = "msg " + (role === "bot" ? "bot" : "user");
+    const match = text.match(/```[\w]*\n?([\s\S]*?)```/);
+    if (match) {
+      div.innerHTML = `<div style="background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.2);border-radius:8px;padding:10px;margin-bottom:6px;white-space:pre-wrap">${esc(match[1].trim())}</div><div style="font-size:.78em;color:var(--text-dim)">${esc(text.replace(/```[\w]*\n?[\s\S]*?```/,"").trim())}</div>`;
+      const cp = document.createElement("button"); cp.className="btn-sm btn-wa"; cp.style.marginTop="6px"; cp.textContent="📋 Copy message";
+      cp.onclick=()=>navigator.clipboard.writeText(match[1].trim()).then(()=>toast("Copied to clipboard!"));
+      div.appendChild(cp);
+    } else { div.innerHTML = esc(text).replace(/\n/g,"<br>"); }
+    el.appendChild(div); el.scrollTop = el.scrollHeight;
+  }
+
+  window.chatSend = async function () {
+    const inp = $("chatInput"); if (!inp) return;
+    const text = (inp.value||"").trim(); if (!text) return;
+    inp.value = ""; inp.disabled = true;
+    appendMsg("user", text);
+    chatHistory.push({ role: "user", content: text });
+    const el = $("chatMsgs");
+    const typDiv = document.createElement("div"); typDiv.className="msg bot typing"; typDiv.id="chat-typing"; typDiv.textContent="Writing message…";
+    if (el) { el.appendChild(typDiv); el.scrollTop = el.scrollHeight; }
+    try {
+      const reply = await callAI(chatHistory);
+      document.getElementById("chat-typing")?.remove();
+      appendMsg("bot", reply);
+      chatHistory.push({ role: "assistant", content: reply });
+    } catch (e) {
+      document.getElementById("chat-typing")?.remove();
+      appendMsg("bot", "Sorry, couldn't write that message right now. " + e.message);
+    } finally { inp.disabled = false; inp.focus(); }
+  };
+  window.chatQuick = (q) => { const i=$("chatInput"); if(i){i.value=q;window.chatSend();} };
+  window.chatEnter = (e) => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();window.chatSend();} };
+  window.closeAiChat = () => { $("aiChatModal").classList.remove("open"); chatHistory=[]; };
+  const aiMsg = (kind, id) => openAiChatbot(kind, id);
+  window.openAiChatbot = openAiChatbot;
+
+  function openAiChatbot(kind, id) {
+    chatHistory = [];
+    const r = id ? (S[kind]&&S[kind].find((x)=>x.id===id)) : null;
+    chatCtx = r ? { name:r.name||r.cName||"", phone:r.phone||r.cPhone||"", value:r.value?inr(r.value):"", stage:r.stage||r.status||"", notes:r.notes||"", company:st().companyName||"" } : { company:st().companyName||"" };
+    $("aiChatModal").classList.add("open");
+    const msgs = $("chatMsgs"); if(msgs) msgs.innerHTML="";
+    const greeting = r ? `Hi! I'll write a WhatsApp message for **${r.name||r.cName||"this contact"}**${r.value?" (deal value "+inr(r.value)+")":""}. What kind of message do you need?` : "Hi! I write personalised WhatsApp messages for your business. Pick a quick prompt below or tell me what you need.";
+    appendMsg("bot", greeting);
+    const inp=$("chatInput"); if(inp){inp.value=""; setTimeout(()=>inp.focus(),120);}
+  }
+
 
   /* =================== CONTENT PLANNER =================== */
   const PLATFORMS = ["Facebook", "Instagram", "LinkedIn", "X (Twitter)", "YouTube", "WhatsApp Status", "Other"];
@@ -966,6 +1062,9 @@ export function initSuite(ctx) {
     open, close, go, openMy, closeMy, myTab, formSave: submitForm, formClose: closeForm,
     back: () => { if (!$("suiteModal").classList.contains("open")) return false; if (V.bill || V.sub) { go(V.tab); return true; } return false; },
     drag: (kind, id) => { V.drag = { kind, id }; },
+    aiMsg, openAiChatbot,
+    closeAiChat: () => { document.getElementById('aiChatModal').classList.remove('open'); chatHistory=[]; },
+    chatQuick: (q) => { const i=document.getElementById('chatInput'); if(i){i.value=q;window.chatSend();} },
     drop: (kind, stage) => { if (V.drag && V.drag.kind === kind) move(kind, V.drag.id, stage); V.drag = null; },
     mv, delRec, setStage: (k, id, v) => move(k, id, v),
     openLead: (id) => { V.sub = "lead"; V.id = id; renderSuite(true); },
