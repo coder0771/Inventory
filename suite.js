@@ -43,6 +43,189 @@ const fillTpl = (tpl, o) => String(tpl || "").replace(/\{(\w+)\}/g, (_, k) => (o
 const waDigits = (p) => { const d = String(p || "").replace(/\D/g, ""); return d.length === 10 ? "91" + d : d; };
 /* </pure> */
 
+/* <chatpure> */
+// Built-in WhatsApp message writer: understands what you ask for, fills in the customer's details and writes the message.
+const CH_INTENTS = [
+  ["festive", ["festive", "festival", "diwali", "deepavali", "holi", "eid", "christmas", "navratri", "raksha", "rakhi", "pongal", "onam", "baisakhi", "dussehra", "ganesh", "new year", "greeting", "wish"]],
+  ["payment", ["payment", "pay ", "paid", "due ", "dues", "invoice", "outstanding", "pending amount", "overdue", "bill"]],
+  ["quote", ["quote", "quotation", "estimate", "price list", "proposal", "rates"]],
+  ["delivery", ["delivery", "dispatch", "shipped", "shipping", "courier", "order status", "on its way"]],
+  ["apology", ["sorry", "apolog", "delay", "inconvenience", "mistake"]],
+  ["feedback", ["feedback", "review", "rating", "experience"]],
+  ["appointment", ["appointment", "meeting", "visit", "schedule", "demo", "slot"]],
+  ["offer", ["offer", "discount", "promo", "scheme", "special price", "clearance", "% off"]],
+  ["stock", ["back in stock", "restock", "new arrival", "new stock", "launch", "available now"]],
+  ["thanks", ["thank", "closed", "won", "order confirm", "confirmed", "purchase"]],
+  ["reengage", ["cold", "re-engage", "reengage", "inactive", "miss you", "long time", "come back"]],
+  ["followup", ["follow", "check in", "checking in", "any update", "update on"]],
+  ["intro", ["intro", "first contact", "first message", "introduce", "hello", "welcome", "enquiry", "inquiry", "new lead", "reach out"]]
+];
+const CH_STOP = new Set(["diwali", "holi", "eid", "christmas", "navratri", "new", "year", "whatsapp", "hindi", "hinglish", "english", "happy", "write", "make", "quote", "payment",
+  "feedback", "friendly", "formal", "short", "the", "a", "an", "my", "our", "this", "that", "festive", "dussehra", "onam", "pongal", "ganesh", "raksha", "bandhan", "rakhi"]);
+
+function chKw(text, kw) {
+  const esc_ = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp((/^\w/.test(kw) ? "\\b" : "") + esc_ + (kw.length <= 4 && /\w$/.test(kw) ? "\\b" : ""), "i");
+  return re.test(text);
+}
+function chDetectIntent(text) {
+  let best = null, bestN = 0;
+  CH_INTENTS.forEach(([name, kws]) => {
+    const n = kws.filter((k) => chKw(text, k)).length;
+    if (n > bestN) { best = name; bestN = n; }
+  });
+  return best;
+}
+function chParse(text) {
+  const t = " " + text.toLowerCase() + " ";
+  const has = (arr) => arr.some((w) => t.includes(w));
+  let tone = null, lang = null;
+  if (has(["formal", "professional", "polite", "official"])) tone = "formal";
+  else if (has(["short", "brief", "crisp", "one line", "one-line", "quick"])) tone = "short";
+  else if (has(["friendly", "casual", "warm", "informal"])) tone = "friendly";
+  if (has(["hinglish", "hindi", "roman"])) lang = "hinglish"; else if (has(["english"])) lang = "en";
+  const another = has(["another", "again", "different", "new version", "other version", "rewrite", "regenerate", "one more"]);
+  const ent = {};
+  let m = text.match(/(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d+)?)/i) || text.match(/([\d,]+(?:\.\d+)?)\s*(?:rs\b|rupees|rupee|₹)/i) || text.match(/amount\s*(?:of|is|:)?\s*([\d,]+(?:\.\d+)?)/i);
+  if (m) ent.amount = "₹" + Number(m[1].replace(/,/g, "")).toLocaleString("en-IN");
+  m = text.match(/(\d{1,2})\s*%/); if (m) ent.percent = m[1];
+  const day = text.match(/\b(day after tomorrow|tomorrow|today|(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i);
+  const time = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if (day || time) ent.when = [day && day[1], time && ("at " + time[1] + (time[2] ? ":" + time[2] : "") + " " + time[3].toLowerCase())].filter(Boolean).join(" ");
+  const fest = [["diwali", "Diwali"], ["deepavali", "Diwali"], ["holi", "Holi"], ["eid", "Eid"], ["christmas", "Christmas"], ["navratri", "Navratri"], ["raksha bandhan", "Raksha Bandhan"],
+    ["rakhi", "Raksha Bandhan"], ["pongal", "Pongal"], ["onam", "Onam"], ["baisakhi", "Baisakhi"], ["dussehra", "Dussehra"], ["ganesh", "Ganesh Chaturthi"], ["new year", "New Year"]];
+  for (const [k, v] of fest) if (chKw(text, k)) { ent.festival = v; break; }
+  m = text.match(/\b(?:for|to|named|customer)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/);
+  if (m) { const w = m[1].split(/\s+/).filter((x) => !CH_STOP.has(x.toLowerCase())); if (w.length) ent.name = w.join(" "); }
+  m = text.match(/\b(?:INV|QUO)-\d+\b/i); if (m) ent.number = m[0].toUpperCase();
+  return { intent: chDetectIntent(text), tone, lang, another, ent };
+}
+
+const CH_T = {
+  followup: {
+    friendly: ["Hi {hi}! 👋 Just checking in on our last conversation. Any questions I can help with? Happy to assist anytime.\n\n– {me}, {company}",
+      "Hello {hi}, hope you're doing well! 😊 Wanted to follow up and see if you had a chance to think things over. Let me know how I can help!\n\n– {me}, {company}"],
+    formal: ["Dear {greet},\n\nI am following up on our recent discussion. Please let me know if you need any further information or would like to proceed.\n\nRegards,\n{me}\n{company}"],
+    short: ["Hi {hi}, just following up. Any questions? 🙂"],
+    hinglish: ["Hi {hi}! 👋 Bas ek chhota sa follow-up – humari last baat ke baare mein kya socha? Koi sawaal ho toh zaroor batayein.\n\n– {me}, {company}"]
+  },
+  payment: {
+    friendly: ["Hi {hi}, a gentle reminder that {inv} of {amount}{due} is pending. 🙏 Kindly share the payment update at your convenience. Thank you!\n\n– {company}",
+      "Hello {hi}! Hope you're well. Just a friendly nudge about {inv} – {amount} is still pending{due}. Please let us know once it's done. Thanks a lot! 😊\n\n– {me}, {company}"],
+    formal: ["Dear {greet},\n\nThis is a reminder that payment of {amount} against {inv}{due} is outstanding. We request you to kindly arrange the payment at the earliest.\n\nThank you,\n{me}\n{company}"],
+    short: ["Hi {hi}, reminder: {amount} pending for {inv}{due}. Please pay soon. Thanks 🙏"],
+    hinglish: ["Hi {hi}, ek chhota reminder – {invh} ka {amount} abhi pending hai{due}. Kripya payment kar dein. Dhanyavaad! 🙏\n\n– {company}"]
+  },
+  intro: {
+    friendly: ["Hi {hi}! 👋 Welcome, and thank you for reaching out to {company}. I'm {me} and I'll be happy to help you. What are you looking for today?",
+      "Hello {hi}! 😊 Thanks for your interest in {company}. Tell me what you need and I'll share the best options for you."],
+    formal: ["Dear {greet},\n\nThank you for contacting {company}. My name is {me}. Please let me know your requirements and I will be glad to assist you.\n\nRegards,\n{me}"],
+    short: ["Hi {hi}! Thanks for contacting {company}. How can I help? 🙂"],
+    hinglish: ["Namaste {hi}! 🙏 {company} mein aapka swagat hai. Main {me} hoon – bataiye, aapko kis cheez ki zaroorat hai?"]
+  },
+  thanks: {
+    friendly: ["Thank you so much, {hi}! 🎉 We're delighted to have you with us. If you need anything, just message me.\n\n– {me}, {company}",
+      "Hi {hi}! Thanks for choosing {company} 🙏 It was great working with you. We look forward to serving you again!"],
+    formal: ["Dear {greet},\n\nThank you for your business. We truly appreciate your trust in {company} and look forward to serving you again.\n\nWarm regards,\n{me}"],
+    short: ["Thank you {hi}! 🙏 Great working with you."],
+    hinglish: ["Bahut bahut dhanyavaad {hi}! 🎉 {company} ko chunne ke liye shukriya. Kabhi bhi zaroorat ho toh message kijiye."]
+  },
+  reengage: {
+    friendly: ["Hi {hi}! 👋 It's been a while! We've got some great updates at {company} and thought of you. Want me to share the details?",
+      "Hello {hi}, hope all is well! 😊 We miss hearing from you. If you're still interested, I'd love to help – just reply here."],
+    formal: ["Dear {greet},\n\nWe have not connected for some time and wanted to check if you still need our services. Please let us know and we will be happy to assist.\n\nRegards,\n{me}\n{company}"],
+    short: ["Hi {hi}, long time! Still interested? Reply here and I'll help 🙂"],
+    hinglish: ["Hi {hi}! 👋 Kaafi time ho gaya baat kiye hue. Kya aap abhi bhi interested hain? Batayein, hum aapki madad ke liye taiyaar hain."]
+  },
+  appointment: {
+    friendly: ["Hi {hi}! 📅 Just confirming our appointment {when}. Please let me know if the time works for you or if you'd like to reschedule.\n\n– {me}, {company}",
+      "Hello {hi}, a quick reminder about our meeting {when}. Looking forward to seeing you! 😊"],
+    formal: ["Dear {greet},\n\nThis is to confirm our appointment {when}. Kindly let us know if you need to reschedule.\n\nRegards,\n{me}\n{company}"],
+    short: ["Hi {hi}, reminder: our appointment is {when}. See you! 📅"],
+    hinglish: ["Hi {hi}! 📅 Yaad dilana tha – humari appointment {when} hai. Agar time change karna ho toh bata dijiye."]
+  },
+  feedback: {
+    friendly: ["Hi {hi}! 😊 Thanks again for choosing {company}. How was your experience? Your feedback helps us improve – it'll take just a minute! ⭐",
+      "Hello {hi}, hope you're enjoying your purchase! 🙌 Would you share a quick review of your experience with us? We'd really appreciate it."],
+    formal: ["Dear {greet},\n\nThank you for choosing {company}. We would value your feedback on your recent experience so that we can serve you better.\n\nRegards,\n{me}"],
+    short: ["Hi {hi}, how was your experience with {company}? Quick feedback please ⭐"],
+    hinglish: ["Hi {hi}! 😊 {company} se kharidari ka experience kaisa raha? Aapka feedback hamare liye bahut zaroori hai ⭐"]
+  },
+  festive: {
+    friendly: ["Wishing you and your family a very Happy {festival}{nm}! 🎉✨ May this season bring you joy, health and prosperity.\n\nWarm wishes,\n{me} & team {company}",
+      "Happy {festival}{nm}! 🪔 Thank you for being a valued part of the {company} family. Wishing you lots of happiness!"],
+    formal: ["Dear {greet},\n\nOn the occasion of {festival}, we extend our warm wishes to you and your family. Thank you for your continued support.\n\nBest regards,\n{company}"],
+    short: ["Happy {festival}{nm}! 🎉 Best wishes from {company}."],
+    hinglish: ["Namaste{nm}! Aapko aur aapke parivaar ko {festival} ki hardik shubhkamnayein! 🎉✨ {company} ki taraf se dher saari khushiyan."]
+  },
+  offer: {
+    friendly: ["Hi {hi}! 🎁 Great news – {company} has a special offer{percent}for you! Limited time only. Want me to share the details?",
+      "Hello {hi}! 😊 We're running a special offer{percent}at {company} this week. Reply 'YES' and I'll send you everything you need."],
+    formal: ["Dear {greet},\n\nWe are pleased to inform you of a special offer{percent}at {company}. Please let us know if you would like further details.\n\nRegards,\n{me}"],
+    short: ["Hi {hi}! Special offer{percent}at {company} 🎁 Interested? Reply YES."],
+    hinglish: ["Hi {hi}! 🎁 {company} mein special offer{percent}chal raha hai. Details chahiye toh 'YES' reply kijiye."]
+  },
+  delivery: {
+    friendly: ["Hi {hi}! 📦 Good news – your order has been dispatched and will reach you soon. I'll keep you updated. Thank you for choosing {company}!",
+      "Hello {hi}, your order is on its way! 🚚 Let me know if you need any help with delivery.\n\n– {me}, {company}"],
+    formal: ["Dear {greet},\n\nWe are pleased to inform you that your order has been dispatched. You will receive it shortly. Please contact us for any assistance.\n\nRegards,\n{company}"],
+    short: ["Hi {hi}, your order is dispatched 📦 It'll reach you soon!"],
+    hinglish: ["Hi {hi}! 📦 Aapka order dispatch ho gaya hai aur jaldi hi pahunch jayega. Koi dikkat ho toh bataiye."]
+  },
+  apology: {
+    friendly: ["Hi {hi}, we're really sorry for the inconvenience. 🙏 We're working on it right away and will update you shortly. Thank you for your patience!",
+      "Hello {hi}, sincere apologies for the delay. 😔 We value you and are fixing this as fast as we can – I'll keep you posted.\n\n– {me}, {company}"],
+    formal: ["Dear {greet},\n\nWe sincerely apologise for the inconvenience caused. We are taking immediate steps to resolve this and appreciate your patience and understanding.\n\nRegards,\n{me}\n{company}"],
+    short: ["Hi {hi}, sorry for the inconvenience 🙏 We're fixing it now."],
+    hinglish: ["Hi {hi}, hume bahut khed hai is pareshani ke liye 🙏 Hum jaldi se jaldi ise theek kar rahe hain. Aapke sabr ke liye shukriya."]
+  },
+  quote: {
+    friendly: ["Hi {hi}! 📄 As discussed, I'm sharing our quotation for you. Please have a look and let me know if you'd like any changes – happy to adjust!\n\n– {me}, {company}",
+      "Hello {hi}, thanks for your enquiry! Your quotation is ready 😊 Let me know if you have any questions or want to proceed."],
+    formal: ["Dear {greet},\n\nPlease find our quotation as discussed. We would be glad to clarify any details and look forward to your confirmation.\n\nRegards,\n{me}\n{company}"],
+    short: ["Hi {hi}, your quotation is ready 📄 Shall I send it?"],
+    hinglish: ["Hi {hi}! 📄 Aapki quotation taiyaar hai. Dekh kar bata dijiye, koi badlav chahiye toh hum kar denge."]
+  },
+  stock: {
+    friendly: ["Hi {hi}! 🛍️ Good news – new stock has just arrived at {company}! Want me to share the latest range with you?",
+      "Hello {hi}, the item you were looking for is back in stock! 🎉 Reply here and I'll reserve it for you."],
+    formal: ["Dear {greet},\n\nWe are pleased to inform you that new stock is now available at {company}. Please let us know if you would like further details.\n\nRegards,\n{me}"],
+    short: ["Hi {hi}, new stock has arrived at {company}! 🛍️ Interested?"],
+    hinglish: ["Hi {hi}! 🛍️ {company} mein naya stock aa gaya hai. Dekhna chahenge? Bataiye, hum details bhej denge."]
+  }
+};
+
+function chBuild(intent, tone, lang, ctx, idx) {
+  const T = CH_T[intent];
+  if (!T) return "";
+  const list = T[lang === "hinglish" ? "hinglish" : tone] || T.friendly;
+  const tpl = list[(idx || 0) % list.length];
+  const name = (ctx.name || "").trim();
+  const vars = { hi: name || "there", greet: name || "Sir/Madam", nm: name ? ", " + name : "", invh: ctx.number ? "invoice " + ctx.number : "aapke invoice", company: ctx.company || "our team", me: ctx.me || "Team",
+    amount: ctx.amount || "the pending amount", inv: ctx.number ? "invoice " + ctx.number : "your invoice", due: ctx.due ? " (due " + ctx.due + ")" : "",
+    festival: ctx.festival || "festive season", when: ctx.when || "soon", percent: ctx.percent ? " of " + ctx.percent + "% off " : " " };
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] === undefined ? "" : vars[k])).replace(/ {2,}/g, " ").replace(/ ([.,!?])/g, "$1");
+}
+
+// state = { ctx, last }.  Returns { kind: "msg", text } or { kind: "help" }
+function chReply(state, text) {
+  const p = chParse(text);
+  Object.assign(state.ctx, p.ent);
+  const modifier = !!(p.tone || p.lang || p.another);
+  let intent = p.intent;
+  if (!intent && modifier && state.last) intent = state.last.intent;
+  if (!intent) return { kind: "help" };
+  const isNew = !state.last || intent !== state.last.intent;
+  let tone = p.tone || (isNew ? "friendly" : state.last.tone);
+  let lang = p.lang || (isNew ? "en" : state.last.lang);
+  if (p.tone && !p.lang && lang === "hinglish") lang = "en";
+  let idx = 0;
+  if (!isNew) idx = p.another || (!p.tone && !p.lang) ? state.last.idx + 1 : state.last.idx;
+  state.last = { intent, tone, lang, idx };
+  return { kind: "msg", text: chBuild(intent, tone, lang, state.ctx, idx), intent, tone, lang };
+}
+/* </chatpure> */
+
 export function initSuite(ctx) {
   const { db, $, toast, askConfirm, loading, esc, fmtDT, fmtD, dtPicker, readDT, pushAlert } = ctx;
   const st = () => ctx.getState();
@@ -551,7 +734,7 @@ export function initSuite(ctx) {
       <div class="task-meta">📅 ${dstr(d.date)}${inv ? " · Due " + dstr(d.dueAt) : ""}<br>Total <b>${inr(d.total)}</b>${inv ? ` · Paid ${inr(d.paid)} · Balance <b>${inr(bal)}</b>` : ""}${d.stockDeducted ? " · 📦 stock deducted" : ""}</div></div>
       <div class="decide-col" style="flex-wrap:wrap; gap:6px">
         <button class="edit-btn" onclick="SU.printDoc('${d.id}')">🖨 Print</button>
-        ${inv && bal > 0.005 ? `<button class="edit-btn" onclick="SU.payForm('${d.id}')">💵 Payment</button><button class="edit-btn" onclick="SU.remind('${d.id}')">💬 Remind</button>` : ""}
+        ${inv && bal > 0.005 ? `<button class="edit-btn" onclick="SU.payForm('${d.id}')">💵 Payment</button><button class="edit-btn" onclick="SU.remind('${d.id}')">💬 Remind</button><button class="edit-btn" style="background:#8e44ad" onclick="SU.aiMsg('docs','${d.id}')">🤖 AI</button>` : ""}
         ${hasStock ? `<button class="edit-btn" onclick="SU.deduct('${d.id}')">📦 Deduct stock</button>` : ""}
         ${!inv ? `<button class="edit-btn" onclick="SU.toInvoice('${d.id}')">🔁 To invoice</button>
           <select onchange="SU.qstatus('${d.id}',this.value)">${["Draft", "Sent", "Accepted", "Rejected"].map((s) => `<option ${s === (d.status || "Draft") ? "selected" : ""}>${s}</option>`).join("")}</select>` : ""}
@@ -929,72 +1112,122 @@ export function initSuite(ctx) {
   }
 
 
-  /* =================== AI WHATSAPP CHATBOT =================== */
-  let chatHistory = [], chatCtx = {};
-  const CHATBOT_SYSTEM = (ctx) => `You are an expert WhatsApp sales assistant for a business called "${ctx.company || "our company"}". You write short, friendly, professional WhatsApp messages in Indian English (under 150 words unless asked otherwise). When given customer context, personalise every message. Output format: the WhatsApp message text inside a markdown code block, then one short line with tone used and tips.
-Customer context — Name: ${ctx.name||"unknown"}, Phone: ${ctx.phone||"not given"}, Value: ${ctx.value||"unknown"}, Stage: ${ctx.stage||"New"}, Notes: ${ctx.notes||"none"}.`;
+  /* =================== WHATSAPP MESSAGE WRITER (chatbot) =================== */
+  // Works instantly with the built-in writer. If an Anthropic key is saved in this browser, Claude AI is tried first.
+  const chat = { ctx: {}, last: null, history: [], out: [] };
+  const AI_KEY = "pi_ai_key", AI_MODEL = "pi_ai_model";
+  const store = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+  const aiKey = () => { try { return localStorage.getItem(AI_KEY) || ""; } catch (e) { return ""; } };
+  const aiModel = () => { try { return localStorage.getItem(AI_MODEL) || "claude-haiku-5-5"; } catch (e) { return "claude-haiku-5-5"; } };
+  const HELP = "I can write WhatsApp messages for: follow-up, payment reminder, first contact, thank-you, re-engagement, festive greetings, appointment, feedback, offers, delivery updates, apology and quotation.\n\nTry: “payment reminder for Ravi, 5000 rupees, in Hinglish”.\nAfter a message appears you can say “shorter”, “formal”, “Hinglish” or “another”.";
 
-  const QUICK_PROMPTS = ["Write a friendly follow-up","Write a payment reminder","Write a first contact message","Write a deal-closed thank-you","Write a re-engagement for a cold lead","Write an appointment reminder","Write a feedback request","Write a festive greeting"];
-
-  async function callAI(messages) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1000, system: CHATBOT_SYSTEM(chatCtx), messages })
-    });
-    if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error((err.error&&err.error.message)||"API error "+res.status); }
-    const data = await res.json();
-    return (data.content||[]).map((b)=>b.text||"").join("").trim();
-  }
-
-  function appendMsg(role, text) {
-    const el = $("chatMsgs"); if (!el) return;
-    const div = document.createElement("div");
-    div.className = "msg " + (role === "bot" ? "bot" : "user");
-    const match = text.match(/```[\w]*\n?([\s\S]*?)```/);
-    if (match) {
-      div.innerHTML = `<div style="background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.2);border-radius:8px;padding:10px;margin-bottom:6px;white-space:pre-wrap">${esc(match[1].trim())}</div><div style="font-size:.78em;color:var(--text-dim)">${esc(text.replace(/```[\w]*\n?[\s\S]*?```/,"").trim())}</div>`;
-      const cp = document.createElement("button"); cp.className="btn-sm btn-wa"; cp.style.marginTop="6px"; cp.textContent="📋 Copy message";
-      cp.onclick=()=>navigator.clipboard.writeText(match[1].trim()).then(()=>toast("Copied to clipboard!"));
-      div.appendChild(cp);
-    } else { div.innerHTML = esc(text).replace(/\n/g,"<br>"); }
-    el.appendChild(div); el.scrollTop = el.scrollHeight;
-  }
-
-  window.chatSend = async function () {
-    const inp = $("chatInput"); if (!inp) return;
-    const text = (inp.value||"").trim(); if (!text) return;
-    inp.value = ""; inp.disabled = true;
-    appendMsg("user", text);
-    chatHistory.push({ role: "user", content: text });
+  function chatLine(cls, html) {
     const el = $("chatMsgs");
-    const typDiv = document.createElement("div"); typDiv.className="msg bot typing"; typDiv.id="chat-typing"; typDiv.textContent="Writing message…";
-    if (el) { el.appendChild(typDiv); el.scrollTop = el.scrollHeight; }
-    try {
-      const reply = await callAI(chatHistory);
-      document.getElementById("chat-typing")?.remove();
-      appendMsg("bot", reply);
-      chatHistory.push({ role: "assistant", content: reply });
-    } catch (e) {
-      document.getElementById("chat-typing")?.remove();
-      appendMsg("bot", "Sorry, couldn't write that message right now. " + e.message);
-    } finally { inp.disabled = false; inp.focus(); }
-  };
-  window.chatQuick = (q) => { const i=$("chatInput"); if(i){i.value=q;window.chatSend();} };
-  window.chatEnter = (e) => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();window.chatSend();} };
-  window.closeAiChat = () => { $("aiChatModal").classList.remove("open"); chatHistory=[]; };
-  const aiMsg = (kind, id) => openAiChatbot(kind, id);
-  window.openAiChatbot = openAiChatbot;
-
-  function openAiChatbot(kind, id) {
-    chatHistory = [];
-    const r = id ? (S[kind]&&S[kind].find((x)=>x.id===id)) : null;
-    chatCtx = r ? { name:r.name||r.cName||"", phone:r.phone||r.cPhone||"", value:r.value?inr(r.value):"", stage:r.stage||r.status||"", notes:r.notes||"", company:st().companyName||"" } : { company:st().companyName||"" };
-    $("aiChatModal").classList.add("open");
-    const msgs = $("chatMsgs"); if(msgs) msgs.innerHTML="";
-    const greeting = r ? `Hi! I'll write a WhatsApp message for **${r.name||r.cName||"this contact"}**${r.value?" (deal value "+inr(r.value)+")":""}. What kind of message do you need?` : "Hi! I write personalised WhatsApp messages for your business. Pick a quick prompt below or tell me what you need.";
-    appendMsg("bot", greeting);
-    const inp=$("chatInput"); if(inp){inp.value=""; setTimeout(()=>inp.focus(),120);}
+    if (!el) return null;
+    const d = document.createElement("div");
+    d.className = "msg " + cls;
+    d.innerHTML = html;
+    el.appendChild(d);
+    el.scrollTop = el.scrollHeight;
+    return d;
   }
+  const chatUser = (t) => chatLine("user", esc(t).replace(/\n/g, "<br>"));
+  const chatNote = (t, typing) => chatLine("bot" + (typing ? " typing" : ""), esc(t).replace(/\n/g, "<br>"));
+  function chatBot(text) {
+    const i = chat.out.push(text) - 1;
+    chatLine("bot", `<div class="wa-text">${esc(text)}</div><div class="msg-actions">
+      <button class="btn-wa" onclick="SU.chatCopy(${i})">📋 Copy</button>
+      <button class="btn-wa" onclick="SU.chatWa(${i})">💬 Send on WhatsApp</button>
+      <button style="background:#6c757d" onclick="SU.chatQuick('make it shorter')">✂ Shorter</button>
+      <button style="background:#6c757d" onclick="SU.chatQuick('make it formal')">🎩 Formal</button>
+      <button style="background:#6c757d" onclick="SU.chatQuick('in Hinglish')">🇮🇳 Hinglish</button>
+      <button style="background:#6c757d" onclick="SU.chatQuick('another version')">🔄 Another</button></div>`);
+  }
+
+  async function callAI(text) {
+    const c = chat.ctx;
+    const system = `You write WhatsApp messages for a small Indian business called "${c.company || "our company"}". Sender: ${c.me || "the team"}. ` +
+      `Customer: ${c.name || "unknown"} (phone ${c.phone || "n/a"}), deal value ${c.value || "n/a"}, stage ${c.stage || "n/a"}, notes ${c.notes || "none"}. ` +
+      `Write natural, warm, concise messages (under 120 words) in the language and tone the user asks for (default: friendly Indian English). Use at most two emojis. ` +
+      `Reply with ONLY the message text. No quotation marks, no explanation.`;
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": aiKey(), "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: aiModel(), max_tokens: 600, system, messages: [...chat.history.slice(-10), { role: "user", content: text }] })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err.error && err.error.message) || "error " + res.status);
+    }
+    const data = await res.json();
+    const out = (data.content || []).map((b) => b.text || "").join("").trim();
+    if (!out) throw new Error("empty answer");
+    return out;
+  }
+
+  async function chatSend(textArg) {
+    const inp = $("chatInput");
+    const text = String(textArg !== undefined ? textArg : inp ? inp.value : "").trim();
+    if (!text) return;
+    if (inp) inp.value = "";
+    chatUser(text);
+    const typing = chatNote("Writing your message…", true);
+    let aiText = "", note = "";
+    if (aiKey()) {
+      try { aiText = await callAI(text); }
+      catch (e) { note = "Claude AI could not be reached (" + e.message + "), so I used the built-in writer."; }
+    } else await new Promise((r) => setTimeout(r, 300));
+    if (typing) typing.remove();
+    if (aiText) {
+      chat.history.push({ role: "user", content: text }, { role: "assistant", content: aiText });
+      chatBot(aiText);
+      return;
+    }
+    if (note) chatNote(note);
+    const r = chReply(chat, text);
+    if (r.kind === "msg") chatBot(r.text); else chatNote(HELP);
+    const nm = $("chatName");
+    if (nm && chat.ctx.name && nm.value !== chat.ctx.name) nm.value = chat.ctx.name;
+  }
+
+  function chatCopy(i) {
+    const t = chat.out[i] || "";
+    const done = () => toast("Message copied");
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done).catch(() => fallbackCopy(t, done));
+    else fallbackCopy(t, done);
+  }
+  function fallbackCopy(t, done) {
+    const ta = document.createElement("textarea");
+    ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { toast("Press and hold the message to copy it"); }
+    ta.remove();
+  }
+  const chatWa = (i) => window.open(waLink(chat.ctx.phone, chat.out[i] || ""), "_blank");
+
+  function chatMode() {
+    const m = $("chatMode");
+    if (m) m.innerText = aiKey() ? "Mode: Claude AI (" + aiModel() + ")" : "Mode: built-in writer";
+  }
+  function openAiChatbot(kind, id) {
+    const r = id && S[kind] ? S[kind].find((x) => x.id === id) : null;
+    chat.last = null; chat.history = []; chat.out = [];
+    chat.ctx = { company: st().companyName || "", me: st().name || "" };
+    if (r) {
+      Object.assign(chat.ctx, { name: r.name || r.cName || "", phone: r.phone || r.cPhone || "", value: r.value ? inr(r.value) : "", stage: r.stage || r.status || "", notes: r.notes || "" });
+      if (r.total !== undefined) Object.assign(chat.ctx, { amount: inr(r.total - (r.paid || 0)), number: r.number || "", due: r.dueAt ? dstr(r.dueAt) : "" });
+    }
+    $("aiChatModal").classList.add("open");
+    $("chatMsgs").innerHTML = "";
+    $("chatName").value = chat.ctx.name || "";
+    $("chatPhone").value = chat.ctx.phone || "";
+    $("chatSettings").classList.add("hidden");
+    chatMode();
+    chatNote(r ? `Hi! I'll write messages for ${chat.ctx.name || "this contact"}. Pick a quick button below or tell me what you need.` : "Hi! I write WhatsApp messages for your business. Pick a quick button below or tell me what you need.");
+    if (r && r.total !== undefined) chatSend("Write a payment reminder");
+    else setTimeout(() => $("chatInput") && $("chatInput").focus(), 100);
+  }
+  const aiMsg = (kind, id) => openAiChatbot(kind, id);
 
 
   /* =================== CONTENT PLANNER =================== */
@@ -1063,8 +1296,12 @@ Customer context — Name: ${ctx.name||"unknown"}, Phone: ${ctx.phone||"not give
     back: () => { if (!$("suiteModal").classList.contains("open")) return false; if (V.bill || V.sub) { go(V.tab); return true; } return false; },
     drag: (kind, id) => { V.drag = { kind, id }; },
     aiMsg, openAiChatbot,
-    closeAiChat: () => { document.getElementById('aiChatModal').classList.remove('open'); chatHistory=[]; },
-    chatQuick: (q) => { const i=document.getElementById('chatInput'); if(i){i.value=q;window.chatSend();} },
+    closeAiChat: () => { $("aiChatModal").classList.remove("open"); },
+    chatSend, chatQuick: (q) => chatSend(q), chatCopy, chatWa,
+    chatCtx: (k, v) => { chat.ctx[k] = v; },
+    chatSettings: () => { chatMode(); $("chatKey").value = ""; $("chatModel").value = localStorage.getItem(AI_MODEL) || ""; $("chatSettings").classList.toggle("hidden"); },
+    chatSaveKey: () => { const k = $("chatKey").value.trim(), mdl = $("chatModel").value.trim(); if (k) store(AI_KEY, k); store(AI_MODEL, mdl || null); chatMode(); toast(k ? "Saved. Claude AI mode is on" : "Model saved"); },
+    chatClearKey: () => { store(AI_KEY, null); chatMode(); toast("Key removed. Using the built-in writer"); },
     drop: (kind, stage) => { if (V.drag && V.drag.kind === kind) move(kind, V.drag.id, stage); V.drag = null; },
     mv, delRec, setStage: (k, id, v) => move(k, id, v),
     openLead: (id) => { V.sub = "lead"; V.id = id; renderSuite(true); },
