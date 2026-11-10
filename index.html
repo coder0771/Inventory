@@ -162,7 +162,7 @@
 
     <div class="dashboard">
         <div><p>Total Items</p><h2 id="totalItems">0</h2></div>
-        <div><p>Low Stock Items</p><h2 id="lowStock">0</h2></div>
+        <div><p>Low Stock Items</p><h2 id="lowStock" style="color:#ff4d4d;">0</h2></div>
         <div><p>Total Valuation</p><h2>₹<span id="totalValue">0</span></h2></div>
     </div>
 
@@ -387,30 +387,45 @@
     </div>
 </div>
 
-<!-- AI WHATSAPP CHATBOT MODAL -->
+<!-- AI WHATSAPP MESSAGE WRITER -->
 <div id="aiChatModal" class="modal-overlay" style="z-index:2150">
-    <div class="modal-content" style="width:620px; padding:0; overflow:hidden; border-radius:16px;">
-        <div class="chatbot-wrap">
-            <div class="chatbot-header">
-                <div class="wa-dot"></div>
-                <h4>🤖 AI WhatsApp Message Writer</h4>
-                <button class="btn-sm" style="margin-left:auto; background:rgba(255,255,255,.1)" onclick="SU.closeAiChat()">✖ Close</button>
-            </div>
-            <div class="quick-chips" id="quickChips">
-                <span class="qchip" onclick="SU.chatQuick('Write a friendly follow-up message')">👋 Follow-up</span>
-                <span class="qchip" onclick="SU.chatQuick('Write a payment reminder')">💰 Payment reminder</span>
-                <span class="qchip" onclick="SU.chatQuick('Write a first contact message')">📩 First contact</span>
-                <span class="qchip" onclick="SU.chatQuick('Write a deal-closed thank-you message')">🎉 Thank you</span>
-                <span class="qchip" onclick="SU.chatQuick('Write a re-engagement message for a cold lead')">❄ Re-engage</span>
-                <span class="qchip" onclick="SU.chatQuick('Write a festive season greeting')">🎊 Festive greeting</span>
-                <span class="qchip" onclick="SU.chatQuick('Write an appointment reminder')">🗓 Appointment</span>
-                <span class="qchip" onclick="SU.chatQuick('Write a feedback request after sale')">⭐ Feedback</span>
-            </div>
-            <div class="chatbot-msgs" id="chatMsgs"></div>
-            <div class="chatbot-row">
-                <input id="chatInput" placeholder="Tell me what message you need…" onkeydown="window.chatEnter(event)">
-                <button onclick="window.chatSend()">Send ➤</button>
-            </div>
+    <div class="modal-content chat-modal">
+        <div class="chat-head">
+            <div class="wa-dot"></div><h4>🤖 WhatsApp Message Writer</h4>
+            <button class="btn-sm" style="margin-left:auto; background:#6c757d" title="Settings" onclick="SU.chatSettings()">⚙</button>
+            <button class="btn-sm" style="background:#dc3545" onclick="SU.closeAiChat()">✖</button>
+        </div>
+        <div id="chatSettings" class="chat-settings hidden">
+            <b>Optional: use Claude AI for even smarter messages.</b> Paste your own Anthropic API key. It is saved only in this browser.
+            Without a key the built-in writer is used, which always works and is free.
+            <input id="chatKey" type="password" placeholder="Anthropic API key (sk-ant-...)" autocomplete="off">
+            <input id="chatModel" placeholder="Model (default claude-haiku-5-5)">
+            <button class="btn-sm" style="background:#28a745" onclick="SU.chatSaveKey()">Save</button>
+            <button class="btn-sm" style="background:#6c757d" onclick="SU.chatClearKey()">Remove key</button>
+            <span id="chatMode" class="hint"></span>
+        </div>
+        <div class="chat-fields">
+            <input id="chatName" placeholder="Customer name" oninput="SU.chatCtx('name', this.value)">
+            <input id="chatPhone" type="tel" placeholder="Phone (for Send on WhatsApp)" oninput="SU.chatCtx('phone', this.value)">
+        </div>
+        <div class="quick-chips">
+            <span class="qchip" onclick="SU.chatQuick('Write a friendly follow-up message')">👋 Follow-up</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a payment reminder')">💰 Payment reminder</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a first contact message')">📩 First contact</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a deal-closed thank-you message')">🎉 Thank you</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a re-engagement message for a cold lead')">❄ Re-engage</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a festive greeting')">🎊 Festive</span>
+            <span class="qchip" onclick="SU.chatQuick('Write an appointment reminder')">🗓 Appointment</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a feedback request')">⭐ Feedback</span>
+            <span class="qchip" onclick="SU.chatQuick('Write an offer message')">🎁 Offer</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a delivery update')">📦 Delivery</span>
+            <span class="qchip" onclick="SU.chatQuick('Write an apology message')">🙏 Apology</span>
+            <span class="qchip" onclick="SU.chatQuick('Write a quotation message')">📄 Quotation</span>
+        </div>
+        <div class="chatbot-msgs" id="chatMsgs"></div>
+        <div class="chatbot-row">
+            <input id="chatInput" placeholder="e.g. payment reminder for Ravi, 5000 rupees, in Hinglish" onkeydown="if(event.key==='Enter'){event.preventDefault();SU.chatSend();}">
+            <button onclick="SU.chatSend()">Send ➤</button>
         </div>
     </div>
 </div>
