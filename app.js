@@ -1023,7 +1023,7 @@ function startTracking() {
   trackWatchId = navigator.geolocation.watchPosition((p) => { hide("locBanner"); onTrackPosition(p); },
     (e) => {
       setTrackStatus("📍 Location error: " + e.message + ". Allow location access to continue.");
-      if (e.code === 1) showLocBanner("Location access is blocked. Attendance and shop tracking need it.");
+      if (e.code === 1) showLocBanner("Location is turned off for this website.");
     },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
   requestWakeLock();
@@ -1040,8 +1040,8 @@ async function checkLocationAccess() {
     const perm = await navigator.permissions.query({ name: "geolocation" });
     const apply = () => {
       if (perm.state === "granted") { hide("locBanner"); if (trackWatchId === null && currentRole === "EMPLOYEE") startTracking(); }
-      else if (perm.state === "denied") showLocBanner("Location access is blocked. Attendance and shop tracking need it.");
-      else showLocBanner("Please allow location access so you can mark attendance.");
+      else if (perm.state === "denied") showLocBanner("Location is turned off for this website.");
+      else showLocBanner("Please allow location access to mark attendance.");
     };
     perm.onchange = apply; // reacts as soon as the person allows it in the browser settings
     apply();
@@ -1050,13 +1050,12 @@ async function checkLocationAccess() {
 
 window.allowLocation = function () {
   if (!navigator.geolocation) return toast("This device does not support location");
+  // This simply asks the browser, exactly like the first time you log in. If the person taps Allow, tracking starts.
   navigator.geolocation.getCurrentPosition(
     () => { hide("locBanner"); toast("Location allowed"); if (trackWatchId === null) startTracking(); },
     (e) => {
-      if (e.code === 1) {
-        // browsers do not let a website re-open a blocked permission, so tell the person where the switch is
-        showLocBanner("Still blocked. Tap the lock / info icon next to the web address > Permissions > Location > Allow (iPhone: Settings > Privacy > Location Services > Safari Websites > While Using). Then tap the button again.");
-      } else toast("Could not get your location: " + e.message);
+      if (e.code === 1) showLocBanner("Location is still blocked. Please allow it for this website, then tap Allow location again.");
+      else toast("Could not get your location: " + e.message);
     },
     { enableHighAccuracy: true, timeout: 15000 });
 };
@@ -1254,7 +1253,11 @@ function renderInventory(list) {
     const qty = Number(i.qty) || 0, hold = Number(i.hold) || 0, broken = Number(i.broken) || 0, price = Number(i.price) || 0;
     const min = i.minQty ?? 5;
     const low = qty <= min;
+    const photoHtml = i.photoUrl
+      ? `<img src="${escapeHTML(i.photoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #ddd">`
+      : `<div style="width:40px;height:40px;border-radius:6px;background:#f1f3f5;border:1px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#aaa;font-size:1.2em">📦</div>`;
     return `<tr ${low ? 'class="low-stock-row"' : ""}>
+      <td>${photoHtml}</td>
       <td><strong>${escapeHTML(i.name)}</strong> ${low ? '<span class="badge-low">LOW</span>' : ""}</td>
       <td><span class="badge-cat">${escapeHTML(i.category || "General")}</span></td>
       <td>${escapeHTML(i.size || "-")}</td>
