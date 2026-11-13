@@ -1160,7 +1160,7 @@ export function initSuite(ctx) {
   const chatNote = (t, typing) => chatLine("bot" + (typing ? " typing" : ""), esc(t).replace(/\n/g, "<br>"));
   function chatBot(text) {
     const i = chat.out.push(text) - 1;
-    chatLine("bot", `<div class="wa-text">${esc(text)}</div><div class="msg-actions">
+    chatLine("bot", `<div class="wa-text notr">${esc(text)}</div><div class="msg-actions">
       <button class="btn-wa" onclick="SU.chatCopy(${i})">📋 Copy</button>
       <button class="btn-wa" onclick="SU.chatWa(${i})">💬 Send on WhatsApp</button>
       <button style="background:#6c757d" onclick="SU.chatQuick('make it shorter')">✂ Shorter</button>
