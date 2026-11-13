@@ -16,7 +16,7 @@ const eqCleanItems = (items) => (items || [])
 const eqTotal = (items) => Math.round(items.reduce((s, i) => s + i.qty * i.price, 0) * 100) / 100;
 const eqNotes = (e) => ["From enquiry #" + (e.no || ""),
   e.mistriName ? "Mistri/Plumber: " + e.mistriName + (e.mistriPhone ? " (" + e.mistriPhone + ")" : "") : "",
-  e.artName ? "Art: " + e.artName : "", e.salesman ? "Sales man: " + e.salesman : "", e.note || ""].filter(Boolean).join(". ");
+  e.artName ? "Art: " + e.artName + (e.artPhone ? " (" + e.artPhone + ")" : "") : "", e.salesman ? "Sales man: " + e.salesman : "", e.note || ""].filter(Boolean).join(". ");
 
 // ---- mobile numbers ----
 const eqDigits = (p) => String(p || "").replace(/\D/g, "");
@@ -59,9 +59,10 @@ function eqScanPatch(text, stock) {
   const p = {};
   [["cName", "customerName"], ["cAddress", "address"], ["mistriName", "mistriName"], ["artName", "artName"], ["salesman", "salesman"], ["note", "notes"]]
     .forEach(([k, from]) => { const v = str(j[from]); if (v) p[k] = v; });
-  const m1 = eqMobile(j.mobile), m2 = eqMobile(j.mistriMobile);
+  const m1 = eqMobile(j.mobile), m2 = eqMobile(j.mistriMobile), m3 = eqMobile(j.artMobile);
   if (m1) p.cPhone = m1;
   if (m2) p.mistriPhone = m2;
+  if (m3) p.artPhone = m3;
   const d = eqParseDate(j.date); if (d) { p.date = d; p.dateOn = true; }
   const t = eqParseTime(j.time); if (t) p.time = t;
   const norm = (x) => str(x).toLowerCase().replace(/\s+/g, " ");
@@ -73,6 +74,108 @@ function eqScanPatch(text, stock) {
   }).filter((r) => r.desc);
   if (items.length) p.items = items;
   return p;
+}
+
+
+// ---- FREE reader (no key): turns the raw text of the memo into form values ----
+// The printed labels of the memo (Customer Name, Mobile No., ...) tell which writing belongs to which box.
+const OCR_M = "(?:m|rn|nn)", OCR_NAME = "n[a@o](?:rn|nn|ni|in|m|n)[e3]?";
+const OCR_LABELS = [
+  ["cName", new RegExp(`cu[s5]t[o0]${OCR_M}[e3]r\\s*${OCR_NAME}|cust\\.?\\s*${OCR_NAME}|cu[s5]t[o0]${OCR_M}[e3]r`, "i")],
+  ["cPhone", new RegExp(`${OCR_M}[o0]b[i1l]l?[e3]\\s*n[o0]\\.?`, "i")],
+  ["date", /\bd[a@]t[e3]\b/i],
+  ["time", new RegExp(`\\bt[i1l]${OCR_M}[e3]\\b`, "i")],
+  ["cAddress", /addr?[e3]s+|ad[dr]+es+/i],
+  ["mistriName", new RegExp(`(?:${OCR_M}[i1]str[iy1]|plu${OCR_M}b[e3]r)[^:\\n]{0,25}?${OCR_NAME}|${OCR_M}[i1]str[iy1]\\s*\\/?\\s*plu${OCR_M}b[e3]r|plu${OCR_M}b[e3]r`, "i")],
+  ["artName", new RegExp(`\\bar[t+]\\s*${OCR_NAME}`, "i")],
+  ["mob", new RegExp(`\\b${OCR_M}[o0]b\\.?\\s*n[o0]\\.?`, "i")],
+  ["salesman", new RegExp(`sal[e3]s?\\s*-?\\s*${OCR_M}[a@]n`, "i")],
+  ["req", new RegExp(`r[e3]qu[i1]r[e3]${OCR_M}[e3]n[t+]s?`, "i")]
+];
+const OCR_WORDS = ("tiles tile floor flooring wall vitrified ceramic ceramics granite marble kota kitchen sink basin wash commode toilet closet western indian tap taps " +
+  "mixer shower faucet faucets geyser pipe pipes fitting fittings elbow valve cistern flush tank mirror cabinet bathroom bath adhesive grout cement sanitary " +
+  "sanitaryware hardware matt matte glossy polished digital parking outdoor size box boxes pieces piece square feet white black grey brown beige ivory wooden " +
+  "design rack soap dish towel health concealed diverter spout pillar cock angle bib jet spray urinal seat cover inch fixing plumber mistri road nagar colony " +
+  "chowk galli peth wadi society apartment plot near behind opposite station market jalna aurangabad ambad partur bhokardan badnapur mantha jafrabad " +
+  "ghansawangi bhokardan sambhajinagar beed parbhani buldhana nashik pune mumbai complete urgent delivery sample samples estimate quotation rate rates").split(/\s+/);
+function eqLev(a, b) {
+  const m = a.length, n = b.length, d = Array.from({ length: m + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[m][n];
+}
+// fix one misspelt word against a word list (small mistakes only, so real words are never changed)
+function eqFixWord(w, words) {
+  const lw = w.toLowerCase();
+  if (lw.length < 4 || !/^[a-z]+$/.test(lw) || words.includes(lw)) return w;
+  const max = lw.length >= 7 ? 2 : 1;
+  let best = null, bd = max + 1;
+  for (const c of words) { if (Math.abs(c.length - lw.length) > max) continue; const dd = eqLev(lw, c); if (dd < bd) { bd = dd; best = c; } }
+  if (!best || bd > max) return w;
+  return w[0] === w[0].toUpperCase() ? best[0].toUpperCase() + best.slice(1) : best;
+}
+const eqTitle = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+function eqOcrClean(v) {
+  return String(v || "").replace(/[_|~=—–]{1,}/g, " ").replace(/\.{2,}/g, " ").replace(/^[\s:;.,\-–>]+/, "").replace(/\s{2,}/g, " ").trim();
+}
+function eqOcrPatch(text, stock) {
+  const words = OCR_WORDS.slice();
+  (stock || []).forEach((x) => String(x.name || "").toLowerCase().split(/[^a-z]+/).forEach((w) => { if (w.length >= 4 && !words.includes(w)) words.push(w); }));
+  const fix = (s) => s.replace(/[A-Za-z]+/g, (w) => eqFixWord(w, words));
+  const lines = String(text || "").split(/\r?\n/);
+  const p = {}, reqLines = [];
+  let mobCount = 0, inReq = false;
+  for (const raw of lines) {
+    const line = raw.replace(/\s+/g, " ");
+    const hits = [];
+    OCR_LABELS.forEach(([key, re]) => {
+      const g = new RegExp(re.source, "ig"); let m;
+      while ((m = g.exec(line))) { if (!hits.some((h) => m.index < h.end && m.index + m[0].length > h.start)) hits.push({ key, start: m.index, end: m.index + m[0].length }); if (!m[0].length) break; }
+    });
+    hits.sort((a, b) => a.start - b.start);
+    if (!hits.length) { if (inReq) reqLines.push(line); continue; }
+    if (inReq && hits.every((h) => h.key === "req")) { /* repeated heading */ }
+    hits.forEach((h, i) => {
+      const val = eqOcrClean(line.slice(h.end, i + 1 < hits.length ? hits[i + 1].start : line.length));
+      let key = h.key;
+      if (key === "mob") key = ++mobCount === 1 ? "mistriPhone" : "artPhone";
+      if (key === "req") { inReq = true; if (val) reqLines.push(val); return; }
+      if (!val || p[key]) return;
+      p[key] = val;
+    });
+  }
+  const out = {};
+  if (p.cName) out.cName = eqTitle(fix(p.cName));
+  if (p.cAddress) out.cAddress = eqTitle(fix(p.cAddress));
+  if (p.mistriName) out.mistriName = eqTitle(fix(p.mistriName));
+  if (p.artName) out.artName = eqTitle(fix(p.artName));
+  if (p.salesman) out.salesman = eqTitle(fix(p.salesman));
+  for (const k of ["cPhone", "mistriPhone", "artPhone"]) {
+    if (!p[k]) continue;
+    const d = eqMobile(p[k]);
+    if (d.length >= 7) out[k] = d;
+  }
+  const dt = eqParseDate(p.date); if (dt) { out.date = dt; out.dateOn = true; }
+  const tm = eqParseTime((p.time || "").replace(/\s+/g, " ")); if (tm) out.time = tm;
+  // requirement lines: "Wall tiles 12x18 - 40 box"  ->  description + quantity, matched to stock when close enough
+  const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const items = reqLines.map(eqOcrClean).filter((l) => /[A-Za-z]{2}/.test(l)).map((l) => {
+    let desc = l, qty = "";
+    const m = l.match(/^(.*?[A-Za-z].*?)[\s\-x×*:=]+(\d+(?:\.\d+)?)\s*(?:pcs?|nos?|no\.?|box(?:es)?|sets?|sq\.?\s*ft|sqft|bags?|pieces?)?\.?$/i);
+    if (m) { desc = m[1].trim(); qty = Number(m[2]); }
+    desc = fix(desc);
+    let hit = null, bestScore = 0;
+    (stock || []).forEach((x) => {
+      const a = norm(desc), b = norm(x.name);
+      if (!a || !b) return;
+      const sc = 1 - eqLev(a, b) / Math.max(a.length, b.length);
+      if (sc > bestScore) { bestScore = sc; hit = x; }
+    });
+    if (hit && bestScore >= 0.8) return { desc: hit.name, qty, price: hit.price || "", itemId: hit.id };
+    return { desc, qty, price: "", itemId: "" };
+  });
+  if (items.length) out.items = items;
+  return out;
 }
 
 // ---- customer messages ----
@@ -222,7 +325,7 @@ export function initEnquiry(ctx) {
   /* ---------------- the form (same layout as the paper memo) ---------------- */
   function newForm() {
     const s = st();
-    V.form = { id: null, no: null, cName: "", cPhone: "", cAddress: "", dateOn: false, date: Date.now(), time: "", mistriName: "", mistriPhone: "", artName: "",
+    V.form = { id: null, no: null, cName: "", cPhone: "", cAddress: "", dateOn: false, date: Date.now(), time: "", mistriName: "", mistriPhone: "", artName: "", artPhone: "",
       salesman: s.role === "ADMIN" ? "" : s.name || "", items: [line(), line(), line()], note: "" };
     V.tab = "form"; V.focused = false; render();
   }
@@ -231,7 +334,7 @@ export function initEnquiry(ctx) {
     if (!e) return;
     if (!isAdmin() && (e.status || "PENDING") !== "PENDING") return toast("This enquiry was already decided and can't be edited");
     V.form = { id, no: e.no, cName: e.cName || "", cPhone: e.cPhone || "", cAddress: e.cAddress || "", dateOn: !!e.date, date: e.date || Date.now(), time: e.time || "",
-      mistriName: e.mistriName || "", mistriPhone: e.mistriPhone || "", artName: e.artName || "", salesman: e.salesman || "",
+      mistriName: e.mistriName || "", mistriPhone: e.mistriPhone || "", artName: e.artName || "", artPhone: e.artPhone || "", salesman: e.salesman || "",
       items: (e.items && e.items.length ? e.items : [line()]).map((i) => ({ desc: i.desc || "", qty: i.qty || "", price: i.price || "", itemId: i.itemId || "" })), note: e.note || "" };
     V.tab = "form"; render();
   }
@@ -251,7 +354,8 @@ export function initEnquiry(ctx) {
         <button class="btn-sm" style="background:#8e44ad" onclick="document.getElementById('eqScanCam').click()">📷 Take photo</button>
         <button class="btn-sm" style="background:#6f42c1" onclick="document.getElementById('eqScanFile').click()">🖼 Upload photo</button>
         <input id="eqScanCam" type="file" accept="image/*" capture="environment" hidden onchange="EQ.scan(this)">
-        <input id="eqScanFile" type="file" accept="image/*" hidden onchange="EQ.scan(this)"></div>
+        <input id="eqScanFile" type="file" accept="image/*" hidden onchange="EQ.scan(this)">
+        <span id="eqScanStatus" class="hint"></span></div>
       <p class="hint" style="margin:0 0 8px">Everything is optional. Fill in what you know and save, you can come back and complete it later. Use ↑ ↓ arrow keys to move between boxes.</p>
       <div class="grid2">${inp("Customer Name", "cName")}${inp("Mobile No.", "cPhone", "tel")}</div>
       <div class="grid2">
@@ -261,7 +365,8 @@ export function initEnquiry(ctx) {
         ${inp("Time", "time", "time")}</div>
       ${inp("Address", "cAddress")}
       <div class="grid2">${inp("Mistri / Plumber Name", "mistriName")}${inp("Mob No. (Mistri / Plumber)", "mistriPhone", "tel")}</div>
-      <div class="grid2">${inp("Art Name", "artName")}${inp("Sales Man", "salesman")}</div>
+      <div class="grid2">${inp("Art Name", "artName")}${inp("Mob No. (Art)", "artPhone", "tel")}</div>
+      ${inp("Sales Man", "salesman")}
       <label class="task-label">Requirement</label>
       <div id="eqLines">${linesHTML()}</div>
       <button class="auth-btn" onclick="EQ.addLine()">➕ Add line</button>
@@ -302,7 +407,7 @@ export function initEnquiry(ctx) {
     const date = f.dateOn ? readDT("eqDate") : null;
     if (f.dateOn && isNaN(date)) return toast("Enter a valid date");
     const data = { cName: f.cName.trim(), cPhone: f.cPhone.trim(), cAddress: f.cAddress.trim(), date, time: f.time || "", mistriName: f.mistriName.trim(),
-      mistriPhone: f.mistriPhone.trim(), artName: f.artName.trim(), salesman: f.salesman.trim(), items: f.items.filter((i) => String(i.desc).trim() || i.qty || i.price).map((i) => ({
+      mistriPhone: f.mistriPhone.trim(), artName: f.artName.trim(), artPhone: (f.artPhone || "").trim(), salesman: f.salesman.trim(), items: f.items.filter((i) => String(i.desc).trim() || i.qty || i.price).map((i) => ({
         desc: String(i.desc).trim(), qty: Number(i.qty) || 0, price: Number(i.price) || 0, itemId: i.itemId || "" })), note: f.note.trim(), updatedAt: serverTimestamp() };
     try {
       loading(true);
@@ -340,7 +445,7 @@ export function initEnquiry(ctx) {
     return `<div class="task-card" style="flex-wrap:wrap"><div class="task-info">
       <div class="task-title">#${esc(e.no || "-")} · ${esc(e.cName || "(no name)")} ${statusChip(s)} ${e.quotationNumber ? `<span class="chip chip-green">→ ${esc(e.quotationNumber)}</span>` : ""}${eqFollowDue(e, K(), Date.now()) ? ' <span class="chip chip-red">🔔 follow-up due</span>' : ""}${e.welcomeSentAt ? ' <span class="chip">📨 welcomed</span>' : ""}${e.followUps ? ` <span class="chip">🔔 ${e.followUps} follow-up${e.followUps > 1 ? "s" : ""}</span>` : ""}</div>
       <div class="task-meta">${e.cPhone ? "📞 " + esc(e.cPhone) + " · " : ""}${e.cAddress ? "📍 " + esc(e.cAddress) + " · " : ""}${e.date ? "📅 " + fmtD(new Date(e.date)) : ""}${e.time ? " " + esc(e.time) : ""}
-        ${e.mistriName || e.artName || e.salesman ? "<br>" : ""}${e.mistriName ? "Mistri/Plumber: " + esc(e.mistriName) + (e.mistriPhone ? " (" + esc(e.mistriPhone) + ")" : "") + " · " : ""}${e.artName ? "Art: " + esc(e.artName) + " · " : ""}${e.salesman ? "Sales man: " + esc(e.salesman) : ""}
+        ${e.mistriName || e.artName || e.salesman ? "<br>" : ""}${e.mistriName ? "Mistri/Plumber: " + esc(e.mistriName) + (e.mistriPhone ? " (" + esc(e.mistriPhone) + ")" : "") + " · " : ""}${e.artName ? "Art: " + esc(e.artName) + (e.artPhone ? " (" + esc(e.artPhone) + ")" : "") + " · " : ""}${e.salesman ? "Sales man: " + esc(e.salesman) : ""}
         ${shown ? "<br><b>Requirement:</b><br>" + shown + (items.length > 6 ? "<br>+ " + (items.length - 6) + " more" : "") : ""}
         ${admin && e.createdByName ? "<br>Written by: " + esc(e.createdByName) : ""}${e.note ? "<br>📝 " + esc(e.note) : ""}</div></div>
       <div class="decide-col" style="flex-wrap:wrap; gap:8px">
@@ -408,7 +513,7 @@ export function initEnquiry(ctx) {
       <div class="row"><span class="l">Mobile No. :</span><span class="f">${esc(e.cPhone || "")}</span><span class="l">Time :</span><span class="f" style="max-width:150px">${esc(e.time || "")}</span></div>
       <div class="row"><span class="l">Address :</span><span class="f">${esc(e.cAddress || "")}</span></div>
       <div class="row"><span class="l">Mistri/Plumber Name :</span><span class="f">${esc(e.mistriName || "")}</span><span class="l">Art Name :</span><span class="f">${esc(e.artName || "")}</span></div>
-      <div class="row"><span class="l">Mob No. :</span><span class="f">${esc(e.mistriPhone || "")}</span></div>
+      <div class="row"><span class="l">Mob No. :</span><span class="f">${esc(e.mistriPhone || "")}</span><span class="l">Mob No. :</span><span class="f">${esc(e.artPhone || "")}</span></div>
       <div class="row"><span class="l">Sales Man :</span><span class="f">${esc(e.salesman || "")}</span></div>
       <div class="row"><span class="l">Requirement :</span><span class="f"></span></div>
       ${rows.map((i) => `<div class="line"><span>${i ? esc(i.desc) : ""}</span><span>${i && i.qty ? "× " + esc(i.qty) : ""}${i && i.price ? " &nbsp; ₹" + esc(i.price) : ""}</span></div>`).join("")}</div></body></html>`;
@@ -432,10 +537,10 @@ export function initEnquiry(ctx) {
     const prompt = 'This is a photo of a handwritten "ESTIMATE - MEMO" enquiry slip from an Indian tiles, ceramics, sanitaryware and hardware showroom. ' +
       "Read every field. Correct spelling mistakes in people's names, places and product words (for example \"Ramsh Patl\" becomes \"Ramesh Patil\", \"wall tils\" becomes \"wall tiles\"). " +
       "Copy numbers exactly as written. Never guess: use an empty string for a field that is blank or unreadable.\n" +
-      "Fields on the slip: Customer Name, Mobile No., Date, Time, Address, Mistri/Plumber Name, Art Name, Mob No. (of the mistri/plumber), Sales Man, " +
+      "Fields on the slip: Customer Name, Mobile No., Date, Time, Address, Mistri/Plumber Name, Art Name, then a row with two Mob No. (left = mistri/plumber, right = art), Sales Man, " +
       "and Requirement (one item per line, often with a quantity and sometimes a price).\n" +
       (stock.length ? "Products in our stock (use these exact names when a requirement clearly means one of them): " + stock.join("; ") + "\n" : "") +
-      'Reply with ONLY this JSON, no other text:\n{"customerName":"","mobile":"","date":"DD/MM/YYYY","time":"HH:MM","address":"","mistriName":"","mistriMobile":"","artName":"","salesman":"",' +
+      'Reply with ONLY this JSON, no other text:\n{"customerName":"","mobile":"","date":"DD/MM/YYYY","time":"HH:MM","address":"","mistriName":"","mistriMobile":"","artName":"","artMobile":"","salesman":"",' +
       '"requirements":[{"item":"","qty":"","price":""}],"notes":""}';
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -447,16 +552,59 @@ export function initEnquiry(ctx) {
     const data = await res.json();
     return (data.content || []).map((b) => b.text || "").join("");
   }
+  // FREE reader: Tesseract (open source, runs on the phone itself, no key and no cost)
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve();
+    if (V.tessLoading) return V.tessLoading;
+    V.tessLoading = new Promise((res, rej) => {
+      const sc = document.createElement("script");
+      sc.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+      sc.onload = () => res(); sc.onerror = () => { V.tessLoading = null; rej(new Error("The free reader could not be downloaded. Check the internet connection and try again.")); };
+      document.head.appendChild(sc);
+    });
+    return V.tessLoading;
+  }
+  async function readMemoFree(dataUrl) {
+    await loadTesseract();
+    const worker = await window.Tesseract.createWorker("eng", 1, {
+      logger: (m) => { const el = $("eqScanStatus"); if (el && m && m.status) el.innerText = m.status === "recognizing text" ? "Reading… " + Math.round((m.progress || 0) * 100) + "%" : "Getting the reader ready (first time can take a minute)…"; }
+    });
+    try { return (await worker.recognize(dataUrl)).data.text || ""; }
+    finally { worker.terminate(); }
+  }
+  // grey and high-contrast picture: the free reader reads this much better than a colour photo
+  async function forOcr(dataUrl) {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl; });
+    const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const g = c.getContext("2d"); g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+    let min = 255, max = 0;
+    for (let i = 0; i < px.length; i += 4) { const y = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; px[i] = y; if (y < min) min = y; if (y > max) max = y; }
+    const span = Math.max(1, max - min);
+    for (let i = 0; i < px.length; i += 4) { const v = Math.max(0, Math.min(255, ((px[i] - min) / span) * 255 * 1.15 - 15)); px[i] = px[i + 1] = px[i + 2] = v; }
+    g.putImageData(d, 0, 0);
+    return c.toDataURL("image/jpeg", 0.92);
+  }
   async function scan(input) {
     const file = input.files && input.files[0];
     input.value = "";
     if (!file || !V.form) return;
+    const status = (t) => { const el = $("eqScanStatus"); if (el) el.innerText = t; };
     try {
       loading(true);
-      toast("Reading the memo… this takes a few seconds");
       const img = await compressImage(file, 1600, 0.85, 4000000);
-      const p = eqScanPatch(await readMemo(img), st().inventory);
-      if (!p || !Object.keys(p).length) return toast("Could not read any details. Take a clear, straight photo in good light and try again.");
+      const cfg = await aiCfg();
+      let p;
+      if (cfg && cfg.key) {
+        status("Reading with Claude AI…");
+        p = eqScanPatch(await readMemo(img), st().inventory);
+      } else {
+        loading(false); // the free reader shows its own progress
+        status("Getting the reader ready (first time can take a minute)…");
+        p = eqOcrPatch(await readMemoFree(await forOcr(img)), st().inventory);
+      }
+      status("");
+      if (!p || !Object.keys(p).length) { status(""); return toast("Could not read any details. Take a clear, straight photo in good light and try again."); }
       Object.entries(p).forEach(([k, v]) => {
         if (k !== "items") { V.form[k] = v; return; }
         const empty = V.form.items.every((i) => !String(i.desc).trim());
@@ -464,7 +612,7 @@ export function initEnquiry(ctx) {
       });
       render();
       toast("Details filled from the photo. Please check them, then Save.");
-    } catch (err) { console.error(err); toast(err.message); }
+    } catch (err) { console.error(err); status(""); toast(err.message); }
     finally { loading(false); }
   }
 
