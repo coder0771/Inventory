@@ -401,3 +401,13 @@ a.lnk { display: inline-block; text-decoration: none; padding: 6px 12px; border-
 .chatbot-row { display: flex; gap: 8px; padding: 10px 14px; background: #fff; }
 .chatbot-row input { flex: 1; margin: 0; border-radius: 99px; }
 .chatbot-row button { border-radius: 99px; background: #25D366; padding: 8px 18px; }
+
+.loc-help { width: 100%; background: rgba(0,0,0,0.28); border-radius: 8px; padding: 8px 12px; font-size: 0.88em; line-height: 1.5; }
+
+/* --- Enquiry (estimate memo) --- */
+.memo-box { border: 2px solid #c0392b; border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; background: #fffdfd; }
+.memo-head { display: flex; justify-content: space-between; color: #c0392b; font-weight: 800; font-size: 1.1em; letter-spacing: 0.03em; margin-bottom: 6px; }
+.memo-field { margin: 4px 0; }
+.memo-field label { display: block; font-size: 0.8em; color: #c0392b; font-weight: 600; }
+.memo-field input[type=text], .memo-field input[type=tel], .memo-field input[type=time] { width: 100%; margin: 2px 0; border: none; border-bottom: 1.5px solid #c0392b; border-radius: 0; background: transparent; padding: 6px 2px; }
+.memo-field input:focus { box-shadow: none; border-bottom-color: #28a745; }
