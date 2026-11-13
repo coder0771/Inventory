@@ -6,7 +6,7 @@
 // =====================================================================
 import {
   collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDocs, query, where,
-  onSnapshot, serverTimestamp, runTransaction
+  onSnapshot, serverTimestamp, runTransaction, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 /* <pure> */
@@ -452,7 +452,7 @@ export function initSuite(ctx) {
     return `<div class="kanban">${stages.map((s) => {
       const list = items.filter((x) => (x[f] || stages[0]) === s);
       return `<div class="kcol" ondragover="event.preventDefault()" ondrop="SU.drop('${kind}','${s}')">
-        <div class="khead"><b>${s}</b>${chip(list.length)}</div>${list.map(card).join("") || '<div class="kempty">Empty</div>'}</div>`;
+        <div class="khead"><b>${s}</b><span>${chip(list.length)}${isAdmin() && list.length ? ` <button class="bin btn-sm" style="padding:2px 7px" title="Delete everything in this column" onclick="SU.clearStage('${kind}','${s}')">🗑</button>` : ""}</span></div>${list.map(card).join("") || '<div class="kempty">Empty</div>'}</div>`;
     }).join("")}</div>`;
   }
 
@@ -476,6 +476,21 @@ export function initSuite(ctx) {
     const n = stages[stages.indexOf(rec[F[kind]] || stages[0]) + dir];
     if (n) await move(kind, id, n);
   }
+  async function clearStage(kind, stage) {
+    const f = F[kind], list = S[kind].filter((x) => (x[f] || STAGES[kind][0]) === stage);
+    if (!list.length) return;
+    if (!(await askConfirm(`Delete all ${list.length} item(s) in "${stage}"? This cannot be undone.`))) return;
+    try {
+      loading(true);
+      for (let i = 0; i < list.length; i += 400) {
+        const b = writeBatch(db);
+        list.slice(i, i + 400).forEach((x) => b.delete(D(kind, x.id)));
+        await b.commit();
+      }
+      toast(list.length + " deleted");
+    } catch (e) { console.error(e); toast("Could not delete: " + e.message); }
+    finally { loading(false); }
+  }
   async function delRec(kind, id, back) {
     if (!(await askConfirm("Are you sure you want to delete this?"))) return;
     try { await deleteDoc(D(kind, id)); toast("Deleted"); if (back) go(back); } catch (e) { toast(e.message); }
@@ -495,7 +510,8 @@ export function initSuite(ctx) {
       <button onclick="SU.mv('leads','${l.id}',-1)">◀</button><button onclick="SU.mv('leads','${l.id}',1)">▶</button>
       <button class="btn-sm" style="background:#25D366" onclick="SU.wa('leads','${l.id}')">💬 WA</button>
       <a href="tel:${esc(l.phone || "")}">📞</a>
-      <button class="btn-sm" style="background:rgba(142,68,173,.7)" onclick="SU.aiMsg('leads','${l.id}')">🤖 AI</button></div></div>`; };
+      <button class="btn-sm" style="background:rgba(142,68,173,.7)" onclick="SU.aiMsg('leads','${l.id}')">🤖 AI</button>
+      <button class="bin btn-sm" title="Delete this lead" onclick="SU.delRec('leads','${l.id}')">🗑</button></div></div>`; };
 
   function viewCrm() {
     if (V.sub === "lead") return viewLead();
@@ -730,13 +746,13 @@ export function initSuite(ctx) {
     const bal = d.total - (d.paid || 0), inv = d.type === "INVOICE";
     const hasStock = inv && !d.stockDeducted && (d.items || []).some((i) => i.itemId);
     return `<div class="task-card" style="flex-wrap:wrap"><div class="task-info">
-      <div class="task-title">${esc(d.number)} · ${esc(d.cName)} ${stChip(d)}</div>
+      <div class="task-title">${esc(d.number)} · ${esc(d.cName)} ${stChip(d)}${d.invoiceNumber ? " " + chip("→ " + d.invoiceNumber, "chip-green") : ""}${d.enquiryNo ? " " + chip("from enquiry #" + d.enquiryNo) : ""}</div>
       <div class="task-meta">📅 ${dstr(d.date)}${inv ? " · Due " + dstr(d.dueAt) : ""}<br>Total <b>${inr(d.total)}</b>${inv ? ` · Paid ${inr(d.paid)} · Balance <b>${inr(bal)}</b>` : ""}${d.stockDeducted ? " · 📦 stock deducted" : ""}</div></div>
       <div class="decide-col" style="flex-wrap:wrap; gap:6px">
         <button class="edit-btn" onclick="SU.printDoc('${d.id}')">🖨 Print</button>
         ${inv && bal > 0.005 ? `<button class="edit-btn" onclick="SU.payForm('${d.id}')">💵 Payment</button><button class="edit-btn" onclick="SU.remind('${d.id}')">💬 Remind</button><button class="edit-btn" style="background:#8e44ad" onclick="SU.aiMsg('docs','${d.id}')">🤖 AI</button>` : ""}
         ${hasStock ? `<button class="edit-btn" onclick="SU.deduct('${d.id}')">📦 Deduct stock</button>` : ""}
-        ${!inv ? `<button class="edit-btn" onclick="SU.toInvoice('${d.id}')">🔁 To invoice</button>
+        ${!inv ? `<button class="edit-btn" style="background:#28a745" onclick="SU.toInvoice('${d.id}')">➡ Transfer to Invoice</button>
           <select onchange="SU.qstatus('${d.id}',this.value)">${["Draft", "Sent", "Accepted", "Rejected"].map((s) => `<option ${s === (d.status || "Draft") ? "selected" : ""}>${s}</option>`).join("")}</select>` : ""}
         <button class="edit-btn" onclick="SU.billEdit('${d.id}')">✏</button><button class="bin" onclick="SU.delRec('docs','${d.id}')">🗑</button></div></div>`;
   }
@@ -783,6 +799,7 @@ export function initSuite(ctx) {
       <textarea class="task-input" rows="2" placeholder="Notes / terms" oninput="SU.bset('notes',this.value)">${esc(b.notes)}</textarea>
       <div id="billTotals" class="totals">${totalsHTML()}</div>
       <button class="role-btn" style="background:#28a745" onclick="SU.bsave()">💾 Save</button>
+      ${b.id && !inv ? `<button class="role-btn" style="background:#0056b3" onclick="SU.bsaveAndInvoice()">💾 Save and ➡ Transfer to Invoice</button>` : ""}
       <button class="auth-btn" style="background:#666" onclick="SU.go('bill')">Cancel</button>`;
   }
   const refreshTotals = () => { const el = $("billTotals"); if (el) el.innerHTML = totalsHTML(); };
@@ -851,19 +868,27 @@ export function initSuite(ctx) {
 
   async function toInvoice(id) {
     const q = S.docs.find((x) => x.id === id);
-    if (!q || !(await askConfirm(`Create an invoice from ${q.number}?`))) return;
+    if (!q) return;
+    const msg = q.invoiceNumber ? `${q.number} was already transferred to ${q.invoiceNumber}. Create another invoice from it?` : `Transfer ${q.number} to an invoice?`;
+    if (!(await askConfirm(msg))) return;
     try {
       loading(true);
       const number = await nextNumber("INVOICE");
       const { id: _i, number: _n, status: _s, ...rest } = q;
-      await addDoc(C("docs"), { ...rest, type: "INVOICE", number, date: now(), dueAt: now() + 15 * 86400000, status: "", payments: [], paid: 0,
-        quotationNumber: q.number, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      await updateDoc(D("docs", id), { status: "Accepted" });
+      const ref = await addDoc(C("docs"), { ...rest, type: "INVOICE", number, date: now(), dueAt: now() + 15 * 86400000, status: "", payments: [], paid: 0,
+        quotationNumber: q.number, invoiceNumber: null, invoiceId: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      await updateDoc(D("docs", id), { status: "Accepted", invoiceNumber: number, invoiceId: ref.id });
       toast(number + " created from " + q.number);
       fire("INVOICE_CREATED", "", { ...q, number, name: q.cName });
       V.billTab = "INVOICE"; renderSuite(true);
     } catch (e) { console.error(e); toast(e.message); }
     finally { loading(false); }
+  }
+  // inside the quotation editor: save the changes, then transfer
+  async function bsaveAndInvoice() {
+    const id = V.bill && V.bill.id;
+    await bsave();
+    if (id && !V.bill) await toInvoice(id);
   }
 
   async function deduct(id) {
@@ -1308,7 +1333,7 @@ export function initSuite(ctx) {
     openTicket: (id) => { V.sub = "ticket"; V.id = id; renderSuite(true); },
     leadForm, candForm, ticketForm, noteForm, callForm, wa: waForm, tplPick, tplForm, quickWa, myNote: noteLead,
     billTab: (t) => { V.billTab = t; renderSuite(true); }, billStart, billFromLead, billEdit, bset, bitem, baddItem, bdel, bpick, bsave,
-    payForm, toInvoice, deduct, remind, qstatus, printDoc, pmSet, paySub, salForm, genPayroll, psEdit, markPaid, printSlip, leaveForm, leaveSet,
+    clearStage, bsaveAndInvoice, payForm, toInvoice, deduct, remind, qstatus, printDoc, pmSet, paySub, salForm, genPayroll, psEdit, markPaid, printSlip, leaveForm, leaveSet,
     ruleForm, ruleToggle, presets, postForm, copyPost, markPosted
   };
   return { start };
