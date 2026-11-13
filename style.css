@@ -419,3 +419,9 @@ a.lnk { display: inline-block; text-decoration: none; padding: 6px 12px; border-
 #enquiryModal :focus-visible, #enquiryModal .dbox:focus { outline: 3px solid #39ff14; outline-offset: 2px; }
 .memo-field label.task-radio { display: flex; align-items: center; gap: 6px; color: #555; font-weight: normal; }
 .memo-field label.task-radio input { width: auto; margin: 0; }
+
+/* --- 🌐 language switch (every screen, bottom left) --- */
+.lang-box { position: fixed; left: 10px; bottom: 10px; z-index: 2450; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.85); border: 1px solid var(--neon);
+  border-radius: 99px; padding: 3px 4px 3px 10px; color: var(--neon); box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+.lang-box select { margin: 0; padding: 5px 8px; border-radius: 99px; border: none; background: #1a1a1a; color: var(--neon); font-weight: bold; font-size: 0.9em; cursor: pointer; }
+html[lang="hi"] body, html[lang="mr"] body { font-family: 'Noto Sans Devanagari', 'Mangal', 'Segoe UI', system-ui, -apple-system, sans-serif; }
