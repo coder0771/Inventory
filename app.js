@@ -14,6 +14,7 @@ import {
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { initSuite } from "./suite.js";
+import { initEnquiry } from "./enquiry.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
@@ -177,6 +178,7 @@ function appBack() {
   if (top) {
     if (top === "taskModal" && taskBackStep()) return true;
     if (top === "suiteModal" && window.SU && window.SU.back()) return true;
+    if (top === "enquiryModal" && window.EQ && window.EQ.back()) return true;
     if (top === "confirmModal") window.confirmAnswer(false);
     else if (top === "formModal") window.SU.formClose();
     else if (top === "editModal") closeEditModal();
@@ -536,7 +538,7 @@ function openDashboard() {
 
   const admin = currentRole === "ADMIN";
   // Admin-only controls: history, attendance log, geo-fence, Excel import
-  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "taskMgmtBtn", "suiteBtn", "placesBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
+  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "taskMgmtBtn", "suiteBtn", "placesBtn", "settingsBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
   if (!admin) closeHistoryModal();
   admin ? hide("markAttBtn") : show("markAttBtn");
   admin ? hide("taskEmpBtn") : show("taskEmpBtn");
@@ -555,6 +557,7 @@ function openDashboard() {
   startRealtime();
   startTasks();
   suite.start();
+  enquiry.start();
   if (!admin) {
     startTracking(); watchMembership(); checkLocationAccess(); refreshAttendanceButton();
     const h = setInterval(refreshAttendanceButton, 300000); // a new day: the button works again
@@ -576,7 +579,11 @@ function startRealtime() {
 
   // live company settings (so a changed shop radius reaches employees immediately)
   unsubs.push(onSnapshot(doc(db, ...base), (s) => {
-    if (s.exists()) { companyData = { ...companyData, ...s.data() }; if (currentRole === "EMPLOYEE") updateTrackNow(); }
+    if (s.exists()) {
+      companyData = { ...companyData, ...s.data() };
+      if ($("companyTitle")) $("companyTitle").innerText = companyData.companyName || "";
+      if (currentRole === "EMPLOYEE") updateTrackNow();
+    }
   }, (e) => console.error("Company listener:", e)));
 
   unsubs.push(onSnapshot(collection(db, ...base, "inventory"), (snap) => {
@@ -934,7 +941,7 @@ window.markAttendance = async function () {
     refreshAttendanceButton();
   } catch (err) {
     console.error(err);
-    if (err.code === 1) showLocBanner("Location access is blocked. Tap Allow location to continue.");
+    if (err.code === 1) handleLocDenied();
     toast(err.code === "permission-denied" ? "Your attendance is already marked today." : err.message);
   } finally { loading(false); }
 };
@@ -1023,7 +1030,7 @@ function startTracking() {
   trackWatchId = navigator.geolocation.watchPosition((p) => { hide("locBanner"); onTrackPosition(p); },
     (e) => {
       setTrackStatus("📍 Location error: " + e.message + ". Allow location access to continue.");
-      if (e.code === 1) showLocBanner("Location is turned off for this website.");
+      if (e.code === 1) handleLocDenied();
     },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
   requestWakeLock();
@@ -1031,33 +1038,81 @@ function startTracking() {
 }
 
 
-/* ---------- LOCATION ACCESS (employees): ask again if it was denied ---------- */
-function showLocBanner(msg) { const m = $("locMsg"); if (m) m.innerText = msg; show("locBanner"); }
+/* ---------- LOCATION ACCESS (employees) ----------
+   - permission "prompt"  : the button makes the browser show its Allow popup (same popup as the first login)
+   - permission "denied"  : the browser itself refuses to show the popup again, so the person must switch it on once
+                            in the browser's site settings. The page says so and carries on by itself afterwards.      */
+function setLocBanner(msg, mode) { // mode: "ask" or "blocked"
+  const m = $("locMsg"); if (m) m.innerText = msg;
+  const b = $("locBtn"); if (b) b.innerText = mode === "blocked" ? "🔄 I allowed it, check again" : "📍 Allow location";
+  const hb = $("locHelpBtn"); if (hb) hb.classList.toggle("hidden", mode !== "blocked");
+  if (mode !== "blocked") hide("locHelp");
+  show("locBanner");
+}
+const showLocBanner = (msg) => setLocBanner(msg, "ask");
+
+function locHelpText() {
+  const ua = navigator.userAgent || "";
+  if (/FBAN|FBAV|Instagram|Line\/|MicroMessenger|Snapchat|WhatsApp/i.test(ua)) return "This page is open inside another app. Open it in Chrome or Safari, then allow location.";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iPhone: tap the “aA” icon in the address bar > Website Settings > Location > Allow. Also check Settings > Privacy > Location Services is On.";
+  if (/Android/i.test(ua)) return "Android: tap the lock (or ⓘ) icon next to the web address > Permissions > Location > Allow. Also make sure the phone's Location is switched on.";
+  return "Click the lock icon next to the web address > Site settings (or Permissions) > Location > Allow.";
+}
+function showLocBlocked(openHelp) {
+  setLocBanner("Your browser has blocked location for this website, so it cannot show the Allow popup again.", "blocked");
+  const h = $("locHelp"); if (h) h.innerText = locHelpText();
+  if (openHelp) show("locHelp");
+}
+async function locState() {
+  try { return (await navigator.permissions.query({ name: "geolocation" })).state; } catch (e) { return "unknown"; }
+}
+async function handleLocDenied() { // something reported "denied": work out whether the popup can still be shown
+  if ((await locState()) === "denied") showLocBlocked(); else showLocBanner("Please allow location access to mark attendance.");
+}
+window.toggleLocHelp = () => { const h = $("locHelp"); if (h) h.classList.toggle("hidden"); };
 
 async function checkLocationAccess() {
-  if (currentRole !== "EMPLOYEE" || !navigator.geolocation || !navigator.permissions || !navigator.permissions.query) return;
+  if (currentRole !== "EMPLOYEE" || !navigator.geolocation) return;
+  if (!window.isSecureContext) return showLocBanner("Location only works on a secure address. Please open this website with https://");
+  if (!navigator.permissions || !navigator.permissions.query) return;
   try {
     const perm = await navigator.permissions.query({ name: "geolocation" });
     const apply = () => {
       if (perm.state === "granted") { hide("locBanner"); if (trackWatchId === null && currentRole === "EMPLOYEE") startTracking(); }
-      else if (perm.state === "denied") showLocBanner("Location is turned off for this website.");
+      else if (perm.state === "denied") showLocBlocked();
       else showLocBanner("Please allow location access to mark attendance.");
     };
-    perm.onchange = apply; // reacts as soon as the person allows it in the browser settings
+    perm.onchange = apply; // reacts the moment the person changes the setting in the browser
     apply();
   } catch (e) { /* older browsers: the banner shows when an error happens */ }
 }
+// coming back from the browser settings: check again without any tap
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && currentRole === "EMPLOYEE" && $("locBanner") && !$("locBanner").classList.contains("hidden")) checkLocationAccess();
+});
 
-window.allowLocation = function () {
+window.allowLocation = async function () {
   if (!navigator.geolocation) return toast("This device does not support location");
-  // This simply asks the browser, exactly like the first time you log in. If the person taps Allow, tracking starts.
+  if (!window.isSecureContext) return showLocBanner("Location only works on a secure address. Please open this website with https://");
+
+  const state = await locState();
+  if (state === "denied") return showLocBlocked(true); // no popup is possible: say what to do, and keep checking
+  if (state === "granted") { hide("locBanner"); if (trackWatchId === null) startTracking(); }
+
+  // "prompt" (or unknown): this call makes the browser show its Allow popup, exactly like the first login
+  const t0 = Date.now();
+  if (state !== "granted") setLocBanner("Please tap “Allow” in the browser popup…", "ask");
   navigator.geolocation.getCurrentPosition(
     () => { hide("locBanner"); toast("Location allowed"); if (trackWatchId === null) startTracking(); },
-    (e) => {
-      if (e.code === 1) showLocBanner("Location is still blocked. Please allow it for this website, then tap Allow location again.");
-      else toast("Could not get your location: " + e.message);
+    async (e) => {
+      if (e.code === 1) {
+        const instant = Date.now() - t0 < 600; // answered too fast for a person: the browser refused without asking
+        if (instant || (await locState()) === "denied") showLocBlocked(true);
+        else showLocBanner("Location was not allowed. Tap Allow location, then choose Allow in the popup.");
+      } else if (e.code === 2) showLocBanner("The phone's location (GPS) is switched off or unavailable. Turn it on, then tap Allow location.");
+      else showLocBanner("Getting the location is taking too long. Tap Allow location to try again.");
     },
-    { enableHighAccuracy: true, timeout: 15000 });
+    { enableHighAccuracy: false, timeout: 30000, maximumAge: 0 });
 };
 
 function stopTracking() {
@@ -2048,7 +2103,7 @@ window.devDeleteCompany = async (id) => {
   try {
     loading(true);
     for (const sub of ["inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
-      "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places"]) {
+      "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places", "enquiries"]) {
       const docs = (await getDocs(collection(db, "companies", id, sub))).docs;
       for (let i = 0; i < docs.length; i += 400) {
         const batch = writeBatch(db);
@@ -2077,12 +2132,97 @@ async function createTaskDoc({ title, assignees, scope, privacy, startAt, endAt 
   });
 }
 
+const enquiry = initEnquiry({
+  db, $, toast, askConfirm, loading, esc: escapeHTML, fmtD, dtPicker, readDT, pushAlert,
+  getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, inventory }),
+  addUnsub: (fn) => unsubs.push(fn)
+});
+
 const suite = initSuite({
   db, $, toast, askConfirm, loading, esc: escapeHTML, fmtDT, fmtD, dtPicker, readDT, pushAlert,
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, companyName: companyData ? companyData.companyName : "" }),
   addUnsub: (fn) => unsubs.push(fn),
   createTask: createTaskDoc
 });
+
+
+/* ---------- COMPANY SETTINGS: change the company name, admin password and employee join code (owner / admins) ---------- */
+async function readSecrets() {
+  const s = await getDoc(doc(db, "companies", companyID, "private", "access"));
+  return s.exists() ? s.data() : null;
+}
+// every change needs the CURRENT admin password again
+async function confirmAdminPassword() {
+  const pw = normalizeString($("setCurPass").value);
+  if (!pw) { toast("Enter your current admin password first"); return false; }
+  const secrets = await readSecrets();
+  if (!secrets || secrets.adminPassHash !== (await codeHash(companyID, "admin", pw))) { toast("The current admin password is wrong"); return false; }
+  return true;
+}
+window.showSettingsModal = async function () {
+  if (currentRole !== "ADMIN") return;
+  ["setCurPass", "setNewPass", "setNewPass2", "setJoin"].forEach((i) => ($(i).value = ""));
+  $("setNewName").value = (companyData && companyData.companyName) || "";
+  $("setJoinNow").innerText = "...";
+  $("settingsModal").classList.add("open");
+  try { const s = await readSecrets(); $("setJoinNow").innerText = s && s.joinCode ? s.joinCode : "(not available)"; }
+  catch (e) { $("setJoinNow").innerText = "(not available)"; }
+};
+window.closeSettingsModal = () => $("settingsModal").classList.remove("open");
+
+window.saveCompanyName = async function () {
+  const newName = normalizeString($("setNewName").value);
+  if (!newName) return toast("Enter the new company name");
+  if (newName === companyData.companyName) return toast("That is already the company name");
+  try {
+    loading(true);
+    if (!(await confirmAdminPassword())) return;
+    const oldKey = await nameKey(companyData.companyName), newKey = await nameKey(newName);
+    if (newKey !== oldKey) {
+      const taken = await getDoc(doc(db, "companyDirectory", newKey));
+      if (taken.exists() && taken.data().companyId !== companyID) return toast("A company with that name already exists");
+      await setDoc(doc(db, "companyDirectory", newKey), { companyId: companyID, companyName: newName, ownerUid: companyData.ownerUid || currentUser.uid });
+    } else {
+      await updateDoc(doc(db, "companyDirectory", oldKey), { companyName: newName }); // only the capital letters changed
+    }
+    await updateDoc(doc(db, "companies", companyID), { companyName: newName, companyNameLower: newName.toLowerCase() });
+    if (newKey !== oldKey) { try { await deleteDoc(doc(db, "companyDirectory", oldKey)); } catch (e) { console.warn("Old name entry not removed", e); } }
+    await addHistory("CHANGED COMPANY NAME", 0, newName);
+    companyData.companyName = newName;
+    $("companyTitle").innerText = newName;
+    toast("Company name changed. People now log in with the new name.");
+  } catch (err) { console.error(err); toast("Could not change the name: " + err.message); }
+  finally { loading(false); }
+};
+
+window.changeAdminPassword = async function () {
+  const p1 = normalizeString($("setNewPass").value), p2 = normalizeString($("setNewPass2").value);
+  if (p1.length < 6) return toast("The new password needs at least 6 characters");
+  if (p1 !== p2) return toast("The two new passwords do not match");
+  try {
+    loading(true);
+    if (!(await confirmAdminPassword())) return;
+    await updateDoc(doc(db, "companies", companyID, "private", "access"), { adminPassHash: await codeHash(companyID, "admin", p1) });
+    await addHistory("CHANGED ADMIN PASSWORD", 0, "");
+    ["setCurPass", "setNewPass", "setNewPass2"].forEach((i) => ($(i).value = ""));
+    toast("Admin password changed. Use the new one the next time you log in.");
+  } catch (err) { console.error(err); toast("Could not change the password: " + err.message); }
+  finally { loading(false); }
+};
+
+window.changeJoinCode = async function () {
+  const code = normalizeString($("setJoin").value);
+  if (code.length < 4) return toast("The new join code needs at least 4 characters");
+  try {
+    loading(true);
+    if (!(await confirmAdminPassword())) return;
+    await updateDoc(doc(db, "companies", companyID, "private", "access"), { joinCodeHash: await codeHash(companyID, "join", code), joinCode: code });
+    await addHistory("CHANGED JOIN CODE", 0, "");
+    $("setJoinNow").innerText = code; $("setJoin").value = "";
+    toast("Join code changed. New employees need the new code.");
+  } catch (err) { console.error(err); toast("Could not change the join code: " + err.message); }
+  finally { loading(false); }
+};
 
 /* ---------- KEYBOARD NAVIGATION ---------- */
 document.addEventListener("keydown", (e) => {
