@@ -15,6 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { initSuite } from "./suite.js";
 import { initEnquiry, compressImage } from "./enquiry.js";
+import { initI18n } from "./i18n.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
@@ -29,6 +30,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const i18n = initI18n({ db, doc, getDoc, setDoc }); // 🌐 English / हिंदी / मराठी, chosen by each person
 const googleProvider = new GoogleAuthProvider();
 // FIX: always show the Google account chooser so a different account can be used
 googleProvider.setCustomParameters({ prompt: "select_account" });
@@ -216,6 +218,7 @@ function stopListeners() { unsubs.forEach((u) => u()); unsubs = []; stopTracking
 /* ---------- AUTH STATE ---------- */
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
+  i18n.onUser(user ? user.uid : null); // load THIS person's language
   if (user) {
     if (companyID || devActive) return; // already inside, nothing to do
     if (await restoreSession(user)) return; // refresh: go straight back to the dashboard
