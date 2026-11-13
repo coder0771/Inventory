@@ -411,3 +411,11 @@ a.lnk { display: inline-block; text-decoration: none; padding: 6px 12px; border-
 .memo-field label { display: block; font-size: 0.8em; color: #c0392b; font-weight: 600; }
 .memo-field input[type=text], .memo-field input[type=tel], .memo-field input[type=time] { width: 100%; margin: 2px 0; border: none; border-bottom: 1.5px solid #c0392b; border-radius: 0; background: transparent; padding: 6px 2px; }
 .memo-field input:focus { box-shadow: none; border-bottom-color: #28a745; }
+
+/* --- photos & memo scan --- */
+.photo-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; vertical-align: middle; margin: 0 4px; }
+.photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.scan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; background: #f6efff; border: 1px dashed #8e44ad; border-radius: 10px; padding: 8px 10px; margin: 6px 0 10px; color: #4b2a63; }
+#enquiryModal :focus-visible, #enquiryModal .dbox:focus { outline: 3px solid #39ff14; outline-offset: 2px; }
+.memo-field label.task-radio { display: flex; align-items: center; gap: 6px; color: #555; font-weight: normal; }
+.memo-field label.task-radio input { width: auto; margin: 0; }
