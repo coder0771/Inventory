@@ -122,6 +122,8 @@
             <button id="movementBtn" class="auth-btn hidden" onclick="showMovementModal()" style="background:#c0392b;">🚶 Movement Log <span id="moveBadge" class="badge-low hidden">0</span></button>
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
             <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Mark Attendance</button>
+            <button id="enquiryBtn" class="auth-btn" onclick="EQ.open()" style="background:#c0392b;">📝 Enquiry <span id="eqBadge" class="badge-low hidden">0</span></button>
+            <button id="settingsBtn" class="auth-btn hidden" onclick="showSettingsModal()" style="background:#6c757d;">⚙ Settings</button>
             <button id="placesBtn" class="auth-btn hidden" onclick="showPlacesModal()" style="background:#16a085;">📍 Geo-Fence</button>
             <button id="suiteBtn" class="auth-btn hidden" onclick="SU.open()" style="background:#e67e22;">🚀 Business Suite <span id="suiteBadge" class="badge-low hidden">0</span></button>
             <button id="myWorkBtn" class="auth-btn hidden" onclick="SU.openMy()" style="background:#e67e22;">💼 My Work <span id="myWorkBadge" class="badge-low hidden">0</span></button>
@@ -157,7 +159,9 @@
     </div>
 
     <div id="locBanner" class="loc-banner hidden"><span id="locMsg"></span>
-        <button class="auth-btn" style="background:#28a745" onclick="allowLocation()">📍 Allow location</button></div>
+        <button id="locBtn" class="auth-btn" style="background:#28a745" onclick="allowLocation()">📍 Allow location</button>
+        <button id="locHelpBtn" class="auth-btn hidden" style="background:#6c757d" onclick="toggleLocHelp()">How to unblock</button>
+        <div id="locHelp" class="loc-help hidden"></div></div>
     <div id="trackStatus" class="track-status hidden"></div>
 
     <div class="dashboard">
@@ -427,6 +431,44 @@
             <input id="chatInput" placeholder="e.g. payment reminder for Ravi, 5000 rupees, in Hinglish" onkeydown="if(event.key==='Enter'){event.preventDefault();SU.chatSend();}">
             <button onclick="SU.chatSend()">Send ➤</button>
         </div>
+    </div>
+</div>
+
+<!-- ENQUIRY (ESTIMATE MEMO) -->
+<div id="enquiryModal" class="modal-overlay">
+    <div class="modal-content suite-content" style="text-align:left; width:900px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <h3 style="margin:0">📝 Enquiry</h3>
+            <button class="auth-btn" onclick="EQ.close()">✖ Close</button>
+        </div>
+        <div id="eqTabs" class="stabs"></div>
+        <div id="eqBody"></div>
+    </div>
+</div>
+
+<!-- COMPANY SETTINGS -->
+<div id="settingsModal" class="modal-overlay">
+    <div class="modal-content" style="width:560px; text-align:left;">
+        <h3>⚙ Company Settings</h3>
+        <label class="task-label">Your current admin password (needed for every change)</label>
+        <input id="setCurPass" type="password" placeholder="Current admin password" autocomplete="off" style="width:95%">
+
+        <h4 class="task-sec">Company name</h4>
+        <input id="setNewName" placeholder="Company name" style="width:95%">
+        <button class="btn-primary btn-sm" onclick="saveCompanyName()">Save name</button>
+
+        <h4 class="task-sec">Admin password</h4>
+        <input id="setNewPass" type="password" placeholder="New admin password (at least 6 characters)" autocomplete="new-password" style="width:95%">
+        <input id="setNewPass2" type="password" placeholder="Repeat the new password" autocomplete="new-password" style="width:95%">
+        <button class="btn-primary btn-sm" onclick="changeAdminPassword()">Change password</button>
+
+        <h4 class="task-sec">Employee join code</h4>
+        <p style="margin:4px 0">Current code: <b id="setJoinNow">...</b></p>
+        <input id="setJoin" placeholder="New join code (at least 4 characters)" autocomplete="off" style="width:95%">
+        <button class="btn-primary btn-sm" onclick="changeJoinCode()">Change join code</button>
+
+        <p class="hint">Employees and admins who are already inside stay logged in. The new name, password and join code apply to the next person who logs in or joins.</p>
+        <br><button onclick="closeSettingsModal()" class="auth-btn" style="width:100%">Close</button>
     </div>
 </div>
 
