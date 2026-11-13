@@ -179,6 +179,11 @@
         <input id="itemQty" class="main-nav" type="number" min="0" placeholder="Qty" style="width:70px;">
         <input id="itemPrice" class="main-nav" type="number" min="0" placeholder="Price" style="width:90px;">
         <input id="itemMinQty" class="main-nav" type="number" min="0" placeholder="Min Alert" style="width:80px;" value="5">
+        <button class="main-nav" style="background:#8e44ad" onclick="document.getElementById('newItemCam').click()">📷 Photo</button>
+        <button class="main-nav" style="background:#6f42c1" onclick="document.getElementById('newItemFile').click()">🖼 Upload</button>
+        <input id="newItemCam" type="file" accept="image/*" capture="environment" hidden onchange="pickNewItemPhoto(this)">
+        <input id="newItemFile" type="file" accept="image/*" hidden onchange="pickNewItemPhoto(this)">
+        <span id="newItemPhotoBox" class="hidden"><img id="newItemPreview" alt="" class="photo-thumb"><button class="bin btn-sm" onclick="clearNewItemPhoto()">✖</button></span>
         <button class="main-nav" style="background:#0056b3" onclick="addItem()">Save</button>
         <button class="main-nav" style="background:#555" onclick="exportInventory()">Export CSV</button>
         <button id="importBtn" class="main-nav hidden" style="background:#217346" onclick="document.getElementById('importFile').click()">📥 Import Excel</button>
@@ -293,6 +298,14 @@
             <div style="display:flex; gap:5px; justify-content:center;">
                 <input id="editPrice" class="modal-nav" type="number" placeholder="Price" style="width:44%">
                 <input id="editMinQty" class="modal-nav" type="number" placeholder="Min Alert Level" style="width:44%">
+            </div>
+            <div class="photo-row">
+                <img id="editPhotoPreview" alt="" class="photo-thumb hidden" style="width:64px;height:64px">
+                <button class="modal-nav btn-sm" style="background:#8e44ad" onclick="document.getElementById('editPhotoCam').click()">📷 Take photo</button>
+                <button class="modal-nav btn-sm" style="background:#6f42c1" onclick="document.getElementById('editPhotoFile').click()">🖼 Upload photo</button>
+                <button id="editPhotoRemove" class="bin btn-sm hidden" onclick="removeItemPhoto()">🗑 Remove</button>
+                <input id="editPhotoCam" type="file" accept="image/*" capture="environment" hidden onchange="setItemPhoto(this)">
+                <input id="editPhotoFile" type="file" accept="image/*" hidden onchange="setItemPhoto(this)">
             </div>
             <button class="modal-nav" onclick="saveItem()" style="background:#28a745; width:93%; margin-top:8px;">💾 Save Details</button>
             <hr style="margin:15px 0; border:0; border-top:1px solid #ddd;">
@@ -467,8 +480,72 @@
         <input id="setJoin" placeholder="New join code (at least 4 characters)" autocomplete="off" style="width:95%">
         <button class="btn-primary btn-sm" onclick="changeJoinCode()">Change join code</button>
 
+        <h4 class="task-sec">Customer messages and photo scan</h4>
+        <button class="btn-sm" style="background:#25D366" onclick="EQ.openKit()">📨 Open message settings</button>
+        <p class="hint">Instagram, Facebook and map links, visiting card and showroom photos, showroom video, welcome and follow-up texts, and the AI key for reading memo photos. No password needed.</p>
+
         <p class="hint">Employees and admins who are already inside stay logged in. The new name, password and join code apply to the next person who logs in or joins.</p>
         <br><button onclick="closeSettingsModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- MESSAGE SETTINGS (owner) -->
+<div id="kitModal" class="modal-overlay" style="z-index:2120">
+    <div class="modal-content" style="width:640px; text-align:left;">
+        <h3>📨 Customer messages & photo scan</h3>
+        <p class="hint">Saved once, used in every welcome and follow-up message. Leave a link empty and its line is left out of the message.</p>
+        <label class="task-label">Business name in messages</label><input id="kitBiz" placeholder="e.g. Agrawal Ceramic City, Jalna" style="width:95%">
+        <label class="task-label">Instagram page link</label><input id="kitInsta" placeholder="https://instagram.com/..." style="width:95%">
+        <label class="task-label">Facebook page link</label><input id="kitFb" placeholder="https://facebook.com/..." style="width:95%">
+        <label class="task-label">Google Maps location link</label><input id="kitMaps" placeholder="https://maps.app.goo.gl/..." style="width:95%">
+        <label class="task-label">Showroom video link (YouTube, Instagram reel or Google Drive)</label><input id="kitVideo" placeholder="https://..." style="width:95%">
+        <label class="task-label">Visiting card link (optional)</label><input id="kitCardUrl" placeholder="A public link to the picture, if you have one" style="width:95%">
+        <label class="task-label">Showroom photo link (optional)</label><input id="kitShowUrl" placeholder="A public link to the picture, if you have one" style="width:95%">
+
+        <h4 class="task-sec">Photos sent with the message</h4>
+        <div class="photo-row"><b style="min-width:120px">Visiting card</b>
+            <img id="kitCardImg" alt="" class="photo-thumb hidden" style="width:90px;height:60px">
+            <button class="btn-sm" style="background:#8e44ad" onclick="document.getElementById('kitCardCam').click()">📷 Take</button>
+            <button class="btn-sm" style="background:#6f42c1" onclick="document.getElementById('kitCardFile').click()">🖼 Upload</button>
+            <button class="bin btn-sm" onclick="EQ.kitPhotoRemove('card')">🗑</button>
+            <input id="kitCardCam" type="file" accept="image/*" capture="environment" hidden onchange="EQ.kitPhoto('card', this)">
+            <input id="kitCardFile" type="file" accept="image/*" hidden onchange="EQ.kitPhoto('card', this)"></div>
+        <div class="photo-row"><b style="min-width:120px">Showroom photo</b>
+            <img id="kitShowImg" alt="" class="photo-thumb hidden" style="width:90px;height:60px">
+            <button class="btn-sm" style="background:#8e44ad" onclick="document.getElementById('kitShowCam').click()">📷 Take</button>
+            <button class="btn-sm" style="background:#6f42c1" onclick="document.getElementById('kitShowFile').click()">🖼 Upload</button>
+            <button class="bin btn-sm" onclick="EQ.kitPhotoRemove('showroom')">🗑</button>
+            <input id="kitShowCam" type="file" accept="image/*" capture="environment" hidden onchange="EQ.kitPhoto('showroom', this)">
+            <input id="kitShowFile" type="file" accept="image/*" hidden onchange="EQ.kitPhoto('showroom', this)"></div>
+
+        <h4 class="task-sec">Message texts</h4>
+        <p class="hint">You can use {name} {business} {enquiry} {maps} {instagram} {facebook} {video} {card} {showroom}.</p>
+        <label class="task-label">Welcome message (after a new enquiry is saved)</label><textarea id="kitWelcome" class="task-input" rows="8"></textarea>
+        <label class="task-label"><input id="kitAuto" type="checkbox" checked> Open the welcome message right after saving a new enquiry</label>
+        <label class="task-label">Follow-up message (enquiries still waiting)</label><textarea id="kitFollow" class="task-input" rows="6"></textarea>
+        <div class="grid2">
+            <div><label class="task-label">Follow-up every … days (0 = off)</label><input id="kitDays" type="number" min="0" style="width:95%"></div>
+            <div><label class="task-label">Most follow-ups per customer</label><input id="kitMax" type="number" min="0" style="width:95%"></div>
+        </div>
+        <button class="btn-primary" onclick="EQ.saveKit()">💾 Save message settings</button>
+
+        <h4 class="task-sec">🤖 Photo scan (reads a memo photo and fills the enquiry)</h4>
+        <p class="hint">Uses Claude AI with your own Anthropic API key (you pay Anthropic per photo read). The key is shared with your employees' devices so they can scan too.</p>
+        <p id="aiStatus" style="margin:4px 0"></p>
+        <input id="aiKey" type="password" placeholder="Anthropic API key (sk-ant-...). Leave empty to keep the saved one" autocomplete="off" style="width:95%">
+        <input id="aiModel" placeholder="Model (leave empty for claude-sonnet-5-5)" style="width:95%">
+        <button class="btn-primary btn-sm" onclick="EQ.saveAi()">Save photo scan</button>
+        <button class="bin btn-sm" onclick="EQ.removeAi()">Turn off</button>
+        <br><br><button onclick="EQ.closeKit()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- FULL-SIZE ITEM PHOTO -->
+<div id="photoModal" class="modal-overlay" style="z-index:2110" onclick="if(event.target===this)closePhotoModal()">
+    <div class="modal-content" style="width:720px;">
+        <h3 id="photoBigTitle"></h3>
+        <img id="photoBig" alt="" style="max-width:100%; max-height:65vh; border-radius:10px;">
+        <br><button onclick="closePhotoModal()" class="auth-btn" style="width:100%; margin-top:10px">Close</button>
     </div>
 </div>
 
