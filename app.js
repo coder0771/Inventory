@@ -14,7 +14,7 @@ import {
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { initSuite } from "./suite.js";
-import { initEnquiry } from "./enquiry.js";
+import { initEnquiry, compressImage } from "./enquiry.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
@@ -646,7 +646,7 @@ window.addItem = async function () {
   if (!name) return toast("Enter Product Name");
   try {
     loading(true);
-    await addDoc(collection(db, "companies", companyID, "inventory"), {
+    const itemRef = await addDoc(collection(db, "companies", companyID, "inventory"), {
       name,
       category: normalizeString($("itemCategory")?.value) || "General",
       size: normalizeString($("itemSize")?.value) || "-",
@@ -655,13 +655,19 @@ window.addItem = async function () {
       hold: 0,
       broken: 0,
       photoUrl: "",
+      photo: newItemPhoto ? newItemPhoto.thumb : "",
       price: Math.max(0, Number($("itemPrice")?.value) || 0),
       minQty: Math.max(0, Number($("itemMinQty")?.value) || 5),
       createdBy: currentUser.uid,
       createdAt: serverTimestamp()
     });
+    if (newItemPhoto) {
+      try { await setDoc(doc(db, "companies", companyID, "itemPhotos", itemRef.id), { img: newItemPhoto.full, updatedAt: serverTimestamp() }); }
+      catch (e) { console.error("Full-size photo not saved", e); }
+    }
     ["itemName", "itemCategory", "itemSize", "itemUnit", "itemQty", "itemPrice"].forEach((i) => ($(i).value = ""));
     $("itemMinQty").value = 5;
+    window.clearNewItemPhoto();
     toast("Product Added");
   } catch (err) { console.error(err); toast("Failed to add product: " + err.message); }
   finally { loading(false); }
@@ -684,6 +690,7 @@ window.editItem = function (id) {
     $("editUnit").value = selectedItem.unit || "-";
     $("editPrice").value = selectedItem.price ?? 0;
     $("editMinQty").value = selectedItem.minQty ?? 5;
+    showEditPhoto(selectedItem.photo || selectedItem.photoUrl || "");
   } else {
     hide("adminEditGroup"); hide("adminDeleteGroup");
   }
@@ -705,8 +712,7 @@ window.saveItem = async function () {
       size: normalizeString($("editSize").value) || "-",
       unit: normalizeString($("editUnit").value) || "-",
       price: Math.max(0, Number($("editPrice").value) || 0),
-      minQty: Math.max(0, Number($("editMinQty").value) || 0),
-      photoUrl: ($("editPhotoUrl")?.value || "").trim()
+      minQty: Math.max(0, Number($("editMinQty").value) || 0)
     });
     await addHistory("UPDATE DETAILS", 0, normalizeString($("editName").value));
     toast("Product Updated");
@@ -722,6 +728,7 @@ window.deleteItem = async function () {
     loading(true);
     const { id, name, qty } = selectedItem;
     await deleteDoc(doc(db, "companies", companyID, "inventory", id));
+    deleteDoc(doc(db, "companies", companyID, "itemPhotos", id)).catch(() => {});
     await addHistory("DELETE ITEM", qty, name);
     toast("Product Deleted");
     closeEditModal();
@@ -1308,8 +1315,9 @@ function renderInventory(list) {
     const qty = Number(i.qty) || 0, hold = Number(i.hold) || 0, broken = Number(i.broken) || 0, price = Number(i.price) || 0;
     const min = i.minQty ?? 5;
     const low = qty <= min;
-    const photoHtml = i.photoUrl
-      ? `<img src="${escapeHTML(i.photoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #ddd">`
+    const pic = i.photo || i.photoUrl;
+    const photoHtml = pic
+      ? `<img src="${escapeHTML(pic)}" alt="" onclick="viewPhoto('${escapeHTML(i.id)}')" title="Tap to see the full photo" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #ddd;cursor:zoom-in">`
       : `<div style="width:40px;height:40px;border-radius:6px;background:#f1f3f5;border:1px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#aaa;font-size:1.2em">📦</div>`;
     return `<tr ${low ? 'class="low-stock-row"' : ""}>
       <td>${photoHtml}</td>
@@ -2103,7 +2111,7 @@ window.devDeleteCompany = async (id) => {
   try {
     loading(true);
     for (const sub of ["inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
-      "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places", "enquiries"]) {
+      "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places", "enquiries", "brand", "aiConfig", "itemPhotos"]) {
       const docs = (await getDocs(collection(db, "companies", id, sub))).docs;
       for (let i = 0; i < docs.length; i += 400) {
         const batch = writeBatch(db);
@@ -2145,6 +2153,69 @@ const suite = initSuite({
   createTask: createTaskDoc
 });
 
+
+
+/* ---------- STOCK ITEM PHOTOS: take with the camera or upload ----------
+   A small copy is kept with the item (for the table); the large copy is saved separately and loaded only when you tap it. */
+let newItemPhoto = null;
+async function makeItemPhoto(file) {
+  return { thumb: await compressImage(file, 160, 0.7, 40000), full: await compressImage(file, 1280, 0.78, 900000) };
+}
+window.pickNewItemPhoto = async function (input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    loading(true);
+    newItemPhoto = await makeItemPhoto(file);
+    $("newItemPreview").src = newItemPhoto.thumb;
+    show("newItemPhotoBox");
+  } catch (err) { console.error(err); toast(err.message); }
+  finally { loading(false); }
+};
+window.clearNewItemPhoto = function () { newItemPhoto = null; $("newItemPreview").src = ""; hide("newItemPhotoBox"); };
+
+function showEditPhoto(src) {
+  const img = $("editPhotoPreview");
+  if (src) { img.src = src; show("editPhotoPreview"); show("editPhotoRemove"); } else { img.src = ""; hide("editPhotoPreview"); hide("editPhotoRemove"); }
+}
+window.setItemPhoto = async function (input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file || !selectedItem || currentRole !== "ADMIN") return;
+  try {
+    loading(true);
+    const p = await makeItemPhoto(file);
+    await updateDoc(doc(db, "companies", companyID, "inventory", selectedItem.id), { photo: p.thumb });
+    await setDoc(doc(db, "companies", companyID, "itemPhotos", selectedItem.id), { img: p.full, updatedAt: serverTimestamp() });
+    selectedItem.photo = p.thumb;
+    showEditPhoto(p.thumb);
+    toast("Photo saved");
+  } catch (err) { console.error(err); toast("Could not save the photo: " + err.message); }
+  finally { loading(false); }
+};
+window.removeItemPhoto = async function () {
+  if (!selectedItem || currentRole !== "ADMIN" || !(await askConfirm("Remove this item's photo?"))) return;
+  try {
+    await updateDoc(doc(db, "companies", companyID, "inventory", selectedItem.id), { photo: "", photoUrl: "" });
+    deleteDoc(doc(db, "companies", companyID, "itemPhotos", selectedItem.id)).catch(() => {});
+    selectedItem.photo = ""; selectedItem.photoUrl = "";
+    showEditPhoto("");
+    toast("Photo removed");
+  } catch (err) { toast(err.message); }
+};
+window.viewPhoto = async function (id) {
+  const it = inventory.find((x) => x.id === id);
+  if (!it) return;
+  $("photoBigTitle").innerText = it.name || "";
+  $("photoBig").src = it.photo || it.photoUrl || "";
+  $("photoModal").classList.add("open");
+  try {
+    const d = await getDoc(doc(db, "companies", companyID, "itemPhotos", id));
+    if (d.exists() && d.data().img && $("photoModal").classList.contains("open")) $("photoBig").src = d.data().img;
+  } catch (e) { /* the small photo stays */ }
+};
+window.closePhotoModal = () => $("photoModal").classList.remove("open");
 
 /* ---------- COMPANY SETTINGS: change the company name, admin password and employee join code (owner / admins) ---------- */
 async function readSecrets() {
