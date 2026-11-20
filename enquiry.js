@@ -277,7 +277,7 @@ export function initEnquiry(ctx) {
       if (V.tab === "list" || V.tab === "follow") render();
       if (!V.alerted) { // remind once after login
         V.alerted = true;
-        setTimeout(() => { const n = dueList().length; if (n) pushAlert(`<b>🔔 ${n} follow-up message${n > 1 ? "s" : ""} due</b><br><small>Open Enquiry > Follow-ups to send them</small>`, "left"); }, 3000);
+        setTimeout(() => { const n = dueList().length; if (n) pushAlert(`<b>🔔 Follow-up messages due: ${n}</b><br><small>Open Enquiry > Follow-ups to send them</small>`, "left"); }, 3000);
       }
     }, (e) => console.error("Enquiry listener:", e)));
   }
@@ -670,7 +670,7 @@ export function initEnquiry(ctx) {
   function follows() { V.tab = "follow"; V.form = null; V.send = null; render(); }
   function followHTML() {
     const kit = K(), list = dueList().sort((a, b) => (a.no || 0) - (b.no || 0));
-    const head = `<p class="hint">Customers whose enquiry is still waiting get a reminder every <b>${kit.followDays}</b> day${kit.followDays === 1 ? "" : "s"} after the last message, up to <b>${kit.maxFollow}</b> times.${isAdmin() ? " Change this in ⚙ Messages & scan." : ""}</p>`;
+    const head = `<p class="hint">Customers whose enquiry is still waiting get a reminder every ${kit.followDays} day(s) after the last message, up to ${kit.maxFollow} times.</p>${isAdmin() ? `<p class="hint">Change this in ⚙ Messages & scan.</p>` : ""}`;
     if (!(kit.followDays > 0)) return head + "<p>Follow-up reminders are switched off.</p>";
     return head + (list.length ? list.map((e) => `<div class="task-card"><div class="task-info">
         <div class="task-title">#${esc(e.no || "-")} · ${esc(e.cName || "(no name)")}</div>

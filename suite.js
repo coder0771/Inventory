@@ -739,7 +739,7 @@ export function initSuite(ctx) {
       <button class="auth-btn ${type === "INVOICE" ? "on" : ""}" onclick="SU.billTab('INVOICE')">Invoices</button>
       <button class="auth-btn ${type === "QUOTATION" ? "on" : ""}" onclick="SU.billTab('QUOTATION')">Quotations</button>
       <button class="auth-btn" style="background:#28a745" onclick="SU.billStart('${type}')">➕ New ${label}</button>
-      ${chip("Outstanding " + inr(bal))}</div>` + (list.length ? list.map(docRow).join("") : `<p class="hint">No ${label.toLowerCase()}s yet.</p>`);
+      ${chip("Outstanding " + inr(bal))}</div>` + (list.length ? list.map(docRow).join("") : `<p class="hint">${label === "Invoice" ? "No invoices yet." : "No quotations yet."}</p>`);
   }
 
   function docRow(d) {
@@ -984,7 +984,7 @@ export function initSuite(ctx) {
     }
     const sorted = [...S.leaves].sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1) || (b.from || 0) - (a.from || 0));
     return nav + (sorted.length ? sorted.map((l) => `<div class="task-card"><div class="task-info"><div class="task-title">${esc(l.name)} ${lvChip(l.status)}</div>
-      <div class="task-meta">${esc(l.type)} · ${dstr(l.from)} to ${dstr(l.to)} (${l.days} day${l.days > 1 ? "s" : ""})<br>${esc(l.reason || "")}</div></div>
+      <div class="task-meta">${esc(l.type)} · ${dstr(l.from)} to ${dstr(l.to)} (${l.days} day(s))<br>${esc(l.reason || "")}</div></div>
       <div class="decide-col">${l.status === "PENDING" ? `<button class="edit-btn" style="background:#28a745" onclick="SU.leaveSet('${l.id}','APPROVED')">✔ Approve</button><button class="edit-btn" style="background:#dc3545" onclick="SU.leaveSet('${l.id}','REJECTED')">✖ Reject</button>` : ""}
       <button class="bin" onclick="SU.delRec('leaves','${l.id}')">🗑</button></div></div>`).join("") : "<p class='hint'>No leave requests.</p>");
   }
@@ -1005,7 +1005,7 @@ export function initSuite(ctx) {
       loading(true);
       const att = await getDocs(query(C("attendance"), where("time", ">=", new Date(y, m - 1, 1)), where("time", "<", new Date(y, m, 1))));
       const present = {};
-      att.docs.forEach((d) => { const a = d.data(), t = a.time && a.time.toDate ? a.time.toDate() : null; if (t) (present[a.uid] = present[a.uid] || new Set()).add(t.getDate()); });
+      att.docs.forEach((d) => { const a = d.data(), t = a.time && a.time.toDate ? a.time.toDate() : null; if (t && a.type !== "OUT") (present[a.uid] = present[a.uid] || new Set()).add(t.getDate()); });
       let n = 0;
       for (const s of staff) {
         const id = `${s.uid}_${monthKey(y, m)}`, old = S.payslips.find((p) => p.id === id);
@@ -1076,7 +1076,7 @@ export function initSuite(ctx) {
   function viewAuto() {
     return `<div class="suite-bar"><button class="auth-btn" style="background:#28a745" onclick="SU.ruleForm()">➕ New automation</button>
       <button class="auth-btn" onclick="SU.presets()">✨ Add recommended automations</button></div>
-      <p class="hint">An automation runs <b>when you or your team use the app</b> and the trigger happens (for example a lead is added). It does not run while nobody has the app open.</p>` +
+      <p class="hint">An automation runs when you or your team use the app and the trigger happens (for example a lead is added). It does not run while nobody has the app open.</p>` +
       (S.rules.length ? S.rules.map((r) => `<div class="task-card" style="${r.enabled === false ? "opacity:.55" : ""}"><div class="task-info">
         <div class="task-title">⚙ ${esc(r.name)} ${chip(r.enabled === false ? "OFF" : "ON", r.enabled === false ? "" : "chip-green")}</div>
         <div class="task-meta"><b>When:</b> ${esc(trigLabel(r.trigger))}${r.value ? " → " + esc(r.value) : ""}<br>
@@ -1116,9 +1116,9 @@ export function initSuite(ctx) {
       <button class="btn-wa btn-sm" onclick="SU.quickWa()">💬 Quick WhatsApp</button></div>
       <p class="hint">The AI writer creates personalised messages — copy them straight into WhatsApp. Auto-sending needs the WhatsApp Business API (a paid external service).</p>
       <h4>Templates (use {name} {company} {number} {amount} {due} {role})</h4>
-      ${S.templates.length ? S.templates.map((t) => `<div class="task-card"><div class="task-info"><b>${esc(t.name)}</b><div class="task-meta">${esc(t.text)}</div></div>
+      ${S.templates.length ? S.templates.map((t) => `<div class="task-card"><div class="task-info"><b>${esc(t.name)}</b><div class="task-meta notr">${esc(t.text)}</div></div>
         <div class="decide-col"><button class="edit-btn" onclick="SU.tplForm('${t.id}')">✏</button><button class="bin" onclick="SU.delRec('templates','${t.id}')">🗑</button></div></div>`).join("")
-        : `<p class="hint">Showing the built-in templates. Add your own to replace them.</p>` + DEFAULT_TPL.map((t) => `<div class="task-card"><div class="task-info"><b>${esc(t.name)}</b><div class="task-meta">${esc(t.text)}</div></div></div>`).join("")}
+        : `<p class="hint">Showing the built-in templates. Add your own to replace them.</p>` + DEFAULT_TPL.map((t) => `<div class="task-card"><div class="task-info"><b>${esc(t.name)}</b><div class="task-meta notr">${esc(t.text)}</div></div></div>`).join("")}
       <h4>Call log (latest 50)</h4>${calls.length ? calls.map((c) => `<div class="task-card"><div class="task-info"><b>${esc(c.name)}</b> ${esc(c.phone || "")} · ${esc(c.direction)} · ${esc(c.outcome)}
         <div class="task-meta">${dtstr(c.at)} · ${esc(c.byName || "")}<br>${esc(c.notes || "")}</div></div></div>`).join("") : "<p class='hint'>No calls logged. Log calls from a lead.</p>"}`;
   }
@@ -1310,7 +1310,7 @@ export function initSuite(ctx) {
     <button class="edit-btn" onclick="SU.noteForm('${k.id}')">➕ Note</button></div></div>`).join("") : "<p class='hint'>No tickets are assigned to you.</p>";
   const myLeave = () => `<button class="auth-btn" style="background:#28a745" onclick="SU.leaveForm()">➕ Apply for leave</button>` +
     (S.leaves.length ? [...S.leaves].sort((a, b) => b.from - a.from).map((l) => `<div class="task-card"><div class="task-info"><div class="task-title">${esc(l.type)} ${lvChip(l.status)}</div>
-      <div class="task-meta">${dstr(l.from)} to ${dstr(l.to)} (${l.days} day${l.days > 1 ? "s" : ""})<br>${esc(l.reason || "")}</div></div></div>`).join("") : "<p class='hint'>No leave requests yet.</p>");
+      <div class="task-meta">${dstr(l.from)} to ${dstr(l.to)} (${l.days} day(s))<br>${esc(l.reason || "")}</div></div></div>`).join("") : "<p class='hint'>No leave requests yet.</p>");
   const mySlips = () => { const list = S.payslips.filter((p) => p.status !== "DRAFT").sort((a, b) => b.month.localeCompare(a.month));
     return list.length ? list.map((p) => `<div class="task-card"><div class="task-info"><div class="task-title">${p.month.split("-").reverse().join("/")} ${chip(p.status, "chip-green")}</div>
       <div class="task-meta">Paid days ${p.payDays}/${p.working} · Net pay <b>${inr(p.net)}</b></div></div><button class="edit-btn" onclick="SU.printSlip('${p.id}')">🖨 Print</button></div>`).join("") : "<p class='hint'>No payslips yet.</p>"; };

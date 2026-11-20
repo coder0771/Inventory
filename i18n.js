@@ -265,6 +265,766 @@ const DICT = {
 "हाज़िरी जियो-फेंस सेटिंग",
 "हजेरी जिओ-फेन्स सेटिंग"
 ],
+"Attendance In": [
+"हाज़िरी इन",
+"हजेरी इन"
+],
+"Attendance Out": [
+"हाज़िरी आउट",
+"हजेरी आउट"
+],
+"In / Out": [
+"इन / आउट",
+"इन / आउट"
+],
+"Mark Attendance In first": [
+"पहले हाज़िरी इन लगाएं",
+"आधी हजेरी इन लावा"
+],
+"Attendance In marked": [
+"हाज़िरी इन लग गई",
+"हजेरी इन लागली"
+],
+"Attendance Out marked. Have a good evening": [
+"हाज़िरी आउट लग गई। आपकी शाम शुभ हो",
+"हजेरी आउट लागली. तुमची संध्याकाळ छान जावो"
+],
+"Your Attendance In is already marked today. You can mark it again tomorrow": [
+"आपकी हाज़िरी इन आज पहले ही लग चुकी है। कल फिर से लगा सकते हैं",
+"तुमची हजेरी इन आज आधीच लागली आहे. उद्या पुन्हा लावू शकता"
+],
+"Your Attendance In is already marked today": [
+"आपकी हाज़िरी इन आज पहले ही लग चुकी है",
+"तुमची हजेरी इन आज आधीच लागली आहे"
+],
+"Your Attendance Out is already marked today": [
+"आपकी हाज़िरी आउट आज पहले ही लग चुकी है",
+"तुमची हजेरी आउट आज आधीच लागली आहे"
+],
+"Your Attendance Out is already marked today (or Attendance In is missing)": [
+"आपकी हाज़िरी आउट आज पहले ही लग चुकी है (या हाज़िरी इन नहीं लगी है)",
+"तुमची हजेरी आउट आज आधीच लागली आहे (किंवा हजेरी इन लागलेली नाही)"
+],
+"Mark Attendance In first. Attendance Out is for when you leave the shop after your shift": [
+"पहले हाज़िरी इन लगाएं। हाज़िरी आउट शिफ्ट के बाद दुकान से जाते समय लगानी है",
+"आधी हजेरी इन लावा. हजेरी आउट शिफ्टनंतर दुकानातून निघताना लावायची आहे"
+],
+"Mark Attendance Out now? Do this only when you are leaving the shop after your shift. It can be marked once a day": [
+"क्या अभी हाज़िरी आउट लगाएं? यह सिर्फ़ शिफ्ट के बाद दुकान से जाते समय करें। यह दिन में एक बार लगती है",
+"आता हजेरी आउट लावायची? हे फक्त शिफ्टनंतर दुकानातून निघताना करा. ती दिवसातून एकदाच लागते"
+],
+"Task Complete Approval": [
+"कार्य पूरा होने की मंज़ूरी",
+"काम पूर्ण झाल्याची मंजुरी"
+],
+"Incompleted Task": [
+"अधूरा कार्य",
+"अपूर्ण काम"
+],
+"Incompleted Tasks": [
+"अधूरे कार्य",
+"अपूर्ण कामे"
+],
+"Alert": [
+"चेतावनी",
+"सूचना"
+],
+"Alerts": [
+"चेतावनियाँ",
+"सूचना"
+],
+"Assigned Tasks": [
+"सौंपे गए कार्य",
+"सोपवलेली कामे"
+],
+"Choose Employee": [
+"कर्मचारी चुनें",
+"कर्मचारी निवडा"
+],
+"Task for All Employees": [
+"सभी कर्मचारियों के लिए कार्य",
+"सर्व कर्मचाऱ्यांसाठी काम"
+],
+"Task for {}": [
+"{} के लिए कार्य",
+"{} साठी काम"
+],
+"Admin Task (only you can see)": [
+"एडमिन कार्य (सिर्फ़ आप देख सकते हैं)",
+"अ‍ॅडमिन काम (फक्त तुम्ही पाहू शकता)"
+],
+"Edit Task": [
+"कार्य बदलें",
+"काम बदला"
+],
+"Edit task": [
+"कार्य बदलें",
+"काम बदला"
+],
+"Given by": [
+"किसने दिया",
+"कोणी दिले"
+],
+"For": [
+"किसके लिए",
+"कोणासाठी"
+],
+"Start": [
+"शुरू",
+"सुरुवात"
+],
+"End": [
+"अंत",
+"शेवट"
+],
+"Created": [
+"बनाया गया",
+"तयार केले"
+],
+"Created: just now": [
+"बनाया गया: अभी",
+"तयार केले: आत्ताच"
+],
+"Submitted": [
+"जमा किया",
+"सबमिट केले"
+],
+"New end": [
+"नया अंत समय",
+"नवीन शेवटची वेळ"
+],
+"Single employee - Public": [
+"एक कर्मचारी - सार्वजनिक",
+"एक कर्मचारी - सार्वजनिक"
+],
+"Single employee - Private": [
+"एक कर्मचारी - निजी",
+"एक कर्मचारी - खाजगी"
+],
+"Single employee - Public (everyone can see)": [
+"एक कर्मचारी - सार्वजनिक (सब देख सकते हैं)",
+"एक कर्मचारी - सार्वजनिक (सर्वजण पाहू शकतात)"
+],
+"Single employee - Private (only that employee)": [
+"एक कर्मचारी - निजी (सिर्फ़ वही कर्मचारी)",
+"एक कर्मचारी - खाजगी (फक्त तोच कर्मचारी)"
+],
+"Waiting for your decision": [
+"आपके निर्णय का इंतज़ार",
+"तुमच्या निर्णयाची वाट"
+],
+"Submitted, waiting for approval": [
+"जमा किया, मंज़ूरी का इंतज़ार",
+"सबमिट केले, मंजुरीची वाट"
+],
+"Removed from company": [
+"कंपनी से हटाया गया",
+"कंपनीतून काढले"
+],
+"Not started": [
+"शुरू नहीं हुआ",
+"सुरू झाले नाही"
+],
+"Declined": [
+"अस्वीकार",
+"नाकारले"
+],
+"tasks not completed": [
+"अधूरे कार्य",
+"अपूर्ण कामे"
+],
+"No tasks have been assigned yet": [
+"अभी तक कोई कार्य नहीं सौंपा गया",
+"अजून कोणतेही काम सोपवलेले नाही"
+],
+"No incompleted tasks": [
+"कोई अधूरा कार्य नहीं",
+"कोणतेही अपूर्ण काम नाही"
+],
+"No staff have joined yet": [
+"अभी तक कोई स्टाफ़ नहीं जुड़ा",
+"अजून कोणताही स्टाफ जोडलेला नाही"
+],
+"Type the task here...": [
+"यहाँ कार्य लिखें...",
+"इथे काम लिहा..."
+],
+"Type your own task...": [
+"अपना कार्य लिखें...",
+"तुमचे काम लिहा..."
+],
+"Task declined - employee notified": [
+"कार्य अस्वीकार - कर्मचारी को सूचना दी गई",
+"काम नाकारले - कर्मचाऱ्याला कळवले"
+],
+"Approved: {} / {}": [
+"मंज़ूर: {} / {}",
+"मंजूर: {} / {}"
+],
+"extended to {}": [
+"{} तक बढ़ाया",
+"{} पर्यंत वाढवले"
+],
+"Public tasks (for all employees)": [
+"सार्वजनिक कार्य (सभी कर्मचारियों के लिए)",
+"सार्वजनिक कामे (सर्व कर्मचाऱ्यांसाठी)"
+],
+"Tasks given to employees (everyone can see)": [
+"कर्मचारियों को दिए गए कार्य (सब देख सकते हैं)",
+"कर्मचाऱ्यांना दिलेली कामे (सर्वजण पाहू शकतात)"
+],
+"My private tasks": [
+"मेरे निजी कार्य",
+"माझी खाजगी कामे"
+],
+"Only this person can complete it": [
+"सिर्फ़ यही व्यक्ति इसे पूरा कर सकता है",
+"फक्त हीच व्यक्ती हे पूर्ण करू शकते"
+],
+"Submitted - waiting for owner approval": [
+"जमा किया - मालिक की मंज़ूरी का इंतज़ार",
+"सबमिट केले - मालकाच्या मंजुरीची वाट"
+],
+"Approved by owner": [
+"मालिक ने मंज़ूर किया",
+"मालकाने मंजूर केले"
+],
+"Declined by owner": [
+"मालिक ने अस्वीकार किया",
+"मालकाने नाकारले"
+],
+"Time is over": [
+"समय खत्म हो गया",
+"वेळ संपली"
+],
+"Tap the box when you finish": [
+"काम पूरा होने पर बॉक्स दबाएं",
+"काम पूर्ण झाल्यावर बॉक्स दाबा"
+],
+"Do it again and tap the box to re-submit": [
+"फिर से करें और दोबारा जमा करने के लिए बॉक्स दबाएं",
+"पुन्हा करा आणि पुन्हा सबमिट करण्यासाठी बॉक्स दाबा"
+],
+"Starts {}": [
+"{} को शुरू",
+"{} ला सुरू"
+],
+"Give a task to other employees": [
+"दूसरे कर्मचारियों को कार्य दें",
+"इतर कर्मचाऱ्यांना काम द्या"
+],
+"Give a task": [
+"कार्य दें",
+"काम द्या"
+],
+"Tasks I gave to others": [
+"मेरे द्वारा दूसरों को दिए गए कार्य",
+"मी इतरांना दिलेली कामे"
+],
+"Everyone (all employees)": [
+"सभी (सभी कर्मचारी)",
+"सर्वजण (सर्व कर्मचारी)"
+],
+"A particular employee": [
+"कोई एक कर्मचारी",
+"एखादा विशिष्ट कर्मचारी"
+],
+"No other employees found yet. They appear here after they open the app once": [
+"अभी कोई दूसरा कर्मचारी नहीं मिला। ऐप एक बार खोलने के बाद वे यहाँ दिखेंगे",
+"अजून इतर कर्मचारी सापडले नाहीत. ॲप एकदा उघडल्यावर ते इथे दिसतील"
+],
+"Everyone in the company can see this task. When it is completed, it goes to the owner for approval": [
+"कंपनी में सब यह कार्य देख सकते हैं। पूरा होने पर यह मालिक के पास मंज़ूरी के लिए जाएगा",
+"कंपनीतील सर्वजण हे काम पाहू शकतात. पूर्ण झाल्यावर ते मालकाकडे मंजुरीसाठी जाईल"
+],
+"For: everyone": [
+"किसके लिए: सभी",
+"कोणासाठी: सर्वजण"
+],
+"Done, waiting for owner approval": [
+"पूरा हुआ, मालिक की मंज़ूरी का इंतज़ार",
+"पूर्ण झाले, मालकाच्या मंजुरीची वाट"
+],
+"New task given by": [
+"नया कार्य दिया",
+"नवीन काम दिले"
+],
+"Task completed - waiting for your approval": [
+"कार्य पूरा हुआ - आपकी मंज़ूरी का इंतज़ार",
+"काम पूर्ण झाले - तुमच्या मंजुरीची वाट"
+],
+"Completed the task you gave": [
+"आपका दिया कार्य पूरा किया",
+"तुम्ही दिलेले काम पूर्ण केले"
+],
+"Waiting for owner approval": [
+"मालिक की मंज़ूरी का इंतज़ार",
+"मालकाच्या मंजुरीची वाट"
+],
+"Owner approved the task you gave": [
+"मालिक ने आपका दिया कार्य मंज़ूर किया",
+"मालकाने तुम्ही दिलेले काम मंजूर केले"
+],
+"Owner declined the task you gave": [
+"मालिक ने आपका दिया कार्य अस्वीकार किया",
+"मालकाने तुम्ही दिलेले काम नाकारले"
+],
+"You gave this task. Another employee completes it": [
+"यह कार्य आपने दिया है। इसे दूसरा कर्मचारी पूरा करेगा",
+"हे काम तुम्ही दिले आहे. ते दुसरा कर्मचारी पूर्ण करेल"
+],
+"The owner must publish the latest firestore.rules in Firebase first": [
+"मालिक को पहले Firebase में नवीनतम firestore.rules प्रकाशित करने होंगे",
+"मालकाने आधी Firebase मध्ये नवीन firestore.rules प्रकाशित करावे"
+],
+"companies": [
+"कंपनियाँ",
+"कंपन्या"
+],
+"Add more places for the shop radius (for example a second shop or a warehouse). Employees are tracked against the main shop radius on the dashboard and these places: you get an alert only when an employee is outside all of them. Attendance still uses the main Geo-Fence on the dashboard": [
+"दुकान के दायरे के लिए और जगहें जोड़ें (जैसे दूसरी दुकान या गोदाम)। कर्मचारियों को डैशबोर्ड के मुख्य दायरे और इन जगहों के हिसाब से देखा जाता है: सूचना तभी मिलती है जब कर्मचारी इन सबसे बाहर हो। हाज़िरी अब भी डैशबोर्ड के मुख्य जियो-फेंस से लगती है",
+"दुकानाच्या परिघासाठी आणखी ठिकाणे जोडा (उदा. दुसरे दुकान किंवा गोदाम). कर्मचाऱ्यांना डॅशबोर्डवरील मुख्य परिघ आणि या ठिकाणांनुसार पाहिले जाते: कर्मचारी या सर्वांच्या बाहेर असेल तेव्हाच सूचना मिळते. हजेरी अजूनही डॅशबोर्डवरील मुख्य जिओ-फेन्सने लागते"
+],
+"You can use {name} {business} {enquiry} {maps} {instagram} {facebook} {video} {card} {showroom}": [
+"आप {name} {business} {enquiry} {maps} {instagram} {facebook} {video} {card} {showroom} इस्तेमाल कर सकते हैं",
+"तुम्ही {name} {business} {enquiry} {maps} {instagram} {facebook} {video} {card} {showroom} वापरू शकता"
+],
+"Follow-up every … days (0 = off)": [
+"हर … दिन में फ़ॉलो-अप (0 = बंद)",
+"दर … दिवसांनी फॉलो-अप (0 = बंद)"
+],
+"left the shop radius at {}": [
+"{} पर दुकान के दायरे से बाहर गया",
+"{} ला दुकानाच्या परिघाबाहेर गेला"
+],
+"came inside the shop radius at {}": [
+"{} पर दुकान के दायरे में आया",
+"{} ला दुकानाच्या परिघात आला"
+],
+"left {} radius at {}": [
+"{2} पर {1} के दायरे से बाहर गया",
+"{2} ला {1} च्या परिघाबाहेर गेला"
+],
+"came inside {} radius at {}": [
+"{2} पर {1} के दायरे में आया",
+"{2} ला {1} च्या परिघात आला"
+],
+"No company called \"{}\" was found. Type the name exactly as the owner set it (the owner can see it in ⚙ Settings)": [
+"\"{}\" नाम की कोई कंपनी नहीं मिली। नाम ठीक वैसे लिखें जैसा मालिक ने रखा है (मालिक इसे ⚙ सेटिंग्स में देख सकते हैं)",
+"\"{}\" नावाची कोणतीही कंपनी सापडली नाही. मालकाने ठेवलेले नाव जसेच्या तसे लिहा (मालक ते ⚙ सेटिंग्जमध्ये पाहू शकतात)"
+],
+"Location fetched (accuracy ±{} m)": [
+"लोकेशन मिल गई (सटीकता ±{} मी)",
+"लोकेशन मिळाले (अचूकता ±{} मी)"
+],
+"Location fetched (accuracy ±{} m) - weak signal! Move outdoors and fetch again before saving": [
+"लोकेशन मिल गई (सटीकता ±{} मी) - सिग्नल कमज़ोर! बाहर जाकर सेव करने से पहले फिर से लें",
+"लोकेशन मिळाले (अचूकता ±{} मी) - सिग्नल कमकुवत! बाहेर जाऊन सेव्ह करण्यापूर्वी पुन्हा घ्या"
+],
+"GPS signal too weak (±{} m). Move near a window or outdoors, keep GPS on, and try again": [
+"GPS सिग्नल बहुत कमज़ोर (±{} मी)। खिड़की के पास या बाहर जाएं, GPS चालू रखें और फिर से कोशिश करें",
+"GPS सिग्नल खूप कमकुवत (±{} मी). खिडकीजवळ किंवा बाहेर जा, GPS चालू ठेवा आणि पुन्हा प्रयत्न करा"
+],
+"You are about {} m away (allowed {} m + GPS error ±{} m)": [
+"आप लगभग {} मी दूर हैं (अनुमति {} मी + GPS त्रुटि ±{} मी)",
+"तुम्ही सुमारे {} मी दूर आहात (परवानगी {} मी + GPS त्रुटी ±{} मी)"
+],
+"Delete the place \"{}\"? Employees will no longer be able to mark attendance there": [
+"जगह \"{}\" हटाएं? कर्मचारी वहाँ अब हाज़िरी नहीं लगा पाएंगे",
+"ठिकाण \"{}\" हटवायचे? कर्मचारी तिथे आता हजेरी लावू शकणार नाहीत"
+],
+"Remove {} from your company? They will lose access immediately. Their past task records are kept": [
+"{} को अपनी कंपनी से हटाएं? उनकी पहुँच तुरंत बंद हो जाएगी। उनके पुराने कार्यों का रिकॉर्ड रहेगा",
+"{} यांना तुमच्या कंपनीतून काढायचे? त्यांचा प्रवेश लगेच बंद होईल. त्यांच्या जुन्या कामांची नोंद राहील"
+],
+"{} removed": [
+"{} हटाया गया",
+"{} काढले"
+],
+"Import {} item(s)?": [
+"{} आइटम आयात करें?",
+"{} आयटम आयात करायचे?"
+],
+"new, {} will update existing items": [
+"नए, {} मौजूदा आइटम अपडेट होंगे",
+"नवीन, {} असलेले आयटम अपडेट होतील"
+],
+"Imported {} item(s)": [
+"{} आइटम आयात हुए",
+"{} आयटम आयात झाले"
+],
+"Delete \"{}\" and ALL its inventory, employees, tasks and history permanently?": [
+"\"{}\" और उसका सारा स्टॉक, कर्मचारी, कार्य और इतिहास हमेशा के लिए हटाएं?",
+"\"{}\" आणि त्याचा सर्व स्टॉक, कर्मचारी, कामे आणि इतिहास कायमचा हटवायचा?"
+],
+"Could not restore the session": [
+"सत्र वापस नहीं खुल सका",
+"सत्र पुन्हा उघडता आले नाही"
+],
+"Enter your mobile number": [
+"अपना मोबाइल नंबर डालें",
+"तुमचा मोबाइल नंबर टाका"
+],
+"Resend OTP": [
+"OTP फिर से भेजें",
+"OTP पुन्हा पाठवा"
+],
+"Company data not found": [
+"कंपनी का डेटा नहीं मिला",
+"कंपनीचा डेटा सापडला नाही"
+],
+"This item no longer exists": [
+"यह आइटम अब मौजूद नहीं है",
+"हा आयटम आता अस्तित्वात नाही"
+],
+"Nothing is on hold": [
+"कुछ भी होल्ड पर नहीं है",
+"काहीही होल्डवर नाही"
+],
+"Insufficient Stock": [
+"पर्याप्त स्टॉक नहीं",
+"पुरेसा स्टॉक नाही"
+],
+"Geolocation not supported": [
+"इस फोन में लोकेशन की सुविधा नहीं है",
+"या फोनमध्ये लोकेशनची सुविधा नाही"
+],
+"Developer not recognised": [
+"डेवलपर पहचाना नहीं गया",
+"डेव्हलपर ओळखला गेला नाही"
+],
+"User denied Geolocation. Allow location access to continue": [
+"लोकेशन की अनुमति नहीं दी गई। आगे बढ़ने के लिए लोकेशन की अनुमति दें",
+"लोकेशनची परवानगी दिली नाही. पुढे जाण्यासाठी लोकेशनची परवानगी द्या"
+],
+"User denied Geolocation": [
+"लोकेशन की अनुमति नहीं दी गई",
+"लोकेशनची परवानगी दिली नाही"
+],
+"Timeout expired": [
+"समय समाप्त हो गया",
+"वेळ संपली"
+],
+"CRM": [
+"ग्राहक (CRM)",
+"ग्राहक (CRM)"
+],
+"New Invoice": [
+"नया इनवॉइस",
+"नवीन इनव्हॉइस"
+],
+"New Quotation": [
+"नया कोटेशन",
+"नवीन कोटेशन"
+],
+"No invoices yet": [
+"अभी कोई इनवॉइस नहीं",
+"अजून इनव्हॉइस नाही"
+],
+"No quotations yet": [
+"अभी कोई कोटेशन नहीं",
+"अजून कोटेशन नाही"
+],
+"Outstanding {}": [
+"बकाया {}",
+"थकबाकी {}"
+],
+"candidates": [
+"उम्मीदवार",
+"उमेदवार"
+],
+"Applied": [
+"आवेदन किया",
+"अर्ज केला"
+],
+"planned": [
+"योजना में",
+"नियोजित"
+],
+"open": [
+"खुले",
+"उघडे"
+],
+"{} past SLA": [
+"{} SLA समय से बाहर",
+"{} SLA वेळेबाहेर"
+],
+"SLA deadline": [
+"SLA समय-सीमा",
+"SLA मुदत"
+],
+"Customer": [
+"ग्राहक",
+"ग्राहक"
+],
+"Assigned": [
+"सौंपा गया",
+"सोपवले"
+],
+"Balance": [
+"बाकी",
+"बाकी"
+],
+"Tax": [
+"टैक्स",
+"कर"
+],
+"Due": [
+"देय",
+"देय"
+],
+"Month": [
+"महीना",
+"महिना"
+],
+"Payslip": [
+"वेतन पर्ची",
+"पगार स्लिप"
+],
+"Thank you for your business": [
+"आपके व्यापार के लिए धन्यवाद",
+"तुमच्या व्यवसायाबद्दल धन्यवाद"
+],
+"Subtotal {}": [
+"उप-योग {}",
+"उप-एकूण {}"
+],
+"Discount {}": [
+"छूट {}",
+"सूट {}"
+],
+"Tax {}": [
+"टैक्स {}",
+"कर {}"
+],
+"Total {}": [
+"कुल {}",
+"एकूण {}"
+],
+"An automation runs when you or your team use the app and the trigger happens (for example a lead is added). It does not run while nobody has the app open": [
+"ऑटोमेशन तब चलता है जब आप या आपकी टीम ऐप इस्तेमाल करते हैं और ट्रिगर होता है (जैसे कोई लीड जोड़ी जाए)। जब कोई ऐप नहीं खोले होता, तब यह नहीं चलता",
+"ऑटोमेशन तेव्हा चालते जेव्हा तुम्ही किंवा तुमची टीम ॲप वापरता आणि ट्रिगर होतो (उदा. एखादी लीड जोडली जाते). कोणीही ॲप उघडलेले नसताना ते चालत नाही"
+],
+"Templates (use {name} {company} {number} {amount} {due} {role})": [
+"टेम्पलेट ({name} {company} {number} {amount} {due} {role} इस्तेमाल करें)",
+"टेम्पलेट ({name} {company} {number} {amount} {due} {role} वापरा)"
+],
+"Greeting": [
+"स्वागत संदेश",
+"स्वागत संदेश"
+],
+"Interview invite": [
+"इंटरव्यू निमंत्रण",
+"मुलाखतीचे आमंत्रण"
+],
+"Nobody": [
+"कोई नहीं",
+"कोणीही नाही"
+],
+"Task / alert text (you can use {name} {phone} {title} {number} {stage})": [
+"कार्य / सूचना का टेक्स्ट (आप {name} {phone} {title} {number} {stage} इस्तेमाल कर सकते हैं)",
+"काम / सूचनेचा मजकूर (तुम्ही {name} {phone} {title} {number} {stage} वापरू शकता)"
+],
+"WhatsApp Status": [
+"WhatsApp स्टेटस",
+"WhatsApp स्टेटस"
+],
+"New template": [
+"नया टेम्पलेट",
+"नवीन टेम्पलेट"
+],
+"Edit template": [
+"टेम्पलेट बदलें",
+"टेम्पलेट बदला"
+],
+"Mode: built-in writer": [
+"मोड: अंदर का लेखक",
+"मोड: अंगभूत लेखक"
+],
+"Mode: Claude AI": [
+"मोड: Claude AI",
+"मोड: Claude AI"
+],
+"Raksha Bandhan": [
+"रक्षा बंधन",
+"रक्षाबंधन"
+],
+"Ganesh Chaturthi": [
+"गणेश चतुर्थी",
+"गणेश चतुर्थी"
+],
+"New Year": [
+"नया साल",
+"नवीन वर्ष"
+],
+"Automation error": [
+"ऑटोमेशन त्रुटि",
+"ऑटोमेशन त्रुटी"
+],
+"Edit Lead": [
+"लीड बदलें",
+"लीड बदला"
+],
+"Edit Candidate": [
+"उम्मीदवार बदलें",
+"उमेदवार बदला"
+],
+"Edit Ticket": [
+"टिकट बदलें",
+"तिकीट बदला"
+],
+"Ticket created": [
+"टिकट बनाया गया",
+"तिकीट तयार झाले"
+],
+"The amount is more than the balance due": [
+"रकम बकाया से ज़्यादा है",
+"रक्कम थकबाकीपेक्षा जास्त आहे"
+],
+"An item on this invoice no longer exists": [
+"इस इनवॉइस का एक आइटम अब मौजूद नहीं है",
+"या इनव्हॉइसमधील एक आयटम आता अस्तित्वात नाही"
+],
+"The end date is before the start date": [
+"अंत तारीख शुरू की तारीख से पहले है",
+"शेवटची तारीख सुरुवातीच्या तारखेच्या आधी आहे"
+],
+"Turn on": [
+"चालू करें",
+"चालू करा"
+],
+"Edit automation": [
+"ऑटोमेशन बदलें",
+"ऑटोमेशन बदला"
+],
+"Call new leads quickly": [
+"नई लीड को जल्दी कॉल करें",
+"नवीन लीडला लवकर कॉल करा"
+],
+"Overdue invoice alert": [
+"बकाया इनवॉइस की सूचना",
+"थकीत इनव्हॉइसची सूचना"
+],
+"Write a payment reminder": [
+"भुगतान रिमाइंडर लिखें",
+"पेमेंट स्मरणपत्र लिहा"
+],
+"Edit post": [
+"पोस्ट बदलें",
+"पोस्ट बदला"
+],
+"Model saved": [
+"मॉडल सेव हुआ",
+"मॉडेल सेव्ह झाले"
+],
+"Enter a valid date for \"{}\"": [
+"\"{}\" के लिए सही तारीख डालें",
+"\"{}\" साठी योग्य तारीख टाका"
+],
+"{}\" is required": [
+"{}\" ज़रूरी है",
+"{}\" आवश्यक आहे"
+],
+"Delete all {} item(s) in \"{}\"? This cannot be undone": [
+"\"{2}\" के सभी {1} आइटम हटाएं? यह वापस नहीं होगा",
+"\"{2}\" मधील सर्व {1} आयटम हटवायचे? हे परत होणार नाही"
+],
+"Remove the quantities on {} from your inventory stock?": [
+"{} की मात्रा अपने स्टॉक से घटाएं?",
+"{} मधील नग तुमच्या स्टॉकमधून कमी करायचे?"
+],
+"Generate payslips for {}? Unpaid payslips of this month will be recalculated": [
+"{} की वेतन पर्चियाँ बनाएं? इस महीने की बिना भुगतान वाली पर्चियाँ फिर से गिनी जाएंगी",
+"{} च्या पगार स्लिप तयार करायच्या? या महिन्याच्या न दिलेल्या स्लिप पुन्हा मोजल्या जातील"
+],
+"Paid days {}": [
+"भुगतान वाले दिन {}",
+"पगारी दिवस {}"
+],
+"{} to {} ({} day(s))": [
+"{} से {} ({} दिन)",
+"{} ते {} ({} दिवस)"
+],
+"automatic": [
+"अपने आप",
+"आपोआप"
+],
+"Requirement {}": [
+"ज़रूरत {}",
+"गरज {}"
+],
+"Follow-up messages due": [
+"फ़ॉलो-अप संदेश बाकी",
+"फॉलो-अप संदेश बाकी"
+],
+"Open Enquiry > Follow-ups to send them": [
+"भेजने के लिए पूछताछ > फ़ॉलो-अप खोलें",
+"पाठवण्यासाठी चौकशी > फॉलो-अप उघडा"
+],
+"Customers whose enquiry is still waiting get a reminder every {} day(s) after the last message, up to {} times": [
+"जिन ग्राहकों की पूछताछ अभी बाकी है, उन्हें आखिरी संदेश के बाद हर {} दिन में रिमाइंडर जाता है, ज़्यादा से ज़्यादा {} बार",
+"ज्या ग्राहकांची चौकशी अजून बाकी आहे, त्यांना शेवटच्या संदेशानंतर दर {} दिवसांनी स्मरणपत्र जाते, जास्तीत जास्त {} वेळा"
+],
+"Change this in ⚙ Messages & scan": [
+"इसे ⚙ संदेश और स्कैन में बदलें",
+"हे ⚙ संदेश आणि स्कॅनमध्ये बदला"
+],
+"This is follow-up {} of {}": [
+"यह {2} में से फ़ॉलो-अप {1} है",
+"हा {2} पैकी फॉलो-अप {1} आहे"
+],
+"A welcome message was already sent on {}": [
+"स्वागत संदेश {} को पहले ही भेजा जा चुका है",
+"स्वागत संदेश {} रोजी आधीच पाठवला आहे"
+],
+"last message {}": [
+"आखिरी संदेश {}",
+"शेवटचा संदेश {}"
+],
+"follow-ups sent": [
+"भेजे गए फ़ॉलो-अप",
+"पाठवलेले फॉलो-अप"
+],
+"by {}": [
+"{} द्वारा",
+"{} यांनी"
+],
+"Enquiry #{} saved": [
+"पूछताछ #{} सेव हुई",
+"चौकशी #{} सेव्ह झाली"
+],
+"Enquiry #{} moved to Quotations as {}": [
+"पूछताछ #{} कोटेशन में {} के रूप में गई",
+"चौकशी #{} कोटेशनमध्ये {} म्हणून गेली"
+],
+"Estimate Memo": [
+"अनुमान मेमो",
+"अंदाज मेमो"
+],
+"WhatsApp and SMS open with this message ready, tap Send there": [
+"WhatsApp और SMS यह संदेश तैयार करके खुलते हैं, वहाँ भेजें दबाएं",
+"WhatsApp आणि SMS हा संदेश तयार ठेवून उघडतात, तिथे पाठवा दाबा"
+],
+"welcomed": [
+"स्वागत भेजा",
+"स्वागत पाठवले"
+],
+"This file is not a picture that can be opened": [
+"यह फ़ाइल खुलने वाली तस्वीर नहीं है",
+"ही फाइल उघडता येणारे चित्र नाही"
+],
+"Photo scan is on": [
+"फोटो स्कैन चालू है",
+"फोटो स्कॅन चालू आहे"
+],
+"past SLA": [
+"SLA समय से बाहर",
+"SLA वेळेबाहेर"
+],
+"to {} ({} day(s))": [
+"से {} ({} दिन)",
+"ते {} ({} दिवस)"
+],
 "Attendance Log": [
 "हाज़िरी रिकॉर्ड",
 "हजेरी नोंद"
@@ -1160,6 +1920,22 @@ const DICT = {
 "Interview within 1 hour": [
 "1 घंटे में इंटरव्यू",
 "1 तासात मुलाखत"
+],
+"The join code is wrong. Ask the owner for the current code (shown in ⚙ Settings → Employee join code). Note: the admin password is not the join code.": [
+"जॉइन कोड गलत है। मालिक से वर्तमान कोड पूछें (⚙ सेटिंग्स → कर्मचारी जॉइन कोड में दिखता है)। ध्यान दें: एडमिन पासवर्ड जॉइन कोड नहीं है।",
+"जॉइन कोड चुकीचा आहे. मालकाकडून सध्याचा कोड विचारा (⚙ सेटिंग्ज → कर्मचारी जॉइन कोडमध्ये दिसतो). लक्षात ठेवा: अॅडमिन पासवर्ड हा जॉइन कोड नाही."
+],
+"No internet connection. Check the connection and try again.": [
+"इंटरनेट कनेक्शन नहीं है। कनेक्शन जांचें और फिर से कोशिश करें।",
+"इंटरनेट कनेक्शन नाही. कनेक्शन तपासा आणि पुन्हा प्रयत्न करा."
+],
+"The database refused this step. The owner must publish the latest firestore.rules in Firebase, then try again.": [
+"डेटाबेस ने यह चरण अस्वीकार किया। मालिक Firebase में नवीनतम firestore.rules प्रकाशित करें, फिर से कोशिश करें।",
+"डेटाबेसने ही पायरी नाकारली. मालकाने Firebase मध्ये नवीन firestore.rules प्रकाशित करावे, मग पुन्हा प्रयत्न करा."
+],
+"You are signed out. Please sign in again.": [
+"आप साइन आउट हैं। कृपया फिर से साइन इन करें।",
+"तुम्ही साइन आउट आहात. कृपया पुन्हा साइन इन करा."
 ],
 "Invalid Company Code": [
 "गलत कंपनी कोड",
@@ -2798,7 +3574,19 @@ const DICT = {
 /* <i18npure> */
 const NORM = (s) => s.replace(/\s+/g, " ").trim();
 const LOWER = {};
-Object.keys(DICT).forEach((k) => { LOWER[k.toLowerCase()] = DICT[k]; });
+// keys are matched without the full stop / colon at the end (the text on screen keeps its own punctuation)
+const TAILP = /[\s:*.…!]+$/;
+const TEMPLATES = []; // keys with {} : a name, number or amount goes in the {} and is kept as it is
+Object.keys(DICT).forEach((k) => {
+  const v = DICT[k], bare = NORM(k).replace(TAILP, "");
+  LOWER[k.toLowerCase()] = v; LOWER[bare.toLowerCase()] = v;
+  if (bare !== k && !DICT[bare]) DICT[bare] = v;
+  if (k.includes("{}")) {
+    const re = new RegExp("^" + bare.split("{}").map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("([\\s\\S]+?)") + "$", "i");
+    TEMPLATES.push([re, v, bare.replace(/\{\}/g, "").length]);
+  }
+});
+TEMPLATES.sort((a, b) => b[2] - a[2]);
 const IDX = { hi: 0, mr: 1 };
 // beginning of a dynamic text whose ending is a name, number or message (translated part + the rest kept as is)
 const PREFIXES = ["Send WhatsApp message to", "Already in Quotations as", "Task submitted to", "Monthly salary -", "Record payment -", "Log call with",
@@ -2816,6 +3604,14 @@ function translate(text, lang) {
   if (!core) return text;
   let v = look(core, lang);
   if (v !== null) return pre + v + post;
+  // "(automatic)"  ->  the brackets are kept around the translation
+  if (pre.endsWith("(") && core.endsWith(")")) { const t = look(core.slice(0, -1), lang); if (t) return pre + t + ")" + post; }
+  if (core.includes(" · ")) { const parts = core.split(" · ").map((x) => translate(x, lang)); if (parts.join(" · ") !== core) return pre + parts.join(" · ") + post; }
+  // fill-in-the-blank keys:  "Task for {}",  "You are about {} m away ..."   ({1} {2} in a translation = other word order)
+  for (const [re, val] of TEMPLATES) {
+    const mm = core.match(re);
+    if (mm) { let i = 0; const out = val[IDX[lang]].replace(/\{(\d?)\}/g, (_, n) => { const k = n ? +n : ++i; return mm[k] !== undefined ? mm[k] : ""; }); return pre + out + post; }
+  }
   for (const p of PREFIXES) {
     if (core === p || core.startsWith(p + " ")) { const t = look(p, lang); if (t) return pre + t + core.slice(p.length) + post; }
   }
@@ -2824,6 +3620,65 @@ function translate(text, lang) {
   return text;
 }
 /* </i18npure> */
+
+/* ---------- text people type (task titles ...) : free automatic translation ----------
+   1st: Google's free web endpoint, 2nd: MyMemory (free). Results are kept on the phone so each text is translated once.
+   If both are unreachable the original text is shown, nothing breaks. */
+const MT_KEY = "pi_mt";
+let MT = {};
+try { MT = JSON.parse(localStorage.getItem(MT_KEY) || "{}") || {}; } catch (e) { MT = {}; }
+function mtSave() {
+  try {
+    const keys = Object.keys(MT);
+    if (keys.length > 600) keys.slice(0, keys.length - 500).forEach((k) => delete MT[k]);
+    localStorage.setItem(MT_KEY, JSON.stringify(MT));
+  } catch (e) {}
+}
+const escH = (v) => String(v === null || v === undefined ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const looksDeva = (t) => /[ऀ-ॿ]/.test(t);
+async function getJSON(url, ms) {
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = setTimeout(() => ac && ac.abort(), ms);
+  try { const r = await fetch(url, ac ? { signal: ac.signal } : {}); if (!r.ok) throw new Error("HTTP " + r.status); return await r.json(); }
+  finally { clearTimeout(timer); }
+}
+const inflight = {};
+export function machineTranslate(text, target) {
+  text = String(text || "").trim();
+  if (!text || !/[A-Za-zऀ-ॿ]/.test(text)) return Promise.resolve(text);
+  if (target === "en" && !/[^\x00-\x7F]/.test(text)) return Promise.resolve(text); // already English
+  const key = target + "|" + text;
+  if (MT[key] !== undefined) return Promise.resolve(MT[key]);
+  if (inflight[key]) return inflight[key];
+  return (inflight[key] = (async () => {
+    let out = null;
+    try {
+      const j = await getJSON("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + target + "&dt=t&q=" + encodeURIComponent(text), 6000);
+      if (Array.isArray(j) && Array.isArray(j[0])) out = j[0].map((x) => (x && x[0]) || "").join("").trim() || null;
+    } catch (e) {}
+    if (!out) {
+      try {
+        const src = looksDeva(text) ? "hi" : "en";
+        if (src === target) out = text;
+        else {
+          const j = await getJSON("https://api.mymemory.translated.net/get?q=" + encodeURIComponent(text.slice(0, 480)) + "&langpair=" + src + "|" + target, 6000);
+          const t = j && j.responseData && j.responseData.translatedText;
+          if (t && Number(j.responseStatus) === 200 && !/MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(t)) out = t.trim();
+        }
+      } catch (e) {}
+    }
+    delete inflight[key];
+    if (out) { MT[key] = out; mtSave(); return out; }
+    return text; // could not translate: keep the original
+  })());
+}
+// translate once into all three languages (used when a task is saved, so others see it at once). Never waits more than ~5 s.
+export async function translateAll(text) {
+  const res = {};
+  const job = Promise.all(["en", "hi", "mr"].map(async (l) => { const v = await machineTranslate(text, l); if (v) res[l] = v; }));
+  await Promise.race([job, new Promise((r) => setTimeout(r, 5000))]);
+  return { ...res };
+}
 
 export function initI18n({ db, doc, getDoc, setDoc }) {
   const LS = "pi_lang";
@@ -2841,7 +3696,8 @@ export function initI18n({ db, doc, getDoc, setDoc }) {
     if (out !== cur) n.nodeValue = out;
   }
   function doAttrs(el) {
-    if (!el.getAttribute || skip(el)) return;
+    // a text box itself is never changed, but its hint (placeholder) is translated
+    if (!el.getAttribute || (el.tagName === "TEXTAREA" ? skip(el.parentElement) : skip(el))) return;
     for (const a of ["placeholder", "title"]) {
       if (!el.hasAttribute(a)) continue;
       const cur = el.getAttribute(a);
@@ -2851,10 +3707,34 @@ export function initI18n({ db, doc, getDoc, setDoc }) {
       if (out !== cur) el.setAttribute(a, out);
     }
   }
+  // typed text: <span class="utr notr" data-src="original" data-tr='{"hi":"..."}'>  -> shown in the reader's language
+  function doUtr(el) {
+    const src = el.getAttribute("data-src") || "";
+    if (el.__orig) { if (el.textContent !== src) el.textContent = src; return; }
+    let tr = {};
+    try { tr = JSON.parse(el.getAttribute("data-tr") || "{}") || {}; } catch (e) {}
+    const want = lang;
+    const show = (v) => {
+      if (!el.isConnected && el.__seen) return;
+      el.__seen = true;
+      if (el.textContent !== v) el.textContent = v;
+      const changed = v.trim() !== src.trim();
+      el.classList.toggle("utr-on", changed);
+      if (changed) el.title = src; else el.removeAttribute("title");
+    };
+    if (tr[want]) return show(tr[want]);
+    show(src);
+    machineTranslate(src, want).then((v) => { if (lang === want && !el.__orig && v) show(v); });
+  }
+  function walkUtr(root) {
+    if (root.classList && root.classList.contains("utr")) doUtr(root);
+    if (root.querySelectorAll) root.querySelectorAll(".utr").forEach(doUtr);
+  }
   function walk(root) {
     if (!root) return;
     if (root.nodeType === 3) return doText(root);
     if (root.nodeType !== 1) return;
+    walkUtr(root);
     doAttrs(root);
     const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
     let n;
@@ -2874,7 +3754,7 @@ export function initI18n({ db, doc, getDoc, setDoc }) {
     obs.disconnect();
     walk(document.body); // translate (or restore English) everything already on screen
     document.title = translate(titleEn, lang);
-    if (lang !== "en") obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["placeholder", "title"] });
+    obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["placeholder", "title"] });
     const pick = document.getElementById("langPick");
     if (pick && pick.value !== lang) pick.value = lang;
   }
@@ -2903,6 +3783,24 @@ export function initI18n({ db, doc, getDoc, setDoc }) {
   document.body.appendChild(box);
   box.querySelector("select").addEventListener("change", (e) => choose(e.target.value));
   apply(devLang());
-  window.I18N = { choose, onUser, current: () => lang, t: (s) => translate(s, lang) };
-  return { onUser, choose };
+  // the browser's own yes/no and question boxes are translated too (line by line)
+  const tLines = (m) => String(m === null || m === undefined ? "" : m).split("\n").map((x) => translate(x, lang)).join("\n");
+  try {
+    const _c = window.confirm.bind(window), _p = window.prompt.bind(window), _a = window.alert.bind(window);
+    window.confirm = (m) => _c(tLines(m));
+    window.prompt = (m, d) => _p(tLines(m), d);
+    window.alert = (m) => _a(tLines(m));
+  } catch (e) {}
+  // tap a translated text to see what was typed originally (tap again to go back)
+  document.addEventListener("click", (e) => {
+    const el = e.target && e.target.closest ? e.target.closest(".utr") : null;
+    if (!el || (!el.classList.contains("utr-on") && !el.__orig)) return;
+    el.__orig = !el.__orig;
+    el.classList.toggle("utr-orig", el.__orig);
+    doUtr(el);
+  });
+  // HTML for a text someone typed (translations saved with it are used first)
+  const userHTML = (text, tr) => `<span class="utr notr" data-src="${escH(text)}" data-tr="${escH(JSON.stringify(tr || {}))}">${escH(text)}</span>`;
+  window.I18N = { choose, onUser, current: () => lang, t: (s) => translate(s, lang), userHTML, translateAll };
+  return { onUser, choose, userHTML, translateAll, t: (s) => translate(s, lang) };
 }
