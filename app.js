@@ -13,9 +13,9 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261119-1";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261119-1";
-import { initI18n } from "./i18n.js?v=20261119-1";
+import { initSuite } from "./suite.js?v=20261120-1";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261120-1";
+import { initI18n } from "./i18n.js?v=20261120-1";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
@@ -121,15 +121,24 @@ function showOnly(id) {
 
 /* ---------- keep the person signed in to their company after a refresh ---------- */
 const SESSION_KEY = "pi_session";
+// Employees stay signed in on their phone. The owner/admin (and developer) login is kept only while this
+// browser tab is open (a refresh keeps you in); after closing the browser the admin password is asked again.
 function saveSession(extra) {
-  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ uid: currentUser.uid, companyID, role: currentRole, name: displayName, ...extra })); } catch (e) {}
+  try {
+    const data = JSON.stringify({ uid: currentUser.uid, companyID, role: currentRole, name: displayName, ...extra });
+    const strong = currentRole === "ADMIN" || (extra && extra.dev);
+    if (strong) { sessionStorage.setItem(SESSION_KEY, data); localStorage.removeItem(SESSION_KEY); }
+    else { localStorage.setItem(SESSION_KEY, data); sessionStorage.removeItem(SESSION_KEY); }
+  } catch (e) {}
 }
 function clearSession() {
-  try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem("pi_page"); } catch (e) {}
+  try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); sessionStorage.removeItem("pi_page"); } catch (e) {}
 }
 async function restoreSession(user) {
   let s = null;
-  try { s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
+  try { s = JSON.parse(sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY) || "null"); } catch (e) {}
+  // an old saved owner login (from before this update) is not used: the password must be entered again
+  if (s && (s.role === "ADMIN" || s.dev) && !sessionStorage.getItem(SESSION_KEY)) { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} return false; }
   if (!s || s.uid !== user.uid) return false;
   try {
     loading(true);
@@ -487,6 +496,13 @@ window.adminLogin = async function () {
       toast("Company upgraded to the secure format. Employees must join again with the join code.");
     } else {
       const hash = await codeHash(id, "admin", password);
+      // The password must match EXACTLY (capital letters, @ # and other symbols all count).
+      // An account that is already admin/owner can read the stored hash: compare it here first,
+      // so a wrong password never opens the dashboard.
+      let stored = null;
+      try { const sec = await getDoc(doc(db, "companies", id, "private", "access")); if (sec.exists()) stored = sec.data().adminPassHash || null; }
+      catch (e) { stored = null; } // not readable yet (new admin): the database rule below decides
+      if (stored !== null && stored !== hash) return toast("Wrong Password");
       try {
         // the Firestore rules accept this write ONLY if the hash matches the stored admin password
         await setDoc(doc(db, "companies", id, "members", currentUser.uid),

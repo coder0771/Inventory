@@ -58,11 +58,16 @@ service cloud.firestore {
     }
 
     // claiming a flag needs proof: already had it, or the right code hash
+    // Becoming admin needs the EXACT admin password every time - also for the owner's own account
+    // and for an account that was admin before. (The app stores only a hash of the password.)
+    // A write that leaves an existing admin record's password proof unchanged (for example joining
+    // as employee on the same account) is still allowed.
     function adminClaimOk(cid) {
       return request.resource.data.get('admin', false) != true
-        || (resource != null && resource.data.get('admin', false) == true)
-        || isOwner(cid)
-        || request.resource.data.get('adminCode', '') == get(secretPath(cid)).data.adminPassHash;
+        || request.resource.data.get('adminCode', '') == get(secretPath(cid)).data.adminPassHash
+        || (resource != null
+            && resource.data.get('admin', false) == true
+            && request.resource.data.get('adminCode', '') == resource.data.get('adminCode', ''));
     }
     function employeeClaimOk(cid) {
       return request.resource.data.get('employee', false) != true
