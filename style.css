@@ -425,3 +425,21 @@ a.lnk { display: inline-block; text-decoration: none; padding: 6px 12px; border-
   border-radius: 99px; padding: 3px 4px 3px 10px; color: var(--neon); box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
 .lang-box select { margin: 0; padding: 5px 8px; border-radius: 99px; border: none; background: #1a1a1a; color: var(--neon); font-weight: bold; font-size: 0.9em; cursor: pointer; }
 html[lang="hi"] body, html[lang="mr"] body { font-family: 'Noto Sans Devanagari', 'Mangal', 'Segoe UI', system-ui, -apple-system, sans-serif; }
+
+/* --- Attendance In / Out --- */
+.att-out-btn { background: #ff9f1c; color: #000; }
+.att-out-btn:hover { background: #f08c00; }
+.att-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.att-tag.att-in { background: #d6f5d6; color: #146c14; }
+.att-tag.att-out { background: #ffe8cc; color: #a34d00; }
+.att-worked { font-size: 11px; color: #666; margin-top: 2px; }
+
+/* --- employees giving tasks --- */
+.give-btn { background: #6f42c1 !important; margin-bottom: 6px; }
+.task-card.given { border-left: 6px solid #6f42c1; }
+
+/* --- text typed by people, shown translated (tap to see the original) --- */
+.utr.utr-on { cursor: pointer; }
+.utr.utr-on::after { content: " 🌐"; font-size: 0.75em; opacity: 0.6; }
+.utr.utr-orig { cursor: pointer; font-style: italic; }
+.utr.utr-orig::after { content: " ↩"; font-size: 0.75em; opacity: 0.6; }

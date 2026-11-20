@@ -1,0 +1,365 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function companyPath(cid) {
+      return /databases/$(database)/documents/companies/$(cid);
+    }
+    function memberPath(cid, uid) {
+      return /databases/$(database)/documents/companies/$(cid)/members/$(uid);
+    }
+    function secretPath(cid) {
+      return /databases/$(database)/documents/companies/$(cid)/private/access;
+    }
+    function devConfigPath() {
+      return /databases/$(database)/documents/appConfig/developer;
+    }
+
+    // developer = an account that proved the developer secrets (proof matches appConfig/developer)
+    function isDeveloper() {
+      return signedIn() && exists(/databases/$(database)/documents/developers/$(request.auth.uid));
+    }
+
+    // creator of the company
+    function isOwner(cid) {
+      return signedIn()
+        && exists(companyPath(cid))
+        && (
+          get(companyPath(cid)).data.get('ownerUid', '') == request.auth.uid
+          || get(companyPath(cid)).data.get('adminUID', '') == request.auth.uid
+        );
+    }
+
+    // One membership document per Google account, holding two independent flags:
+    //   admin: true      -> may act as owner/admin
+    //   employee: true   -> may act as employee
+    // so the SAME account can be both.
+    function hasMember(cid) {
+      return signedIn() && exists(memberPath(cid, request.auth.uid));
+    }
+    function isAdmin(cid) {
+      return hasMember(cid) && get(memberPath(cid, request.auth.uid)).data.get('admin', false) == true;
+    }
+    function isEmployee(cid) {
+      return hasMember(cid) && get(memberPath(cid, request.auth.uid)).data.get('employee', false) == true;
+    }
+    function isMember(cid) {
+      return isAdmin(cid) || isEmployee(cid);
+    }
+
+    // true when only the listed top-level fields were changed
+    function changesOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // claiming a flag needs proof: already had it, or the right code hash
+    function adminClaimOk(cid) {
+      return request.resource.data.get('admin', false) != true
+        || (resource != null && resource.data.get('admin', false) == true)
+        || isOwner(cid)
+        || request.resource.data.get('adminCode', '') == get(secretPath(cid)).data.adminPassHash;
+    }
+    function employeeClaimOk(cid) {
+      return request.resource.data.get('employee', false) != true
+        || (resource != null && resource.data.get('employee', false) == true)
+        || request.resource.data.get('joinCode', '') == get(secretPath(cid)).data.joinCodeHash;
+    }
+
+    // task is meant for everyone ("ALL") or for this user only
+    function canSeeTask() {
+      return 'ALL' in resource.data.visibleTo || request.auth.uid in resource.data.visibleTo;
+    }
+
+    // an employee may only submit THEIR OWN completion on a task they are allowed to do
+    function employeeCompletes() {
+      return canSeeTask()
+        && (resource.data.scope == 'ALL' || request.auth.uid in resource.data.assignees)
+        && changesOnly(['completions'])
+        && request.resource.data.completions.diff(resource.data.completions).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.completions[request.auth.uid].status == 'SUBMITTED'
+        // the employee who GAVE a task cannot complete it himself
+        && !(resource.data.get('byEmployee', false) == true && resource.data.createdBy == request.auth.uid);
+    }
+
+    // an employee gives a task to everyone or to one other employee: always visible to everyone,
+    // nothing completed yet, and he is not one of the people doing it
+    function employeeGivesTask() {
+      return request.resource.data.byEmployee == true
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.visibleTo == ['ALL']
+        && request.resource.data.scope in ['ALL', 'SINGLE']
+        && request.resource.data.completions.size() == 0
+        && request.resource.data.extensions.size() == 0
+        && !(request.auth.uid in request.resource.data.assignees)
+        && request.resource.data.keys().hasOnly(['title', 'tr', 'scope', 'privacy', 'visibleTo', 'assignees', 'completions',
+             'extensions', 'startAt', 'endAt', 'createdAt', 'createdBy', 'createdByName', 'byEmployee']);
+    }
+
+    // ---------- developer access ----------
+    // Setup (once, in the Firebase console): create document  appConfig/developer
+    // with a string field  proofHash  (value given with the app). Nobody can read it from the app.
+    match /appConfig/{docId} {
+      allow read, write: if false;
+    }
+    match /developers/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.proof is string
+        && request.resource.data.proof == get(devConfigPath()).data.proofHash;
+      allow list, delete: if false;
+    }
+
+    // ---------- each person's own settings (their language): only they can read or change them ----------
+    match /userPrefs/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ---------- company directory: find a company by name, never list ----------
+    match /companyDirectory/{companyKey} {
+      allow get: if signedIn();
+      allow list: if false;
+      // creating a company claims its name first (owner), renaming is done by an admin of that company
+      allow create: if signedIn()
+        && request.resource.data.companyId is string
+        && request.resource.data.companyName is string
+        && (request.resource.data.ownerUid == request.auth.uid || isAdmin(request.resource.data.companyId));
+      allow update: if signedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin(resource.data.companyId));
+      allow delete: if isDeveloper() || (signedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin(resource.data.companyId)));
+    }
+
+    // ---------- company ----------
+    match /companies/{cid} {
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.companyName is string;
+
+      allow get: if isOwner(cid) || isMember(cid) || isDeveloper();
+
+      // creator of an OLD company finds it once to upgrade it (query must filter by adminUID);
+      // developer can list every company
+      allow list: if isDeveloper()
+        || (signedIn()
+            && (resource.data.get('adminUID', '') == request.auth.uid
+                || resource.data.get('ownerUid', '') == request.auth.uid));
+
+      // owner can change anything; other admins the radius settings and the company name
+      allow update: if isOwner(cid)
+        || (isAdmin(cid) && changesOnly(['geo', 'shopGeo', 'companyName', 'companyNameLower']));
+      allow delete: if isOwner(cid) || isDeveloper();
+
+      // ----- secrets: admin password hash + join code hash (owner only) -----
+      match /private/{secretId} {
+        allow read, write: if isOwner(cid) || isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+
+      // ----- members: decides who is admin / employee -----
+      match /members/{uid} {
+        allow get: if (signedIn() && request.auth.uid == uid) || isDeveloper();
+        allow list: if isDeveloper();
+
+        // a user writes THEIR OWN membership, and can only switch a flag on by proving the code
+        allow create, update: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && adminClaimOk(cid)
+          && employeeClaimOk(cid);
+
+        // an admin can remove someone's EMPLOYEE access (nothing else about their record)
+        allow update: if isAdmin(cid)
+          && request.auth.uid != uid
+          && changesOnly(['employee'])
+          && request.resource.data.employee == false;
+
+        // owner / developer can delete any record; an admin can delete a NON-admin record (or a missing one)
+        allow delete: if isOwner(cid) || isDeveloper()
+          || (isAdmin(cid) && (resource == null || resource.data.get('admin', false) != true));
+      }
+
+      // ----- staff roster -----
+      match /staff/{uid} {
+        allow read: if isAdmin(cid) || isDeveloper() || (signedIn() && request.auth.uid == uid);
+        allow create, update: if isEmployee(cid)
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid;
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // ----- inventory -----
+      match /inventory/{itemId} {
+        allow read, create: if isMember(cid);
+        allow update: if isAdmin(cid)
+          || (isMember(cid)
+              && changesOnly(['qty', 'hold', 'broken'])
+              && request.resource.data.qty is number
+              && request.resource.data.hold is number
+              && request.resource.data.get('broken', 0) is number
+              && request.resource.data.qty >= 0
+              && request.resource.data.hold >= 0
+              && request.resource.data.get('broken', 0) >= 0);
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // ----- audit history: everyone writes, only admins read -----
+      match /history/{historyId} {
+        allow read: if isAdmin(cid);
+        allow create: if isMember(cid);
+        allow delete: if isDeveloper();
+      }
+
+      // ----- attendance -----
+      // One record per employee per day: the id must be  <uid>_<date>.  There is no update rule,
+      // so writing the same id a second time (marking again the same day) is refused by the server.
+      match /attendance/{attendanceId} {
+        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.uid == request.auth.uid);
+        allow create: if isMember(cid)
+          && request.resource.data.uid == request.auth.uid
+          && attendanceId.matches(request.auth.uid + '_.*')
+          // Attendance Out (id ends with _out) is allowed only after that day's Attendance In exists
+          && (!attendanceId.matches('.*_out$')
+              || (request.resource.data.type == 'OUT'
+                  && exists(/databases/$(database)/documents/companies/$(cid)/attendance/$(attendanceId.replace('_out$', '')))));
+        allow delete: if isDeveloper();
+      }
+
+      // ----- extra geo-fence places for attendance -----
+      match /places/{placeId} {
+        allow read: if isMember(cid);
+        allow write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+
+      // ----- movement log -----
+      match /movements/{movementId} {
+        allow read: if isAdmin(cid);
+        allow create: if isMember(cid) && request.resource.data.uid == request.auth.uid;
+        allow delete: if isDeveloper();
+      }
+
+      // ----- owner's private notes -----
+      match /adminTasks/{noteId} {
+        allow read, write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+
+      // ----- assigned tasks -----
+      match /tasks/{taskId} {
+        allow read: if isAdmin(cid) || (isMember(cid) && canSeeTask());
+        allow create, delete: if isAdmin(cid);
+        allow delete: if isDeveloper();
+        allow update: if isAdmin(cid) || (isMember(cid) && employeeCompletes());
+        // employees giving tasks to each other (the owner still approves the work)
+        allow create: if isEmployee(cid) && employeeGivesTask();
+        allow delete: if isEmployee(cid) && resource.data.get('byEmployee', false) == true && resource.data.createdBy == request.auth.uid;
+      }
+
+      // ----- names of the employees (no emails), so employees can choose who gets a task -----
+      match /team/{uid} {
+        allow read: if isMember(cid);
+        allow create, update: if (isAdmin(cid) || (isEmployee(cid) && request.auth.uid == uid))
+          && request.resource.data.uid == uid
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'updatedAt']);
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // =============== BUSINESS SUITE ===============
+      // CRM leads: admin full access; an employee sees / updates only leads assigned to them
+      match /leads/{leadId} {
+        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.assignedTo == request.auth.uid);
+        allow create: if isAdmin(cid);
+        allow update: if isAdmin(cid)
+          || (isMember(cid) && resource.data.assignedTo == request.auth.uid
+              && changesOnly(['stage', 'notes', 'updatedAt', 'wonAt']));
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // Support tickets: same idea (employees can change status and add notes on their own tickets)
+      match /tickets/{ticketId} {
+        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.assignedTo == request.auth.uid);
+        allow create: if isAdmin(cid);
+        allow update: if isAdmin(cid)
+          || (isMember(cid) && resource.data.assignedTo == request.auth.uid
+              && changesOnly(['status', 'history', 'updatedAt', 'resolvedAt']));
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // Quotations / invoices, hiring, salaries, automation rules, content plan, number counters: admin only
+      match /docs/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
+      match /candidates/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
+      match /salaries/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
+      match /rules/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
+      match /posts/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
+      match /counters/{id} { allow read, write: if isAdmin(cid) || (isMember(cid) && id == 'enquiry'); allow delete: if isDeveloper(); }
+
+      // Enquiries (estimate memo): an employee sees / writes only their own; the admin sees everything and decides
+      match /enquiries/{id} {
+        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.createdBy == request.auth.uid);
+        allow create: if isMember(cid)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'PENDING';
+        // an employee can still complete THEIR OWN enquiry while it is waiting (not the decision / quotation fields)
+        allow update: if isAdmin(cid)
+          || (isMember(cid) && resource.data.createdBy == request.auth.uid && resource.data.status == 'PENDING'
+              && changesOnly(['cName', 'cPhone', 'cAddress', 'date', 'time', 'mistriName', 'mistriPhone', 'artName', 'artPhone', 'salesman', 'items', 'note', 'updatedAt',
+                              'welcomeSentAt', 'followUps', 'lastContactAt']));
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // links, photos and message texts for customer messages: everyone reads, admin edits
+      match /brand/{id} {
+        allow read: if isMember(cid);
+        allow write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+      // AI key for reading memo photos: readable by the company's own members (so employees can scan), set by the admin
+      match /aiConfig/{id} {
+        allow read: if isMember(cid);
+        allow write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+      // large stock item photos (the small one is kept on the item itself)
+      match /itemPhotos/{itemId} {
+        allow read: if isMember(cid);
+        allow create: if isMember(cid);
+        allow update, delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // WhatsApp message templates: everyone reads, admin edits
+      match /templates/{id} {
+        allow read: if isMember(cid);
+        allow write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+
+      // Call log: anyone logs their own calls, admin reads all
+      match /calls/{id} {
+        allow read: if isAdmin(cid);
+        allow create: if isMember(cid) && request.resource.data.by == request.auth.uid;
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // Leave requests: an employee creates their own (always PENDING) and reads their own; admin decides
+      match /leaves/{id} {
+        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.uid == request.auth.uid);
+        allow create: if isMember(cid)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.status == 'PENDING';
+        allow update, delete: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+
+      // Payslips: admin manages, an employee reads their own
+      match /payslips/{id} {
+        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.uid == request.auth.uid);
+        allow write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+    }
+  }
+}

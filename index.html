@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pro Inventory - Live Workspace</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261119-1">
 </head>
 <body>
 
@@ -55,7 +55,7 @@
     <h2>Setup New Company</h2>
     <input id="companyName" placeholder="Company Name" style="width:90%">
     <input id="adminPassword" type="password" placeholder="Set Admin Password" style="width:90%">
-    <input id="joinCode" placeholder="Set Employee Join Code" style="width:90%">
+    <input id="joinCode" placeholder="Set Employee Join Code" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:90%">
     <button class="auth-btn" onclick="createCompany()" style="width:90%; margin-top:10px;">Initialize Company</button>
     <br><button onclick="backToAdminChoice()" style="color:#666; background:none; text-decoration:underline;">Back</button>
 </div>
@@ -63,7 +63,7 @@
 <!-- EXISTING COMPANY: NAME -->
 <div id="companyLoginPage" class="auth-box hidden">
     <h2>Enter Company Name</h2>
-    <input id="loginCompany" placeholder="Company Name" style="width:90%">
+    <input id="loginCompany" placeholder="Company Name" autocorrect="off" autocomplete="off" spellcheck="false" style="width:90%">
     <button class="auth-btn" onclick="findCompany()" style="width:90%; margin-top:10px;">Next</button>
     <br><button onclick="backToAdminChoice()" style="color:#666; background:none; text-decoration:underline;">Back</button>
 </div>
@@ -81,8 +81,8 @@
 <div id="employeePage" class="auth-box hidden">
     <h2>Employee Join</h2>
     <input id="employeeName" placeholder="Your Name" style="width:90%">
-    <input id="employeeCompanyName" placeholder="Company Name" style="width:90%">
-    <input id="employeeJoinCode" placeholder="Company Join Code" style="width:90%">
+    <input id="employeeCompanyName" placeholder="Company Name" autocorrect="off" autocomplete="off" spellcheck="false" style="width:90%">
+    <input id="employeeJoinCode" placeholder="Company Join Code" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:90%">
     <button class="auth-btn" onclick="employeeLogin()" style="width:90%; margin-top:10px;">Join Dashboard</button>
     <br><button onclick="backToRole()" style="color:#666; background:none; text-decoration:underline;">Back</button>
 </div>
@@ -121,7 +121,8 @@
             <button id="historyBtn" class="auth-btn hidden" onclick="showHistoryModal()" style="background:#17a2b8;">📜 Audit History</button>
             <button id="movementBtn" class="auth-btn hidden" onclick="showMovementModal()" style="background:#c0392b;">🚶 Movement Log <span id="moveBadge" class="badge-low hidden">0</span></button>
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
-            <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Mark Attendance</button>
+            <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Attendance In</button>
+            <button id="markOutBtn" class="att-btn att-out-btn hidden" onclick="markAttendanceOut()">🚪 Attendance Out</button>
             <button id="enquiryBtn" class="auth-btn" onclick="EQ.open()" style="background:#c0392b;">📝 Enquiry <span id="eqBadge" class="badge-low hidden">0</span></button>
             <button id="settingsBtn" class="auth-btn hidden" onclick="showSettingsModal()" style="background:#6c757d;">⚙ Settings</button>
             <button id="placesBtn" class="auth-btn hidden" onclick="showPlacesModal()" style="background:#16a085;">📍 Geo-Fence</button>
@@ -215,10 +216,12 @@
 <div id="attendanceModal" class="modal-overlay">
     <div class="modal-content">
         <h3>Staff Attendance Log</h3>
-        <table style="width:100%; color:#333;">
-            <thead><tr><th>Employee</th><th>Time</th><th>Distance</th></tr></thead>
+        <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+        <table style="width:100%; color:#333; font-size:14px;">
+            <thead><tr><th>Employee</th><th>In / Out</th><th>Time</th><th>Distance</th></tr></thead>
             <tbody id="attendanceBody"></tbody>
         </table>
+        </div>
         <br><button onclick="closeAttendanceModal()" class="auth-btn" style="width:100%">Close</button>
     </div>
 </div>
@@ -227,7 +230,7 @@
 <div id="placesModal" class="modal-overlay">
     <div class="modal-content" style="width:700px; text-align:left;">
         <h3>📍 Shop Radius Places</h3>
-        <p class="hint">Add more places for the <b>shop radius</b> (for example a second shop or a warehouse). Employees are tracked against the main shop radius on the dashboard <b>and</b> these places: you get an alert only when an employee is outside all of them. Attendance still uses the main Geo-Fence on the dashboard.</p>
+        <p class="hint">Add more places for the shop radius (for example a second shop or a warehouse). Employees are tracked against the main shop radius on the dashboard and these places: you get an alert only when an employee is outside all of them. Attendance still uses the main Geo-Fence on the dashboard.</p>
         <input id="placeName" placeholder="Name of the place (e.g. Warehouse)" style="width:95%">
         <div style="display:flex; flex-wrap:wrap; gap:6px;">
             <input id="placeLat" type="number" step="any" placeholder="Latitude">
@@ -477,7 +480,7 @@
 
         <h4 class="task-sec">Employee join code</h4>
         <p style="margin:4px 0">Current code: <b id="setJoinNow">...</b></p>
-        <input id="setJoin" placeholder="New join code (at least 4 characters)" autocomplete="off" style="width:95%">
+        <input id="setJoin" placeholder="New join code (at least 4 characters)" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:95%">
         <button class="btn-primary btn-sm" onclick="changeJoinCode()">Change join code</button>
 
         <h4 class="task-sec">Customer messages and photo scan</h4>
@@ -554,6 +557,6 @@
 <div id="loadingOverlay" class="hidden">Loading...</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=20261119-1"></script>
 </body>
 </html>
