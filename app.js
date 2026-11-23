@@ -13,18 +13,18 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261120-1";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261120-1";
-import { initI18n } from "./i18n.js?v=20261120-1";
+import { initSuite } from "./suite.js?v=20261123-1";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261123-1";
+import { initI18n } from "./i18n.js?v=20261123-1";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDOftyWbEg1H4bkrPpHd_fE5ymQNpSK6LU",
-  authDomain: "inventory-app-ad3c6.firebaseapp.com",
-  projectId: "inventory-app-ad3c6",
-  storageBucket: "inventory-app-ad3c6.firebasestorage.app",
-  messagingSenderId: "150702776400",
-  appId: "1:150702776400:web:b492e1e811e14c80063155",
-  measurementId: "G-4D6KQBVWLR"
+  apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
+  authDomain: "inventory-8c5ff.firebaseapp.com",
+  projectId: "inventory-8c5ff",
+  storageBucket: "inventory-8c5ff.firebasestorage.app",
+  messagingSenderId: "728144406049",
+  appId: "1:728144406049:web:623f346cb4a9a6416a2560",
+  measurementId: "G-XXEXPLW49R"
 };
 
 const app = initializeApp(firebaseConfig);
