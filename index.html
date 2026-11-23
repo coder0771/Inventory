@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pro Inventory - Live Workspace</title>
-<link rel="stylesheet" href="style.css?v=20261123-3">
+<link rel="stylesheet" href="style.css?v=20261123-5">
 </head>
 <body>
 
@@ -123,6 +123,7 @@
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
             <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Attendance In</button>
             <button id="markOutBtn" class="att-btn att-out-btn hidden" onclick="markAttendanceOut()">🚪 Attendance Out</button>
+            <button id="noteBtn" class="auth-btn hidden" onclick="SH.openNotes()" style="background:#b8860b;">🔔 Notifications <span id="noteBadge" class="badge-low hidden">0</span></button>
             <button id="shopBtn" class="auth-btn hidden" onclick="SH.open()" style="background:#0e7490;">📊 Shop Reports</button>
             <button id="tileBtn" class="auth-btn" onclick="SH.openCalc()" style="background:#0e7490;">🧮 Tile Calculator</button>
             <button id="enquiryBtn" class="auth-btn" onclick="EQ.open()" style="background:#c0392b;">📝 Enquiry <span id="eqBadge" class="badge-low hidden">0</span></button>
@@ -344,6 +345,28 @@
             </div>
             <datalist id="godownList"></datalist>
         </div>
+        <details id="shadeMgr" class="more-details">
+            <summary>🎨 Shades and their photos: <span id="shadeCount">0</span></summary>
+            <div id="shadeList"></div>
+            <div class="shade-add">
+                <b>➕ Add a new shade</b>
+                <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:center; margin-top:6px">
+                    <input id="newShadeName" class="modal-nav" placeholder="Shade (e.g. A, Light)" style="width:29%">
+                    <input id="newShadeBatch" class="modal-nav" placeholder="Batch / lot no." style="width:29%">
+                    <input id="newShadeGodown" class="modal-nav" list="godownList" placeholder="Godown" style="width:29%">
+                </div>
+                <div class="photo-row">
+                    <img id="newShadePreview" alt="" class="photo-thumb hidden" style="width:56px;height:56px">
+                    <button id="newShadePhotoClear" class="bin btn-sm hidden" onclick="clearNewShadePhoto()">✖</button>
+                    <button class="modal-nav btn-sm" style="background:#8e44ad" onclick="document.getElementById('newShadeCam').click()">📷 Take photo</button>
+                    <button class="modal-nav btn-sm" style="background:#6f42c1" onclick="document.getElementById('newShadeFile').click()">🖼 Upload photo</button>
+                    <input id="newShadeCam" type="file" accept="image/*" capture="environment" hidden onchange="pickNewShadePhoto(this)">
+                    <input id="newShadeFile" type="file" accept="image/*" hidden onchange="pickNewShadePhoto(this)">
+                    <input id="shadePhotoFile" type="file" accept="image/*" hidden onchange="setShadePhoto(this)">
+                </div>
+                <button class="modal-nav" onclick="addShade()" style="background:#28a745; width:93%">➕ Add shade</button>
+            </div>
+        </details>
         <input id="transactionQty" class="modal-nav" type="number" min="0" placeholder="Amount..." style="width:90%; text-align:center; font-size:1.2em; border:2px solid #222;">
         <p style="font-size:0.75em; color:#666; margin:4px 0 10px;">Release / Final Out: leave the amount empty to use the full hold.</p>
 
@@ -398,6 +421,15 @@
         <h3 style="text-align:center">🧮 Tile Calculator</h3>
         <div id="tileBody"></div>
         <br><button onclick="SH.closeCalc()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- 🔔 NOTIFICATIONS (owner) -->
+<div id="noteModal" class="modal-overlay" style="z-index:2120">
+    <div class="modal-content" style="width:760px; text-align:left;">
+        <h3 style="text-align:center">🔔 Notifications</h3>
+        <div id="noteBody"></div>
+        <br><button onclick="SH.closeNotes()" class="auth-btn" style="width:100%">Close</button>
     </div>
 </div>
 
@@ -605,6 +637,6 @@
 <div id="loadingOverlay" class="hidden">Loading...</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20261123-3"></script>
+<script type="module" src="app.js?v=20261123-5"></script>
 </body>
 </html>

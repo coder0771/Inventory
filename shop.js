@@ -174,6 +174,7 @@ export function initShop(ctx) {
   const waOpen = (phone, text) => window.open(`https://wa.me/${waDigits(phone)}?text=${encodeURIComponent(text)}`, "_blank");
   const startOfDay = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
   const metaId = (k) => String(k).replace(/\//g, "_");
+  const errText = (e) => (e && e.code === "permission-denied" ? "The owner must publish the latest firestore.rules in Firebase first" : (e && e.message) || String(e));
 
   let settings = { ...SHOP_DEFAULTS };
   let credits = [], creditMeta = {};
@@ -186,13 +187,16 @@ export function initShop(ctx) {
   function start() {
     unsub.forEach((f) => { try { f(); } catch (e) {} });
     unsub = [];
-    settings = { ...SHOP_DEFAULTS }; credits = []; creditMeta = {};
+    settings = { ...SHOP_DEFAULTS }; credits = []; creditMeta = {}; notes = []; recentEnq = [];
+    if ($("noteBody")) $("noteBody").dataset.seen = "";
     V.dayData = null; V.hoursData = null;
     const keep = (f) => { unsub.push(f); ctx.addUnsub(f); };
     keep(onSnapshot(D("settings", "shop"), (s) => { settings = { ...SHOP_DEFAULTS, ...(s.exists() ? s.data() : {}) }; render(); }, (e) => console.warn("Shop settings", e)));
     if (isAdmin()) {
-      keep(onSnapshot(C("credit"), (snap) => { credits = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); }, (e) => console.warn("Credit ledger", e)));
-      keep(onSnapshot(C("creditMeta"), (snap) => { creditMeta = {}; snap.docs.forEach((d) => (creditMeta[d.id] = d.data())); render(); }, (e) => console.warn("Credit reminders", e)));
+      keep(onSnapshot(C("credit"), (snap) => { credits = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); bump(); }, (e) => console.warn("Credit ledger", e)));
+      keep(onSnapshot(C("creditMeta"), (snap) => { creditMeta = {}; snap.docs.forEach((d) => (creditMeta[d.id] = d.data())); render(); bump(); }, (e) => console.warn("Credit reminders", e)));
+      keep(onSnapshot(query(C("notifications"), where("at", ">=", new Date(Date.now() - 30 * DAY))), (snap) => { notes = snap.docs.map((d) => ({ id: d.id, ...d.data() })); bump(); }, (e) => console.warn("Notifications", e)));
+      keep(onSnapshot(query(C("enquiries"), where("createdAt", ">=", new Date(Date.now() - 30 * DAY))), (snap) => { recentEnq = snap.docs.map((d) => ({ id: d.id, ...d.data() })); bump(); }, (e) => console.warn("Enquiries for notifications", e)));
       const h = setInterval(tick, 60000);
       keep(() => clearInterval(h));
       setTimeout(tick, 8000);
@@ -203,6 +207,7 @@ export function initShop(ctx) {
   /* ---------------- owner reminders while the app is open ---------------- */
   function tick() {
     if (!isAdmin()) return;
+    updateBell();
     const now = Date.now(), today = dayKey(now), cid = st().companyID;
     const flag = (k) => { try { const key = "pi_shop_" + cid + "_" + k; if (localStorage.getItem(key) === today) return false; localStorage.setItem(key, today); return true; } catch (e) { return false; } };
     const close = hm(settings.closingTime), d = new Date(now);
@@ -508,7 +513,7 @@ export function initShop(ctx) {
         v[f.k] = x;
       }
       try { loading(true); await onSave(v); editing = false; render(true); }
-      catch (e) { console.error(e); toast(e.message); }
+      catch (e) { console.error(e); toast(errText(e)); }
       finally { loading(false); }
     };
   }
@@ -566,7 +571,7 @@ export function initShop(ctx) {
   }
   async function cdelEntry(id) {
     if (!(await askConfirm("Delete this entry?"))) return;
-    try { await deleteDoc(D("credit", id)); toast("Deleted"); } catch (e) { toast(e.message); }
+    try { await deleteDoc(D("credit", id)); toast("Deleted"); } catch (e) { toast(errText(e)); }
   }
 
   /* ---------- 📊 end-of-day report ---------- */
@@ -688,7 +693,14 @@ export function initShop(ctx) {
   function viewSettings() {
     const s = settings;
     editing = true;
-    const f = (k, label, type, extra) => `<label class="task-label">${label}</label><input id="ss_${k}" type="${type || "text"}" value="${esc(s[k] ?? "")}" ${extra || ""} style="width:95%">`;
+    const tsel = (k, label) => {
+      const m = hm(s[k]) ?? 600, H = Math.floor(m / 60), M = m % 60;
+      const mins = [...new Set([...Array.from({ length: 12 }, (_, i) => i * 5), M])].sort((a, b) => a - b);
+      return `<label class="task-label">${label}</label><div class="time-sel"><select id="ss_${k}_h">${Array.from({ length: 24 }, (_, h) =>
+        `<option value="${h}" ${h === H ? "selected" : ""}>${(h % 12 || 12)} ${h < 12 ? "AM" : "PM"}</option>`).join("")}</select> :
+        <select id="ss_${k}_m">${mins.map((x) => `<option value="${x}" ${x === M ? "selected" : ""}>${String(x).padStart(2, "0")}</option>`).join("")}</select></div>`;
+    };
+    const f = (k, label, type, extra) => type === "time" ? tsel(k, label) : `<label class="task-label">${label}</label><input id="ss_${k}" type="${type || "text"}" value="${esc(s[k] ?? "")}" ${extra || ""} style="width:95%">`;
     return `<h4 style="margin-top:0">⏱ Shift and attendance</h4>
       <div class="grid2">${f("shiftStart", "Shift starts", "time")}${f("shiftEnd", "Shift ends", "time")}</div>
       <div class="grid2">${f("graceMin", "Late after (minutes after shift start)", "number", 'min="0"')}${f("lateFine", "Late fine per late day (₹, 0 = none)", "number", 'min="0"')}</div>
@@ -699,21 +711,98 @@ export function initShop(ctx) {
       <button class="role-btn" style="background:#28a745; margin-top:12px" onclick="SH.saveSet()">💾 Save settings</button>`;
   }
   async function saveSet() {
-    const g = (k) => ($("ss_" + k)?.value || "").trim(), n = (k, min) => Math.max(min || 0, Number(g(k)) || 0);
+    const tv = (k) => { const h = $("ss_" + k + "_h"), m = $("ss_" + k + "_m"); return h && m ? String(h.value).padStart(2, "0") + ":" + String(m.value).padStart(2, "0") : ""; };
+    const g = (k) => ($("ss_" + k + "_h") ? tv(k) : ($("ss_" + k)?.value || "").trim()), n = (k, min) => Math.max(min || 0, Number(g(k)) || 0);
     const v = { shiftStart: g("shiftStart") || "10:00", shiftEnd: g("shiftEnd") || "20:00", graceMin: n("graceMin"), lateFine: n("lateFine"), otRate: n("otRate"),
       closingTime: g("closingTime") || "20:30", ownerPhone: g("ownerPhone"), reminderDays: n("reminderDays", 1) || 7, deadDays: n("deadDays", 7) || 90, wastage: n("wastage") };
     if ((hm(v.shiftEnd) || 0) <= (hm(v.shiftStart) || 0)) return toast("The shift must end after it starts");
-    try { loading(true); await setDoc(D("settings", "shop"), { ...v, updatedAt: serverTimestamp() }, { merge: true }); toast("Settings saved"); editing = false; V.hoursData = null; V.dayData = null; }
-    catch (e) { console.error(e); toast(e.message); }
+    try { loading(true); await setDoc(D("settings", "shop"), { ...v, updatedAt: serverTimestamp() }, { merge: true }); toast("Settings saved"); settings = { ...settings, ...v }; editing = false; V.hoursData = null; V.dayData = null; render(true); }
+    catch (e) { console.error(e); toast(errText(e)); }
     finally { loading(false); }
   }
+
+  /* =====================================================================
+     🔔 NOTIFICATIONS (owner): everything that happened, newest first, with date and time
+     ===================================================================== */
+  let notes = [], recentEnq = [];
+  const NV = { kind: "all" };
+  const seenKey = () => "pi_notes_seen_" + st().companyID;
+  const getSeen = () => { try { return Number(localStorage.getItem(seenKey())) || 0; } catch (e) { return 0; } };
+  const setSeen = (t) => { try { localStorage.setItem(seenKey(), String(t)); } catch (e) {} };
+  const tms = (v) => (v && v.toDate ? v.toDate().getTime() : typeof v === "number" ? v : 0);
+  const KINDS = [["all", "All"], ["stock", "📦 Stock"], ["att", "👥 Attendance"], ["move", "🚶 Movement"], ["task", "📋 Tasks"], ["enq", "📝 Enquiries"], ["leave", "🏖 Leave"], ["pay", "💬 Payments"]];
+  function noteList() {
+    const S = st(), since = Date.now() - 30 * DAY, out = [];
+    const add = (kind, at, title, meta, html) => { if (at && at >= since) out.push({ kind, at, title, meta: meta || "", html: html || "" }); };
+    notes.forEach((n) => add("stock", tms(n.at), n.type === "OUT" ? "⛔ Out of stock" : "📉 Low stock",
+      [`Item: ${n.item || ""}`, `Left: ${Number(n.qty) || 0}`, n.type !== "OUT" ? `Min: ${Number(n.min) || 0}` : "", n.byName ? `By: ${n.byName}` : ""].filter(Boolean).join(" · ")));
+    (S.movements || []).forEach((m) => add("move", tms(m.time), m.type === "LEFT" ? "🚶 Left the shop radius" : "🏪 Came inside the shop radius",
+      [`Employee: ${m.name || ""}`, m.place && m.place !== "Shop" ? `Place: ${m.place}` : "", `Distance: ${Math.round(m.distance ?? 0)} m`].filter(Boolean).join(" · ")));
+    const flags = {};
+    attDays((S.attendance || []).map((a) => ({ ...a, ms: a.ms || tms(a.time) })), settings).forEach((r) => (flags[r.uid + "_" + r.date] = r));
+    (S.attendance || []).forEach((a) => {
+      const f = flags[a.uid + "_" + a.date], out = a.type === "OUT";
+      add("att", a.ms || tms(a.time), out ? "🚪 Attendance Out" : (f && f.late ? "⚠ Attendance In (late)" : "✅ Attendance In"),
+        [`Employee: ${a.name || ""}`, !out && f && f.late ? `Late: ${fmtMins(f.lateMin)}` : "", out && f && f.mins !== null ? `Hours: ${fmtMins(f.mins)}` : "", out && f && f.otMin ? `Overtime: ${fmtMins(f.otMin)}` : ""].filter(Boolean).join(" · "));
+    });
+    (S.tasks || []).forEach((t) => {
+      const title = ctx.userHTML ? ctx.userHTML(t.title || "", t.tr) : esc(t.title || "");
+      if (t.byEmployee) add("task", tms(t.createdAt) || t.startAt, "📤 Task given by an employee", [`By: ${t.createdByName || ""}`, `For: ${t.scope === "ALL" ? "everyone" : Object.values(t.assignees || {})[0] || ""}`].join(" · "), title);
+      Object.values(t.completions || {}).forEach((c) => {
+        if (c.submittedAt) add("task", c.submittedAt, c.status === "SUBMITTED" ? "📨 Task completed – waiting for your approval" : c.status === "APPROVED" ? "✅ Task completed and approved" : "❌ Task completed – declined", `Employee: ${c.name || ""}`, title);
+      });
+    });
+    recentEnq.forEach((e) => add("enq", tms(e.createdAt), "📝 New enquiry", [`Enquiry: #${e.no || "-"}`, `Customer: ${e.cName || "-"}`, e.createdByName ? `By: ${e.createdByName}` : ""].filter(Boolean).join(" · ")));
+    (ctx.getLeaves ? ctx.getLeaves() : []).forEach((l) => add("leave", tms(l.createdAt) || l.from, "🏖 Leave request", [`Employee: ${l.name || ""}`, `Type: ${tw(l.type || "")}`, `From: ${dstr(l.from)}`, `To: ${dstr(l.to)}`, `Status: ${tw(({ PENDING: "Pending", APPROVED: "Approved", REJECTED: "Rejected" })[l.status] || l.status || "")}`].join(" · ")));
+    remindersDue().forEach((c) => add("pay", Date.now(), "💬 Payment reminder due", [`Customer: ${c.name || ""}`, `Due: ${inr(c.due)}`].join(" · ")));
+    return out.sort((a, b) => b.at - a.at).slice(0, 400);
+  }
+  function updateBell() {
+    const b = $("noteBadge");
+    if (!b || !isAdmin()) return;
+    const seen = getSeen(), n = noteList().filter((x) => x.at > seen && x.kind !== "pay").length + remindersDue().length;
+    b.innerText = n > 99 ? "99+" : n;
+    b.classList.toggle("hidden", !n);
+  }
+  function openNotes() {
+    if (!isAdmin()) return;
+    $("noteModal").classList.add("open");
+    renderNotes();
+    setSeen(Date.now());
+    setTimeout(updateBell, 50);
+  }
+  const closeNotes = () => { $("noteModal").classList.remove("open"); $("noteBody").dataset.seen = ""; updateBell(); };
+  const noteKind = (k) => { NV.kind = k; renderNotes(); };
+  function renderNotes() {
+    const el = $("noteBody");
+    if (!el || !$("noteModal").classList.contains("open")) return;
+    const seen = Number(el.dataset.seen || 0) || getSeen();
+    if (!el.dataset.seen) el.dataset.seen = String(seen);
+    const all = noteList(), list = all.filter((n) => NV.kind === "all" || n.kind === NV.kind);
+    const low = reorderList(st().inventory);
+    const today = dayKey(Date.now()), yest = dayKey(Date.now() - DAY);
+    let lastDay = "", h = `<div class="suite-bar">${KINDS.map(([k, l]) => `<button class="auth-btn ${NV.kind === k ? "on" : ""}" onclick="SH.noteKind('${k}')">${l}${k !== "all" ? ` <span class="chip">${all.filter((n) => n.kind === k).length}</span>` : ""}</button>`).join("")}</div>`;
+    if (low.length && (NV.kind === "all" || NV.kind === "stock"))
+      h += `<div class="task-card note-pin"><div class="task-info"><div class="task-title">📉 Items low right now: ${low.length}</div><div class="task-meta"><span class="notr">${low.slice(0, 12).map((r) => esc(r.item.name) + " (" + (Number(r.item.qty) || 0) + ")").join(", ")}${low.length > 12 ? " …" : ""}</span></div></div>
+        <div class="decide-col"><button class="edit-btn" onclick="SH.closeNotes(); SH.open('reorder')">🔁 Reorder</button></div></div>`;
+    h += list.length ? list.map((n) => {
+      const dk = dayKey(n.at);
+      const head = dk !== lastDay ? `<h4 class="task-sec">${dk === today ? "Today" : dk === yest ? "Yesterday" : dstr(n.at)}</h4>` : "";
+      lastDay = dk;
+      return head + `<div class="task-card note ${n.at > seen && n.kind !== "pay" ? "note-new" : ""}"><div class="task-info"><div class="task-title">${n.title}</div>
+        ${n.html ? `<div class="task-meta">${n.html}</div>` : ""}<div class="task-meta">${esc(n.meta)}</div></div><div class="note-time">${tstr(n.at)}</div></div>`;
+    }).join("") : `<p class="hint">No notifications in the last 30 days.</p>`;
+    el.innerHTML = h;
+  }
+  const bump = () => { updateBell(); renderNotes(); };
 
   window.SH = {
     open, close, go, openCalc, closeCalc, cpick: (v) => pickCalcItem(v), cset, carea: (i, k, v) => { careaSet(i, k, v); if (k === "kind" || k === "unit") renderCalc(); },
     cadd: caddArea, cdel: cdelArea, ctoQuote, cshare,
     typing: () => { editing = true; }, rqty, rsend, rcopy, deadDays, deadShare,
     cgive, creceive, cremind, cstate, cfilter, csearch, cdelEntry, cancelForm,
-    dayAt, dayShare, dayPrint, hm: hmSet, hu, saveSet
+    dayAt, dayShare, dayPrint, hm: hmSet, hu, saveSet,
+    openNotes, closeNotes, noteKind
   };
-  return { start, getSettings, refresh, monthAttendance, openCalc };
+  return { start, getSettings, refresh, monthAttendance, openCalc, bump };
 }

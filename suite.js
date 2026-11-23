@@ -420,7 +420,7 @@ export function initSuite(ctx) {
   function closeForm() { $("formModal").classList.remove("open"); V.form = null; }
 
   /* ---------------- navigation / rendering ---------------- */
-  const TABS = [["crm", "📇 CRM"], ["sales", "📈 Sales"], ["bill", "🧾 Billing"], ["pay", "💰 Payroll & Leave"], ["hire", "🧑‍💼 Hiring"],
+  const TABS = [["crm", "📇 CRM"], ["sales", "📈 Sales"], ["bill", "🧾 Billing"], ["udhaar", "📒 Udhaar"], ["pay", "💰 Payroll & Leave"], ["hire", "🧑‍💼 Hiring"],
     ["help", "🎫 Support"], ["auto", "⚙ Automation"], ["msg", "💬 WhatsApp & Calls"], ["social", "📣 Content"]];
   const LAZY = { hire: ["candidates"], pay: ["salaries", "payslips"], social: ["posts"], msg: ["calls"], crm: ["calls"] };
 
@@ -432,6 +432,7 @@ export function initSuite(ctx) {
   }
   function close() { $("suiteModal").classList.remove("open"); V.lock = false; V.bill = null; }
   function go(tab, sub) {
+    if (tab === "udhaar") { if (window.SH) window.SH.open("credit"); return; } // the udhaar ledger opens on top of the suite
     V.tab = tab; V.sub = sub || ""; V.id = null; V.lock = false; V.bill = null;
     (LAZY[tab] || []).forEach((n) => listen(n));
     renderSuite(true);
@@ -930,8 +931,9 @@ export function initSuite(ctx) {
     if (!(await askConfirm(`Remove the quantities on ${d.number} from your inventory stock?`))) return;
     try {
       loading(true);
-      const cid = st().companyID, ids = Object.keys(need);
+      const cid = st().companyID, ids = Object.keys(need), evs = [];
       await runTransaction(db, async (tx) => {
+        evs.length = 0;
         const refs = ids.map((i) => doc(db, "companies", cid, "inventory", i));
         const snaps = await Promise.all(refs.map((r) => tx.get(r)));
         const plans = snaps.map((s, k) => {
@@ -946,7 +948,7 @@ export function initSuite(ctx) {
               if (!l) throw new Error(`${x.name}: the shade / batch on the invoice no longer exists. Edit the invoice and choose again`);
               if ((Number(l.qty) || 0) < q) throw new Error(`${x.name}: only ${Number(l.qty) || 0} in ${ctx.lotLabel(l)}`);
               l.qty = (Number(l.qty) || 0) - q;
-              if (l.qty <= 0 && !(Number(l.hold) > 0)) delete lots[lotId];
+              if (l.qty <= 0 && !(Number(l.hold) > 0) && !l.keep && !l.photo) delete lots[lotId];
             }
           });
           if ((x.qty || 0) < total) throw new Error("Not enough stock for " + x.name);
@@ -954,11 +956,13 @@ export function initSuite(ctx) {
         });
         plans.forEach((p, k) => {
           tx.update(refs[k], { qty: (p.x.qty || 0) - p.total, lots: p.lots, lastOutAt: Date.now() });
+          evs.push([ids[k], p.x.name, Number(p.x.qty) || 0, (Number(p.x.qty) || 0) - p.total, p.x.minQty]);
           tx.set(doc(C("history")), { action: "STOCK OUT (" + d.number + ")", qty: p.total, item: p.x.name, itemId: ids[k], user: st().name, time: serverTimestamp() });
         });
         tx.update(D("docs", id), { stockDeducted: true });
       });
       toast("Stock updated");
+      if (window.__stockEvent) evs.forEach((e) => window.__stockEvent(...e));
     } catch (e) { console.error(e); toast(e.message); }
     finally { loading(false); }
   }
@@ -1395,5 +1399,5 @@ export function initSuite(ctx) {
     clearStage, bsaveAndInvoice, payForm, toInvoice, deduct, remind, qstatus, printDoc, pmSet, paySub, salForm, genPayroll, psEdit, markPaid, printSlip, leaveForm, leaveSet,
     ruleForm, ruleToggle, presets, postForm, copyPost, markPosted, blot
   };
-  return { start, getDocs: () => S.docs, addBillLine };
+  return { start, getDocs: () => S.docs, getLeaves: () => S.leaves, addBillLine };
 }

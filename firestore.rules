@@ -220,6 +220,14 @@ service cloud.firestore {
         allow delete: if isDeveloper();
       }
 
+      // ----- 🔔 notifications (low / out of stock): written by whoever changes the stock, read by the owner -----
+      match /notifications/{id} {
+        allow read, delete: if isAdmin(cid) || isDeveloper();
+        allow create: if isMember(cid)
+          && request.resource.data.type in ['LOW', 'OUT']
+          && request.resource.data.by == request.auth.uid;
+      }
+
       // ----- customer credit ledger (udhaar) and reminder dates: owner / admins only -----
       match /credit/{id} {
         allow read, write: if isAdmin(cid);
@@ -352,6 +360,8 @@ service cloud.firestore {
         allow read: if isMember(cid);
         allow create: if isMember(cid);
         allow update, delete: if isAdmin(cid) || isDeveloper();
+        // photos of shades (id = <item id>_<shade id>): employees may also change and remove them
+        allow update, delete: if isMember(cid) && itemId.matches('.+_L[a-z0-9]+$');
       }
 
       // WhatsApp message templates: everyone reads, admin edits
