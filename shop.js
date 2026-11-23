@@ -693,14 +693,7 @@ export function initShop(ctx) {
   function viewSettings() {
     const s = settings;
     editing = true;
-    const tsel = (k, label) => {
-      const m = hm(s[k]) ?? 600, H = Math.floor(m / 60), M = m % 60;
-      const mins = [...new Set([...Array.from({ length: 12 }, (_, i) => i * 5), M])].sort((a, b) => a - b);
-      return `<label class="task-label">${label}</label><div class="time-sel"><select id="ss_${k}_h">${Array.from({ length: 24 }, (_, h) =>
-        `<option value="${h}" ${h === H ? "selected" : ""}>${(h % 12 || 12)} ${h < 12 ? "AM" : "PM"}</option>`).join("")}</select> :
-        <select id="ss_${k}_m">${mins.map((x) => `<option value="${x}" ${x === M ? "selected" : ""}>${String(x).padStart(2, "0")}</option>`).join("")}</select></div>`;
-    };
-    const f = (k, label, type, extra) => type === "time" ? tsel(k, label) : `<label class="task-label">${label}</label><input id="ss_${k}" type="${type || "text"}" value="${esc(s[k] ?? "")}" ${extra || ""} style="width:95%">`;
+    const f = (k, label, type, extra) => `<label class="task-label">${label}</label><input id="ss_${k}" type="${type || "text"}" value="${esc(s[k] ?? "")}" ${extra || ""} style="width:95%">`;
     return `<h4 style="margin-top:0">⏱ Shift and attendance</h4>
       <div class="grid2">${f("shiftStart", "Shift starts", "time")}${f("shiftEnd", "Shift ends", "time")}</div>
       <div class="grid2">${f("graceMin", "Late after (minutes after shift start)", "number", 'min="0"')}${f("lateFine", "Late fine per late day (₹, 0 = none)", "number", 'min="0"')}</div>
@@ -711,8 +704,7 @@ export function initShop(ctx) {
       <button class="role-btn" style="background:#28a745; margin-top:12px" onclick="SH.saveSet()">💾 Save settings</button>`;
   }
   async function saveSet() {
-    const tv = (k) => { const h = $("ss_" + k + "_h"), m = $("ss_" + k + "_m"); return h && m ? String(h.value).padStart(2, "0") + ":" + String(m.value).padStart(2, "0") : ""; };
-    const g = (k) => ($("ss_" + k + "_h") ? tv(k) : ($("ss_" + k)?.value || "").trim()), n = (k, min) => Math.max(min || 0, Number(g(k)) || 0);
+    const g = (k) => ($("ss_" + k)?.value || "").trim(), n = (k, min) => Math.max(min || 0, Number(g(k)) || 0);
     const v = { shiftStart: g("shiftStart") || "10:00", shiftEnd: g("shiftEnd") || "20:00", graceMin: n("graceMin"), lateFine: n("lateFine"), otRate: n("otRate"),
       closingTime: g("closingTime") || "20:30", ownerPhone: g("ownerPhone"), reminderDays: n("reminderDays", 1) || 7, deadDays: n("deadDays", 7) || 90, wastage: n("wastage") };
     if ((hm(v.shiftEnd) || 0) <= (hm(v.shiftStart) || 0)) return toast("The shift must end after it starts");

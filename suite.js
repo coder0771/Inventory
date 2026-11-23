@@ -420,7 +420,7 @@ export function initSuite(ctx) {
   function closeForm() { $("formModal").classList.remove("open"); V.form = null; }
 
   /* ---------------- navigation / rendering ---------------- */
-  const TABS = [["crm", "📇 CRM"], ["sales", "📈 Sales"], ["bill", "🧾 Billing"], ["udhaar", "📒 Udhaar"], ["pay", "💰 Payroll & Leave"], ["hire", "🧑‍💼 Hiring"],
+  const TABS = [["crm", "📇 CRM"], ["sales", "📈 Sales"], ["bill", "🧾 Billing"], ["pay", "💰 Payroll & Leave"], ["hire", "🧑‍💼 Hiring"],
     ["help", "🎫 Support"], ["auto", "⚙ Automation"], ["msg", "💬 WhatsApp & Calls"], ["social", "📣 Content"]];
   const LAZY = { hire: ["candidates"], pay: ["salaries", "payslips"], social: ["posts"], msg: ["calls"], crm: ["calls"] };
 
@@ -432,7 +432,6 @@ export function initSuite(ctx) {
   }
   function close() { $("suiteModal").classList.remove("open"); V.lock = false; V.bill = null; }
   function go(tab, sub) {
-    if (tab === "udhaar") { if (window.SH) window.SH.open("credit"); return; } // the udhaar ledger opens on top of the suite
     V.tab = tab; V.sub = sub || ""; V.id = null; V.lock = false; V.bill = null;
     (LAZY[tab] || []).forEach((n) => listen(n));
     renderSuite(true);
