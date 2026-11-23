@@ -481,3 +481,9 @@ html[lang="hi"] body, html[lang="mr"] body { font-family: 'Noto Sans Devanagari'
 .note-new { border-left: 5px solid #b8860b; background: #fffbea; }
 .note-pin { border-left: 5px solid #dc3545; }
 .note-time { font-size: 0.8em; color: #555; white-space: nowrap; font-weight: 600; }
+
+/* =================== 🎬 marketing =================== */
+.mkt-prev { text-align: center; }
+.mkt-prev canvas { width: 100%; max-width: 360px; border-radius: 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.35); background: #111; }
+.mkt-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px; max-height: 200px; overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 8px; color: #222; font-size: 0.9em; }
+#mktCap { min-height: 120px; }

@@ -13,10 +13,11 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261123-6";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261123-6";
-import { initI18n } from "./i18n.js?v=20261123-6";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS } from "./shop.js?v=20261123-6";
+import { initSuite } from "./suite.js?v=20261124-2";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261124-2";
+import { initI18n } from "./i18n.js?v=20261124-2";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261124-2";
+import { initMarketing } from "./marketing.js?v=20261124-2";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -605,6 +606,7 @@ function openDashboard() {
   admin ? hide("myWorkBtn") : show("myWorkBtn");
   admin ? show("shopBtn") : hide("shopBtn");
   admin ? show("noteBtn") : hide("noteBtn");
+  admin ? show("mktBtn") : hide("mktBtn");
 
   if (admin && companyData.geo) {
     $("geoLat").value = companyData.geo.lat;
@@ -621,6 +623,7 @@ function openDashboard() {
   suite.start();
   enquiry.start();
   shop.start();
+  marketing.start();
   if (!admin) {
     startTracking(); watchMembership(); checkLocationAccess(); refreshAttendanceButton();
     const h = setInterval(refreshAttendanceButton, 300000); // a new day: the button works again
@@ -2671,6 +2674,12 @@ const shop = initShop({
   getLeaves: () => suite.getLeaves(),
   userHTML: (t, tr) => i18n.userHTML(t, tr),
   addBillLine: (line) => suite.addBillLine(line)
+});
+
+const marketing = initMarketing({
+  db, $, toast, askConfirm, loading, esc: escapeHTML, fmtD, fmtDT, pushAlert, deadStock,
+  getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, inventory, history: historyList, companyName: companyData ? companyData.companyName : "" }),
+  addUnsub: (fn) => unsubs.push(fn)
 });
 
 /* ---------- STOCK ITEM PHOTOS: take with the camera or upload ----------

@@ -228,6 +228,12 @@ service cloud.firestore {
           && request.resource.data.by == request.auth.uid;
       }
 
+      // ----- 🎬 marketing: what was posted to Facebook / Instagram (owner / admins only) -----
+      match /mktPosts/{id} {
+        allow read, write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+
       // ----- customer credit ledger (udhaar) and reminder dates: owner / admins only -----
       match /credit/{id} {
         allow read, write: if isAdmin(cid);

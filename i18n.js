@@ -1989,6 +1989,366 @@ const DICT = {
 "बाकी",
 "प्रलंबित"
 ],
+"Marketing": [
+"मार्केटिंग",
+"मार्केटिंग"
+],
+"Create": [
+"बनाएं",
+"तयार करा"
+],
+"Videos": [
+"वीडियो",
+"व्हिडिओ"
+],
+"Add your shop phone number and address in ⚙ Settings – they are printed on every pamphlet and video": [
+"⚙ सेटिंग्स में दुकान का फ़ोन नंबर और पता भरें – ये हर पर्चे और वीडियो पर छपते हैं",
+"⚙ सेटिंग्जमध्ये दुकानाचा फोन नंबर आणि पत्ता भरा – ते प्रत्येक पत्रकावर आणि व्हिडिओवर छापले जातात"
+],
+"Every day the app makes a new post by itself: festival greetings before festivals, otherwise new arrivals, offers on slow stock, the showroom catalogue and tile & plumbing tips in turn": [
+"ऐप हर दिन अपने आप नई पोस्ट बनाता है: त्योहारों से पहले शुभकामनाएँ, बाकी दिनों में बारी-बारी से नया स्टॉक, धीमे स्टॉक पर ऑफ़र, शोरूम कैटलॉग और टाइल व प्लंबिंग की टिप्स",
+"ॲप दररोज आपोआप नवीन पोस्ट तयार करते: सणांच्या आधी शुभेच्छा, इतर दिवशी आलटून-पालटून नवीन स्टॉक, कमी विकणाऱ्या स्टॉकवर ऑफर, शोरूम कॅटलॉग आणि टाइल व प्लंबिंगच्या टिप्स"
+],
+"Posted to Facebook and Instagram at {}": [
+"{} बजे Facebook और Instagram पर पोस्ट होगी",
+"{} वाजता Facebook आणि Instagram वर पोस्ट होईल"
+],
+"Posted to Facebook at {}": [
+"{} बजे Facebook पर पोस्ट होगी",
+"{} वाजता Facebook वर पोस्ट होईल"
+],
+"Connect Facebook / Instagram in ⚙ Settings to post it automatically": [
+"अपने आप पोस्ट करने के लिए ⚙ सेटिंग्स में Facebook / Instagram जोड़ें",
+"आपोआप पोस्ट करण्यासाठी ⚙ सेटिंग्जमध्ये Facebook / Instagram जोडा"
+],
+"Post (4:5)": [
+"पोस्ट (4:5)",
+"पोस्ट (4:5)"
+],
+"Status / Story (9:16)": [
+"स्टेटस / स्टोरी (9:16)",
+"स्टेटस / स्टोरी (9:16)"
+],
+"Caption (Hindi)": [
+"कैप्शन (हिंदी)",
+"कॅप्शन (हिंदी)"
+],
+"Share pamphlet": [
+"पर्चा भेजें",
+"पत्रक पाठवा"
+],
+"Download": [
+"डाउनलोड",
+"डाउनलोड"
+],
+"Post now": [
+"अभी पोस्ट करें",
+"आता पोस्ट करा"
+],
+"Make slideshow video": [
+"स्लाइडशो वीडियो बनाएं",
+"स्लाइडशो व्हिडिओ तयार करा"
+],
+"Make AI video": [
+"AI वीडियो बनाएं",
+"AI व्हिडिओ तयार करा"
+],
+"What to make": [
+"क्या बनाना है",
+"काय तयार करायचे"
+],
+"New arrivals": [
+"नया स्टॉक",
+"नवीन स्टॉक"
+],
+"Offer on slow stock": [
+"धीमे स्टॉक पर ऑफ़र",
+"कमी विकणाऱ्या स्टॉकवर ऑफर"
+],
+"Festival greeting": [
+"त्योहार की शुभकामना",
+"सणाच्या शुभेच्छा"
+],
+"Showroom catalogue": [
+"शोरूम कैटलॉग",
+"शोरूम कॅटलॉग"
+],
+"Tile & plumbing tip": [
+"टाइल और प्लंबिंग टिप",
+"टाइल आणि प्लंबिंग टिप"
+],
+"{} (video)": [
+"{} (वीडियो)",
+"{} (व्हिडिओ)"
+],
+"Items (up to 4 photos; none ticked = chosen automatically)": [
+"आइटम (ज़्यादा से ज़्यादा 4 फोटो; कोई न चुनें तो अपने आप)",
+"आयटम (जास्तीत जास्त 4 फोटो; काहीही न निवडल्यास आपोआप)"
+],
+"Tip": [
+"टिप",
+"टिप"
+],
+"Festival": [
+"त्योहार",
+"सण"
+],
+"Today's marketing post is ready": [
+"आज की मार्केटिंग पोस्ट तैयार है",
+"आजची मार्केटिंग पोस्ट तयार आहे"
+],
+"Tap to see it and share it": [
+"देखने और भेजने के लिए दबाएं",
+"पाहण्यासाठी आणि पाठवण्यासाठी दाबा"
+],
+"Today's post is on {}": [
+"आज की पोस्ट {} पर है",
+"आजची पोस्ट {} वर आहे"
+],
+"Today's post could not be posted": [
+"आज की पोस्ट पोस्ट नहीं हो सकी",
+"आजची पोस्ट पोस्ट होऊ शकली नाही"
+],
+"Slideshow video": [
+"स्लाइडशो वीडियो",
+"स्लाइडशो व्हिडिओ"
+],
+"AI video": [
+"AI वीडियो",
+"AI व्हिडिओ"
+],
+"made on this phone from your stock / shade photos with moving zoom, Hindi captions, prices, soft music and your contact details at the end. Free. Takes as long as the video (about 20–30 s) – keep the app open": [
+"इसी फ़ोन पर आपके स्टॉक / शेड की फोटो से बनता है – ज़ूम होती फोटो, हिंदी कैप्शन, कीमतें, हल्का संगीत और अंत में आपका पता-फ़ोन। मुफ़्त। जितना लंबा वीडियो उतना समय लगता है (लगभग 20–30 सेकंड) – ऐप खुला रखें",
+"याच फोनवर तुमच्या स्टॉक / शेडच्या फोटोंपासून तयार होतो – झूम होणारे फोटो, हिंदी कॅप्शन, किंमती, मंद संगीत आणि शेवटी तुमचा पत्ता-फोन. मोफत. व्हिडिओ जितका लांब तितका वेळ लागतो (सुमारे 20–30 सेकंद) – ॲप उघडे ठेवा"
+],
+"Google Veo makes an 8-second realistic video with a Hindi voice for the topic. It needs your own Google Gemini API key (⚙ Settings) and Google charges you per second of video. Your shop name and phone are added on top, with a contact card at the end": [
+"Google Veo विषय पर हिंदी आवाज़ के साथ 8 सेकंड का असली जैसा वीडियो बनाता है। इसके लिए आपकी अपनी Google Gemini API की चाहिए (⚙ सेटिंग्स) और Google हर सेकंड का पैसा लेता है। ऊपर आपकी दुकान का नाम और फ़ोन, और अंत में संपर्क कार्ड जुड़ता है",
+"Google Veo विषयावर हिंदी आवाजासह 8 सेकंदांचा खऱ्यासारखा व्हिडिओ तयार करते. यासाठी तुमची स्वतःची Google Gemini API की लागते (⚙ सेटिंग्ज) आणि Google प्रत्येक सेकंदाचे पैसे घेते. वर तुमच्या दुकानाचे नाव आणि फोन, आणि शेवटी संपर्क कार्ड जोडले जाते"
+],
+"Make a video from 📅 Today or 🖼 Create. Download or share it at once – videos are not stored in the app": [
+"📅 आज या 🖼 बनाएं से वीडियो बनाएं। तुरंत डाउनलोड करें या भेजें – वीडियो ऐप में सेव नहीं रहते",
+"📅 आज किंवा 🖼 तयार करा मधून व्हिडिओ बनवा. लगेच डाउनलोड करा किंवा पाठवा – व्हिडिओ ॲपमध्ये सेव्ह राहत नाहीत"
+],
+"Share video": [
+"वीडियो भेजें",
+"व्हिडिओ पाठवा"
+],
+"Post as Reel": [
+"रील के रूप में पोस्ट करें",
+"रील म्हणून पोस्ट करा"
+],
+"This phone saved the video as WebM. YouTube and Facebook accept it; for WhatsApp and Instagram use Chrome on a newer phone (it saves MP4)": [
+"इस फ़ोन ने वीडियो WebM में सेव किया। YouTube और Facebook इसे लेते हैं; WhatsApp और Instagram के लिए नए फ़ोन पर Chrome इस्तेमाल करें (वह MP4 सेव करता है)",
+"या फोनने व्हिडिओ WebM मध्ये सेव्ह केला. YouTube आणि Facebook तो स्वीकारतात; WhatsApp आणि Instagram साठी नवीन फोनवर Chrome वापरा (तो MP4 सेव्ह करतो)"
+],
+"Making the slideshow video... {}% (keep the app open)": [
+"स्लाइडशो वीडियो बन रहा है... {}% (ऐप खुला रखें)",
+"स्लाइडशो व्हिडिओ तयार होत आहे... {}% (ॲप उघडे ठेवा)"
+],
+"Making the slideshow video... {}%": [
+"स्लाइडशो वीडियो बन रहा है... {}%",
+"स्लाइडशो व्हिडिओ तयार होत आहे... {}%"
+],
+"Sending to Google Veo...": [
+"Google Veo को भेज रहे हैं...",
+"Google Veo ला पाठवत आहे..."
+],
+"Google Veo is making the video... {} s (usually 1–3 minutes)": [
+"Google Veo वीडियो बना रहा है... {} सेकंड (आमतौर पर 1–3 मिनट)",
+"Google Veo व्हिडिओ तयार करत आहे... {} सेकंद (साधारण 1–3 मिनिटे)"
+],
+"Downloading the video...": [
+"वीडियो डाउनलोड हो रहा है...",
+"व्हिडिओ डाउनलोड होत आहे..."
+],
+"Adding your shop name and phone...": [
+"दुकान का नाम और फ़ोन जोड़ रहे हैं...",
+"दुकानाचे नाव आणि फोन जोडत आहे..."
+],
+"Video ready": [
+"वीडियो तैयार है",
+"व्हिडिओ तयार आहे"
+],
+"AI video ready": [
+"AI वीडियो तैयार है",
+"AI व्हिडिओ तयार आहे"
+],
+"Make an 8-second AI video with Google Veo? Google charges your account for each second of video": [
+"Google Veo से 8 सेकंड का AI वीडियो बनाएं? Google वीडियो के हर सेकंड का पैसा आपके खाते से लेता है",
+"Google Veo ने 8 सेकंदांचा AI व्हिडिओ बनवायचा? Google व्हिडिओच्या प्रत्येक सेकंदाचे पैसे तुमच्या खात्यातून घेते"
+],
+"Add your Google Gemini API key in ⚙ Settings first": [
+"पहले ⚙ सेटिंग्स में अपनी Google Gemini API की डालें",
+"आधी ⚙ सेटिंग्जमध्ये तुमची Google Gemini API की टाका"
+],
+"Add your Google Gemini API key in 🎬 Marketing → ⚙ Settings first": [
+"पहले 🎬 मार्केटिंग → ⚙ सेटिंग्स में अपनी Google Gemini API की डालें",
+"आधी 🎬 मार्केटिंग → ⚙ सेटिंग्जमध्ये तुमची Google Gemini API की टाका"
+],
+"Post this pamphlet now to Facebook and Instagram?": [
+"यह पर्चा अभी Facebook और Instagram पर पोस्ट करें?",
+"हे पत्रक आता Facebook आणि Instagram वर पोस्ट करायचे?"
+],
+"Post this pamphlet now to Facebook?": [
+"यह पर्चा अभी Facebook पर पोस्ट करें?",
+"हे पत्रक आता Facebook वर पोस्ट करायचे?"
+],
+"Post this video as a Reel now?": [
+"यह वीडियो अभी रील के रूप में पोस्ट करें?",
+"हा व्हिडिओ आता रील म्हणून पोस्ट करायचा?"
+],
+"Posted on {}": [
+"{} पर पोस्ट हुआ",
+"{} वर पोस्ट झाले"
+],
+"Not posted: {}": [
+"पोस्ट नहीं हुआ: {}",
+"पोस्ट झाले नाही: {}"
+],
+"Posted on": [
+"पोस्ट हुआ",
+"पोस्ट झाले"
+],
+"Not posted": [
+"पोस्ट नहीं हुआ",
+"पोस्ट झाले नाही"
+],
+"Nothing posted automatically yet. Posts made with \"Post now\" or by the daily automatic post appear here": [
+"अभी तक अपने आप कुछ पोस्ट नहीं हुआ। \"अभी पोस्ट करें\" या रोज़ की अपने आप वाली पोस्ट यहाँ दिखेंगी",
+"अजून आपोआप काहीही पोस्ट झाले नाही. \"आता पोस्ट करा\" किंवा दररोजची आपोआप पोस्ट इथे दिसेल"
+],
+"Saved to your phone. The caption is copied – paste it when you post": [
+"फ़ोन में सेव हो गया। कैप्शन कॉपी हो गया है – पोस्ट करते समय पेस्ट करें",
+"फोनमध्ये सेव्ह झाले. कॅप्शन कॉपी झाले आहे – पोस्ट करताना पेस्ट करा"
+],
+"This browser cannot make videos. Use Chrome on Android or a computer": [
+"यह ब्राउज़र वीडियो नहीं बना सकता। Android या कंप्यूटर पर Chrome इस्तेमाल करें",
+"हा ब्राउझर व्हिडिओ तयार करू शकत नाही. Android किंवा संगणकावर Chrome वापरा"
+],
+"Printed on every pamphlet and video": [
+"हर पर्चे और वीडियो पर छपता है",
+"प्रत्येक पत्रकावर आणि व्हिडिओवर छापले जाते"
+],
+"Shop phone number": [
+"दुकान का फ़ोन नंबर",
+"दुकानाचा फोन नंबर"
+],
+"Shop address": [
+"दुकान का पता",
+"दुकानाचा पत्ता"
+],
+"City (for hashtags)": [
+"शहर (हैशटैग के लिए)",
+"शहर (हॅशटॅगसाठी)"
+],
+"Tagline": [
+"टैगलाइन",
+"टॅगलाइन"
+],
+"Colour": [
+"रंग",
+"रंग"
+],
+"Automatic daily post": [
+"रोज़ की अपने आप पोस्ट",
+"दररोजची आपोआप पोस्ट"
+],
+"Make a new post every day": [
+"हर दिन नई पोस्ट बनाएं",
+"दररोज नवीन पोस्ट तयार करा"
+],
+"Post at (when the app is open on your phone)": [
+"इस समय पोस्ट करें (जब फ़ोन पर ऐप खुला हो)",
+"या वेळी पोस्ट करा (फोनवर ॲप उघडे असताना)"
+],
+"Also post a video every day": [
+"हर दिन एक वीडियो भी पोस्ट करें",
+"दररोज एक व्हिडिओही पोस्ट करा"
+],
+"No video": [
+"वीडियो नहीं",
+"व्हिडिओ नाही"
+],
+"Slideshow video (free)": [
+"स्लाइडशो वीडियो (मुफ़्त)",
+"स्लाइडशो व्हिडिओ (मोफत)"
+],
+"AI video (paid, Google)": [
+"AI वीडियो (सशुल्क, Google)",
+"AI व्हिडिओ (सशुल्क, Google)"
+],
+"Facebook Page and Instagram": [
+"Facebook पेज और Instagram",
+"Facebook पेज आणि Instagram"
+],
+"Needed only for automatic posting. Create a Meta app at developers.facebook.com, link your Instagram professional account to your Facebook Page, and create a long-lived Page access token with the permissions pages_manage_posts, pages_read_engagement, instagram_basic and instagram_content_publish. Paste the IDs and the token here. They are kept private for the owner": [
+"सिर्फ़ अपने आप पोस्ट करने के लिए ज़रूरी। developers.facebook.com पर Meta ऐप बनाएं, अपना Instagram प्रोफ़ेशनल अकाउंट Facebook पेज से जोड़ें, और pages_manage_posts, pages_read_engagement, instagram_basic व instagram_content_publish अनुमतियों वाला लंबे समय का पेज एक्सेस टोकन बनाएं। ID और टोकन यहाँ पेस्ट करें। ये सिर्फ़ मालिक के लिए निजी रहते हैं",
+"फक्त आपोआप पोस्ट करण्यासाठी आवश्यक. developers.facebook.com वर Meta ॲप तयार करा, तुमचे Instagram प्रोफेशनल अकाउंट Facebook पेजशी जोडा, आणि pages_manage_posts, pages_read_engagement, instagram_basic व instagram_content_publish परवानग्या असलेला दीर्घकाळाचा पेज ॲक्सेस टोकन तयार करा. ID आणि टोकन इथे पेस्ट करा. ते फक्त मालकासाठी खाजगी राहतात"
+],
+"Facebook Page ID": [
+"Facebook पेज ID",
+"Facebook पेज ID"
+],
+"Page access token": [
+"पेज एक्सेस टोकन",
+"पेज ॲक्सेस टोकन"
+],
+"Instagram business account ID (optional)": [
+"Instagram बिज़नेस अकाउंट ID (वैकल्पिक)",
+"Instagram बिझनेस अकाउंट ID (ऐच्छिक)"
+],
+"Post to Facebook": [
+"Facebook पर पोस्ट करें",
+"Facebook वर पोस्ट करा"
+],
+"Post to Instagram": [
+"Instagram पर पोस्ट करें",
+"Instagram वर पोस्ट करा"
+],
+"Test the connection": [
+"कनेक्शन जांचें",
+"कनेक्शन तपासा"
+],
+"Connected to the Facebook Page: {}": [
+"Facebook पेज से जुड़ गया: {}",
+"Facebook पेजशी जोडले: {}"
+],
+"Enter the Page ID and the Page access token first": [
+"पहले पेज ID और पेज एक्सेस टोकन डालें",
+"आधी पेज ID आणि पेज ॲक्सेस टोकन टाका"
+],
+"AI video (Google Veo)": [
+"AI वीडियो (Google Veo)",
+"AI व्हिडिओ (Google Veo)"
+],
+"Get a key at aistudio.google.com → Get API key (billing must be on – Google charges for each second of video)": [
+"aistudio.google.com → Get API key से की लें (बिलिंग चालू होनी चाहिए – Google वीडियो के हर सेकंड का पैसा लेता है)",
+"aistudio.google.com → Get API key वरून की घ्या (बिलिंग चालू असणे आवश्यक – Google व्हिडिओच्या प्रत्येक सेकंदाचे पैसे घेते)"
+],
+"Google Gemini API key": [
+"Google Gemini API की",
+"Google Gemini API की"
+],
+"Veo model": [
+"Veo मॉडल",
+"Veo मॉडेल"
+],
+"Festivals": [
+"त्योहार",
+"सण"
+],
+"One per line: date (YYYY-MM-DD), a space, then the name. Greetings start 3 days before": [
+"हर लाइन में एक: तारीख (YYYY-MM-DD), एक स्पेस, फिर नाम। शुभकामनाएँ 3 दिन पहले से शुरू होती हैं",
+"प्रत्येक ओळीत एक: तारीख (YYYY-MM-DD), एक स्पेस, मग नाव. शुभेच्छा 3 दिवस आधीपासून सुरू होतात"
+],
+"e.g. Main Road, Jalna": [
+"जैसे Main Road, Jalna",
+"उदा. Main Road, Jalna"
+],
+"e.g. 98220 12345": [
+"जैसे 98220 12345",
+"उदा. 98220 12345"
+],
 "Attendance Log": [
 "हाज़िरी रिकॉर्ड",
 "हजेरी नोंद"

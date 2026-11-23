@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pro Inventory - Live Workspace</title>
-<link rel="stylesheet" href="style.css?v=20261123-6">
+<link rel="stylesheet" href="style.css?v=20261124-2">
 </head>
 <body>
 
@@ -123,6 +123,7 @@
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
             <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Attendance In</button>
             <button id="markOutBtn" class="att-btn att-out-btn hidden" onclick="markAttendanceOut()">🚪 Attendance Out</button>
+            <button id="mktBtn" class="auth-btn hidden" onclick="MK.open()" style="background:#be185d;">🎬 Marketing</button>
             <button id="noteBtn" class="auth-btn hidden" onclick="SH.openNotes()" style="background:#b8860b;">🔔 Notifications <span id="noteBadge" class="badge-low hidden">0</span></button>
             <button id="shopBtn" class="auth-btn hidden" onclick="SH.open()" style="background:#0e7490;">📊 Shop Reports</button>
             <button id="tileBtn" class="auth-btn" onclick="SH.openCalc()" style="background:#0e7490;">🧮 Tile Calculator</button>
@@ -424,6 +425,16 @@
     </div>
 </div>
 
+<!-- 🎬 MARKETING (owner) -->
+<div id="mktModal" class="modal-overlay" style="z-index:2090">
+    <div class="modal-content suite-content" style="text-align:left;">
+        <h3 style="text-align:center">🎬 Marketing</h3>
+        <div id="mktTabs" class="stabs"></div>
+        <div id="mktBody"></div>
+        <br><button onclick="MK.close()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
 <!-- 🔔 NOTIFICATIONS (owner) -->
 <div id="noteModal" class="modal-overlay" style="z-index:2120">
     <div class="modal-content" style="width:760px; text-align:left;">
@@ -637,6 +648,6 @@
 <div id="loadingOverlay" class="hidden">Loading...</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20261123-6"></script>
+<script type="module" src="app.js?v=20261124-2"></script>
 </body>
 </html>
