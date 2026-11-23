@@ -201,7 +201,9 @@ service cloud.firestore {
         allow read, create: if isMember(cid);
         allow update: if isAdmin(cid)
           || (isMember(cid)
-              && changesOnly(['qty', 'hold', 'broken'])
+              // stock movements: totals, shade / batch / godown stock, and the "last sold" time
+              && changesOnly(['qty', 'hold', 'broken', 'lots', 'lastOutAt'])
+              && request.resource.data.get('lots', {}) is map
               && request.resource.data.qty is number
               && request.resource.data.hold is number
               && request.resource.data.get('broken', 0) is number
@@ -209,6 +211,23 @@ service cloud.firestore {
               && request.resource.data.hold >= 0
               && request.resource.data.get('broken', 0) >= 0);
         allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
+      // ----- shop settings (shift times, overtime, reminders): everyone reads, the owner / admins change -----
+      match /settings/{id} {
+        allow read: if isMember(cid);
+        allow write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+
+      // ----- customer credit ledger (udhaar) and reminder dates: owner / admins only -----
+      match /credit/{id} {
+        allow read, write: if isAdmin(cid);
+        allow delete: if isDeveloper();
+      }
+      match /creditMeta/{id} {
+        allow read, write: if isAdmin(cid);
+        allow delete: if isDeveloper();
       }
 
       // ----- audit history: everyone writes, only admins read -----

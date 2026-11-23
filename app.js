@@ -13,9 +13,10 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261123-1";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261123-1";
-import { initI18n } from "./i18n.js?v=20261123-1";
+import { initSuite } from "./suite.js?v=20261123-3";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261123-3";
+import { initI18n } from "./i18n.js?v=20261123-3";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS } from "./shop.js?v=20261123-3";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -46,6 +47,7 @@ let displayName = "";
 let unsubs = [];
 let devActive = false;
 let staffList = [];
+let historyList = []; // owner: stock history, used by the reports (last sold, day report)
 let trackPlace = "", trackWatchId = null, trackState = null, trackPending = 0, trackBusy = false, wakeLock = null;
 let unreadMoves = 0;
 
@@ -600,6 +602,7 @@ function openDashboard() {
   admin ? hide("markOutBtn") : show("markOutBtn");
   admin ? hide("taskEmpBtn") : show("taskEmpBtn");
   admin ? hide("myWorkBtn") : show("myWorkBtn");
+  admin ? show("shopBtn") : hide("shopBtn");
 
   if (admin && companyData.geo) {
     $("geoLat").value = companyData.geo.lat;
@@ -615,6 +618,7 @@ function openDashboard() {
   startTasks();
   suite.start();
   enquiry.start();
+  shop.start();
   if (!admin) {
     startTracking(); watchMembership(); checkLocationAccess(); refreshAttendanceButton();
     const h = setInterval(refreshAttendanceButton, 300000); // a new day: the button works again
@@ -644,13 +648,15 @@ function startRealtime() {
   }, (e) => console.error("Company listener:", e)));
 
   unsubs.push(onSnapshot(collection(db, ...base, "inventory"), (snap) => {
-    inventory = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    inventory = snap.docs.map((d) => { const x = d.data(); return { id: d.id, ...x, createdMs: x.createdAt?.toDate ? x.createdAt.toDate().getTime() : 0 }; });
     filterInventory();
+    if (selectedItem && $("editModal").classList.contains("open")) refreshItemWindow();
     updateDashboard();
   }, (e) => console.error("Inventory listener:", e)));
 
   if (currentRole === "ADMIN") {
     unsubs.push(onSnapshot(query(collection(db, ...base, "history"), orderBy("time", "desc")), (snap) => {
+      historyList = snap.docs.map((d) => { const x = d.data(); return { ...x, ms: x.time?.toDate ? x.time.toDate().getTime() : Date.now() }; });
       $("historyBody").innerHTML = snap.docs.map((d) => {
         const h = d.data();
         const t = h.time?.toDate ? fmtDT(h.time.toDate()) : "";
@@ -690,17 +696,22 @@ function startRealtime() {
       // In time of each employee for each day, so an Out row can show how long they worked
       const inTimes = {};
       snap.docs.forEach((d) => { const a = d.data(); if (a.type !== "OUT" && a.time?.toDate) inTimes[a.uid + "_" + a.date] = a.time.toDate(); });
+      attSnapCache = snap.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time?.toDate ? a.time.toDate().getTime() : 0 }; });
+      const flags = {};
+      attDays(attSnapCache, shop.getSettings()).forEach((r) => { flags[r.uid + "_" + r.date] = r; });
       $("attendanceBody").innerHTML = snap.docs.map((d) => {
         const a = d.data(), out = a.type === "OUT";
         const t = a.time?.toDate ? fmtDT(a.time.toDate()) : "";
         const dist = a.distance !== undefined && a.distance !== null
           ? Math.round(a.distance) + " m" + (a.accuracy ? " (±" + Math.round(a.accuracy) + ")" : "") : "-";
         let worked = "";
-        const tin = inTimes[a.uid + "_" + a.date];
+        const tin = inTimes[a.uid + "_" + a.date], fl = flags[a.uid + "_" + a.date];
         if (out && tin && a.time?.toDate) {
           const mins = Math.max(0, Math.round((a.time.toDate() - tin) / 60000));
           worked = `<div class="att-worked">${Math.floor(mins / 60)}h ${mins % 60}m</div>`;
+          if (fl && fl.otMin) worked += `<div class="ot-tag">Overtime: ${Math.floor(fl.otMin / 60)}h ${fl.otMin % 60}m</div>`;
         }
+        if (!out && fl && fl.late) worked += `<div class="late-tag">⚠ Late: ${Math.floor(fl.lateMin / 60)}h ${fl.lateMin % 60}m</div>`;
         const badge = out ? `<span class="att-tag att-out">Attendance Out</span>` : `<span class="att-tag att-in">Attendance In</span>`;
         return `<tr><td>${escapeHTML(a.name)}</td><td>${badge}${worked}</td><td>${t}</td><td>${dist}</td></tr>`;
       }).join("");
@@ -749,6 +760,9 @@ window.editItem = function (id) {
   $("currentHold").innerText = selectedItem.hold ?? 0;
   $("currentBroken").innerText = selectedItem.broken ?? 0;
   $("transactionQty").value = "";
+  $("moveGodown").value = "";
+  lotPick = "_";
+  fillLots();
 
   if (currentRole === "ADMIN") {
     show("adminEditGroup"); show("adminDeleteGroup");
@@ -758,12 +772,53 @@ window.editItem = function (id) {
     $("editUnit").value = selectedItem.unit || "-";
     $("editPrice").value = selectedItem.price ?? 0;
     $("editMinQty").value = selectedItem.minQty ?? 5;
+    $("editTileL").value = selectedItem.tileL || "";
+    $("editTileW").value = selectedItem.tileW || "";
+    $("editPcsBox").value = selectedItem.pcsPerBox || "";
+    $("editBoxSqft").value = selectedItem.boxSqft || "";
+    $("editSupplier").value = selectedItem.supplier || "";
+    $("editSupplierPhone").value = selectedItem.supplierPhone || "";
+    const ti = tileInfo(selectedItem);
+    $("editTileHint").innerText = ti.boxSqft ? `One box covers ${Math.round(ti.boxSqft * 100) / 100} sq ft` + (ti.guessed ? " (tile size read from Size)" : "") : "Set the tile size and pieces per box to use the tile calculator.";
     showEditPhoto(selectedItem.photo || selectedItem.photoUrl || "");
   } else {
     hide("adminEditGroup"); hide("adminDeleteGroup");
   }
   $("editModal").classList.add("open");
 };
+
+/* ---------- shade / batch / godown of the open item ---------- */
+let lotPick = "_"; // "_" = stock without a shade / batch, "+" = new shade / batch (Stock IN), else the batch id
+window.selectedItemId = () => (selectedItem ? selectedItem.id : undefined);
+function godownNames() {
+  const g = new Set();
+  inventory.forEach((i) => Object.values(i.lots || {}).forEach((l) => { if (l.godown) g.add(String(l.godown).trim()); }));
+  return [...g].filter(Boolean).sort();
+}
+function fillLots() {
+  const it = selectedItem;
+  if (!it) return;
+  const sum = lotSummary(it), lots = Object.entries(it.lots || {}).sort((a, b) => lotLabel(a[1]).localeCompare(lotLabel(b[1])));
+  if (lotPick !== "_" && lotPick !== "+" && !(it.lots || {})[lotPick]) lotPick = "_";
+  const opt = (v, label) => `<option value="${escapeHTML(v)}" ${lotPick === v ? "selected" : ""}>${label}</option>`;
+  $("lotSel").innerHTML = opt("_", `No shade / batch – stock ${sum.genQty}${sum.genHold ? ", hold " + sum.genHold : ""}`)
+    + lots.map(([id, l]) => opt(id, `${escapeHTML(lotLabel(l))} – stock ${Number(l.qty) || 0}${Number(l.hold) ? ", hold " + Number(l.hold) : ""}`)).join("")
+    + opt("+", "➕ New shade / batch (for Stock IN)");
+  $("godownList").innerHTML = godownNames().map((g) => `<option value="${escapeHTML(g)}">`).join("");
+  lotChangedUI();
+}
+function lotChangedUI() { $("newLotBox").classList.toggle("hidden", lotPick !== "+"); }
+window.lotChanged = () => { lotPick = $("lotSel").value; lotChangedUI(); };
+function refreshItemWindow() {
+  const fresh = inventory.find((i) => i.id === selectedItem.id);
+  if (!fresh) return;
+  selectedItem = fresh;
+  $("currentStock").innerText = fresh.qty ?? 0;
+  $("currentHold").innerText = fresh.hold ?? 0;
+  $("currentBroken").innerText = fresh.broken ?? 0;
+  const keep = lotPick;
+  lotPick = keep; fillLots();
+}
 
 window.closeEditModal = function () {
   $("editModal").classList.remove("open");
@@ -780,7 +835,13 @@ window.saveItem = async function () {
       size: normalizeString($("editSize").value) || "-",
       unit: normalizeString($("editUnit").value) || "-",
       price: Math.max(0, Number($("editPrice").value) || 0),
-      minQty: Math.max(0, Number($("editMinQty").value) || 0)
+      minQty: Math.max(0, Number($("editMinQty").value) || 0),
+      tileL: Math.max(0, Number($("editTileL").value) || 0),
+      tileW: Math.max(0, Number($("editTileW").value) || 0),
+      pcsPerBox: Math.max(0, Math.round(Number($("editPcsBox").value) || 0)),
+      boxSqft: Math.max(0, Number($("editBoxSqft").value) || 0),
+      supplier: normalizeString($("editSupplier").value),
+      supplierPhone: normalizeString($("editSupplierPhone").value)
     });
     await addHistory("UPDATE DETAILS", 0, normalizeString($("editName").value));
     toast("Product Updated");
@@ -812,6 +873,7 @@ window.deleteItem = async function () {
    - negative / zero / decimal amounts are rejected                                      */
 const ACTION_LABEL = { IN: "STOCK IN", OUT: "STOCK OUT", HOLD: "HOLD", RELEASE: "RELEASE HOLD", FINAL: "FINAL OUT", BROKEN: "BROKEN STOCK", BROKENOUT: "BROKEN OUT" };
 
+const newLotId = () => "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 async function updateStock(type) {
   if (!selectedItem) return;
   const raw = normalizeString($("transactionQty")?.value);
@@ -821,10 +883,22 @@ async function updateStock(type) {
   if (!useAllHold && (!Number.isInteger(qty) || qty <= 0)) {
     return toast("Enter a valid whole-number quantity");
   }
+  // which shade / batch
+  let pick = lotPick, newLot = null;
+  if (pick === "+") {
+    if (type !== "IN") return toast("Choose an existing shade / batch for this. A new shade / batch is only for Stock IN");
+    newLot = { shade: normalizeString($("lotShade").value), batch: normalizeString($("lotBatch").value), godown: normalizeString($("lotGodown").value) };
+    if (!newLot.shade && !newLot.batch && !newLot.godown) return toast("Type the shade, batch or godown of the new stock");
+  }
+  if (type === "MOVE") {
+    const target = normalizeString($("moveGodown").value);
+    if (!target) return toast("Type the godown to move the stock to");
+  }
 
   const itemRef = doc(db, "companies", companyID, "inventory", selectedItem.id);
   try {
     loading(true);
+    let lotText = "";
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(itemRef);
       if (!snap.exists()) throw new Error("This item no longer exists");
@@ -832,39 +906,67 @@ async function updateStock(type) {
       let stock = Number(d.qty) || 0;
       let hold = Number(d.hold) || 0;
       let broken = Number(d.broken) || 0;
-      const amt = useAllHold ? hold : qty;
+      const lots = JSON.parse(JSON.stringify(d.lots || {}));
+      const sum = lotSummary({ ...d, lots });
+      let lot = null, id = pick;
+      if (newLot) {
+        // same shade + batch + godown already there: add to it
+        id = Object.keys(lots).find((k) => (lots[k].shade || "") === newLot.shade && (lots[k].batch || "") === newLot.batch && (lots[k].godown || "") === newLot.godown) || newLotId();
+        lots[id] = lots[id] || { ...newLot, qty: 0, hold: 0, addedAt: Date.now() };
+      }
+      if (id !== "_") { lot = lots[id]; if (!lot) throw new Error("This shade / batch no longer exists. Choose again"); lot.qty = Number(lot.qty) || 0; lot.hold = Number(lot.hold) || 0; }
+      const avail = lot ? lot.qty : sum.genQty, onHold = lot ? lot.hold : sum.genHold;
+      const amt = useAllHold ? onHold : qty;
+      lotText = lot ? " [" + lotLabel(lot, true) + "]" : "";
+      const tooFew = () => new Error(lot ? `Only ${avail} in ${lotLabel(lot)}. Do not mix shades: choose another shade / batch or a smaller amount` : `Only ${avail} without a shade / batch. Choose the shade / batch to take the stock from`);
 
       if (amt <= 0) throw new Error("Nothing is on hold");
 
       switch (type) {
-        case "IN": stock += amt; break;
+        case "IN": stock += amt; if (lot) lot.qty += amt; break;
         case "OUT":
-          if (stock < amt) throw new Error("Insufficient Stock");
-          stock -= amt; break;
+          if (avail < amt) throw tooFew();
+          stock -= amt; if (lot) lot.qty -= amt; break;
         case "HOLD":
-          if (stock < amt) throw new Error("Insufficient Stock");
-          stock -= amt; hold += amt; break;
+          if (avail < amt) throw tooFew();
+          stock -= amt; hold += amt; if (lot) { lot.qty -= amt; lot.hold += amt; } break;
         case "RELEASE":
-          if (hold < amt) throw new Error("Only " + hold + " on hold");
-          hold -= amt; stock += amt; break;
+          if (onHold < amt) throw new Error("Only " + onHold + " on hold");
+          hold -= amt; stock += amt; if (lot) { lot.hold -= amt; lot.qty += amt; } break;
         case "FINAL":
-          if (hold < amt) throw new Error("Only " + hold + " on hold");
-          hold -= amt; break;
+          if (onHold < amt) throw new Error("Only " + onHold + " on hold");
+          hold -= amt; if (lot) lot.hold -= amt; break;
         case "BROKEN": // move from good stock to broken stock
-          if (stock < amt) throw new Error("Insufficient Stock");
-          stock -= amt; broken += amt; break;
+          if (avail < amt) throw tooFew();
+          stock -= amt; broken += amt; if (lot) lot.qty -= amt; break;
         case "BROKENOUT": // remove from broken stock permanently
           if (broken < amt) throw new Error("Only " + broken + " in broken stock");
           broken -= amt; break;
+        case "MOVE": { // move part of a shade / batch to another godown (totals stay the same)
+          const target = normalizeString($("moveGodown").value);
+          if (avail < amt) throw tooFew();
+          const src = lot || { shade: "", batch: "", godown: "" };
+          const tid = Object.keys(lots).find((k) => (lots[k].shade || "") === (src.shade || "") && (lots[k].batch || "") === (src.batch || "") && (lots[k].godown || "") === target) || newLotId();
+          if (tid === id) throw new Error("The stock is already in this godown");
+          lots[tid] = lots[tid] || { shade: src.shade || "", batch: src.batch || "", godown: target, qty: 0, hold: 0, addedAt: Date.now() };
+          lots[tid].qty = (Number(lots[tid].qty) || 0) + amt;
+          if (lot) lot.qty -= amt;
+          lotText = (lot ? " [" + lotLabel(lot, true) + "]" : "") + " → 🏬 " + target;
+          break;
+        }
       }
-
-      tx.update(itemRef, { qty: stock, hold, broken });
+      // empty shades / batches are removed
+      Object.keys(lots).forEach((k) => { if ((Number(lots[k].qty) || 0) <= 0 && (Number(lots[k].hold) || 0) <= 0) delete lots[k]; });
+      const upd = { qty: stock, hold, broken, lots };
+      if (type === "OUT" || type === "FINAL") upd.lastOutAt = Date.now();
+      tx.update(itemRef, upd);
       tx.set(doc(collection(db, "companies", companyID, "history")), {
-        action: ACTION_LABEL[type], qty: amt, item: d.name,
+        action: (type === "MOVE" ? "MOVE GODOWN" : ACTION_LABEL[type]) + lotText, qty: amt, item: d.name, itemId: selectedItem.id,
         user: displayName || contactOf(currentUser) || "Unknown", time: serverTimestamp()
       });
     });
     toast("Stock Updated");
+    ["lotShade", "lotBatch", "lotGodown"].forEach((i) => ($(i).value = ""));
     closeEditModal();
   } catch (err) { console.error(err); toast(err.message); }
   finally { loading(false); }
@@ -877,6 +979,7 @@ window.releaseStock = () => updateStock("RELEASE");
 window.finalOut = () => updateStock("FINAL");
 window.brokenStock = () => updateStock("BROKEN");
 window.brokenOut = () => updateStock("BROKENOUT");
+window.moveStock = () => updateStock("MOVE");
 
 async function addHistory(action, qty, item) {
   try {
@@ -1437,7 +1540,7 @@ function renderInventory(list) {
       : `<div style="width:40px;height:40px;border-radius:6px;background:#f1f3f5;border:1px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#aaa;font-size:1.2em">📦</div>`;
     return `<tr ${low ? 'class="low-stock-row"' : ""}>
       <td>${photoHtml}</td>
-      <td><strong>${escapeHTML(i.name)}</strong> ${low ? '<span class="badge-low">LOW</span>' : ""}</td>
+      <td><strong>${escapeHTML(i.name)}</strong> ${low ? '<span class="badge-low">LOW</span>' : ""}${lotLine(i)}</td>
       <td><span class="badge-cat">${escapeHTML(i.category || "General")}</span></td>
       <td>${escapeHTML(i.size || "-")}</td>
       <td>${escapeHTML(i.unit || "-")}</td>
@@ -1452,12 +1555,21 @@ function renderInventory(list) {
   }).join("");
 }
 
+function lotLine(i) {
+  const lots = Object.values(i.lots || {});
+  if (!lots.length) return "";
+  const shades = new Set(lots.map((l) => [l.shade, l.batch].filter(Boolean).join("/")).filter(Boolean));
+  const gd = [...new Set(lots.map((l) => l.godown).filter(Boolean))];
+  return `<div class="lot-line">${shades.size ? "🎨 Shades / batches: " + shades.size : ""}${gd.length ? (shades.size ? " · " : "") + "🏬 " + gd.map(escapeHTML).join(", ") : ""}</div>`;
+}
+const lotSearchText = (i) => Object.values(i.lots || {}).map((l) => [l.shade, l.batch, l.godown].join(" ")).join(" ").toLowerCase();
+
 window.filterInventory = function () {
   updateCategoryDropdown();
   const text = normalizeString($("search")?.value).toLowerCase();
   const cat = $("categoryFilter").value;
   renderInventory(inventory.filter((i) =>
-    (i.name || "").toLowerCase().includes(text) &&
+    ((i.name || "").toLowerCase().includes(text) || lotSearchText(i).includes(text)) &&
     (cat === "ALL" || (i.category || "General") === cat)));
 };
 
@@ -2429,10 +2541,21 @@ const suite = initSuite({
   db, $, toast, askConfirm, loading, esc: escapeHTML, fmtDT, fmtD, dtPicker, readDT, pushAlert,
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, companyName: companyData ? companyData.companyName : "" }),
   addUnsub: (fn) => unsubs.push(fn),
-  createTask: createTaskDoc
+  createTask: createTaskDoc,
+  shopSettings: () => shop.getSettings(),
+  attDays, hm, SHOP_DEFAULTS, lotSummary, lotLabel
 });
 
 
+
+let attSnapCache = [];
+const shop = initShop({
+  db, $, toast, askConfirm, loading, esc: escapeHTML, fmtDT, fmtD, pushAlert,
+  getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, history: historyList, companyName: companyData ? companyData.companyName : "" }),
+  addUnsub: (fn) => unsubs.push(fn),
+  getDocs: () => suite.getDocs(),
+  addBillLine: (line) => suite.addBillLine(line)
+});
 
 /* ---------- STOCK ITEM PHOTOS: take with the camera or upload ----------
    A small copy is kept with the item (for the table); the large copy is saved separately and loaded only when you tap it. */

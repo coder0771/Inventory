@@ -773,15 +773,34 @@ export function initSuite(ctx) {
   }
   function billEdit(id) { const d = S.docs.find((x) => x.id === id); if (d) billStart(d.type, d); }
 
+  // shade / batch choice for a stock item that has shades (so one bill never mixes shades)
+  const lotSelect = (it, i) => {
+    const x = it.itemId ? st().inventory.find((z) => z.id === it.itemId) : null;
+    if (!x || !Object.keys(x.lots || {}).length) return "";
+    const sum = ctx.lotSummary(x);
+    return `<select title="Shade / batch" onchange="SU.blot(${i},this.value)"><option value="">No shade / batch (${sum.genQty})</option>${Object.entries(x.lots).map(([k, l]) =>
+      `<option value="${esc(k)}" ${it.lotId === k ? "selected" : ""}>${esc(ctx.lotLabel(l))} (${Number(l.qty) || 0})</option>`).join("")}</select>`;
+  };
+  const lotWarn = () => {
+    const msgs = [];
+    V.bill.items.forEach((it) => {
+      const x = it.itemId ? st().inventory.find((z) => z.id === it.itemId) : null;
+      if (!x) return;
+      const lots = x.lots || {}, q = Number(it.qty) || 0;
+      if (it.lotId && lots[it.lotId] && q > (Number(lots[it.lotId].qty) || 0)) msgs.push(`⚠ ${x.name}: only ${Number(lots[it.lotId].qty) || 0} in ${ctx.lotLabel(lots[it.lotId])} – the customer would get mixed shades`);
+      else if (!it.lotId && Object.keys(lots).length && q > ctx.lotSummary(x).genQty) msgs.push(`⚠ ${x.name}: choose the shade / batch for this line`);
+    });
+    return msgs.length ? `<div class="calc-warn">${msgs.map(esc).join("<br>")}</div>` : "";
+  };
   const itemsHTML = () => V.bill.items.map((it, i) => `<div class="bill-row">
-    <select onchange="SU.bpick(${i},this.value)"><option value="">Custom item</option>${st().inventory.map((x) => `<option value="${esc(x.id)}" ${it.itemId === x.id ? "selected" : ""}>${esc(x.name)} (${x.qty ?? 0} in stock)</option>`).join("")}</select>
+    <select onchange="SU.bpick(${i},this.value)"><option value="">Custom item</option>${st().inventory.map((x) => `<option value="${esc(x.id)}" ${it.itemId === x.id ? "selected" : ""}>${esc(x.name)} (${x.qty ?? 0} in stock)</option>`).join("")}</select>${lotSelect(it, i)}
     <input placeholder="Description" value="${esc(it.desc)}" oninput="SU.bitem(${i},'desc',this.value)">
     <input type="number" min="0" placeholder="Qty" value="${it.qty}" style="width:70px" oninput="SU.bitem(${i},'qty',this.value)">
     <input type="number" min="0" placeholder="Price" value="${it.price}" style="width:90px" oninput="SU.bitem(${i},'price',this.value)">
     <button class="bin" onclick="SU.bdel(${i})">✖</button></div>`).join("");
   const totalsHTML = () => {
     const t = calcTotals(V.bill.items, V.bill.taxPct, V.bill.discount);
-    return `Subtotal ${inr(t.subtotal)} · Discount ${inr(t.disc)} · Tax ${inr(t.tax)}<br><span class="sval">Total ${inr(t.total)}</span>`;
+    return `Subtotal ${inr(t.subtotal)} · Discount ${inr(t.disc)} · Tax ${inr(t.tax)}<br><span class="sval">Total ${inr(t.total)}</span>${lotWarn()}`;
   };
   function viewBillForm() {
     const b = V.bill, inv = b.type === "INVOICE";
@@ -794,6 +813,7 @@ export function initSuite(ctx) {
       ${inv ? `<label class="task-label">Due date (DD / MM / YYYY)</label>${dtPicker("billDue", b.dueAt, true)}` : ""}
       <h4>Items</h4><div id="billItems">${itemsHTML()}</div>
       <button class="auth-btn" onclick="SU.baddItem()">➕ Add item</button>
+      <button class="auth-btn" style="background:#0e7490" onclick="SH.openCalc()">🧮 Tile calculator</button>
       <div class="grid2" style="margin-top:10px"><input type="number" min="0" placeholder="Tax % (GST)" value="${b.taxPct}" oninput="SU.bset('taxPct',this.value)">
         <input type="number" min="0" placeholder="Discount (₹)" value="${b.discount}" oninput="SU.bset('discount',this.value)"></div>
       <textarea class="task-input" rows="2" placeholder="Notes / terms" oninput="SU.bset('notes',this.value)">${esc(b.notes)}</textarea>
@@ -805,11 +825,22 @@ export function initSuite(ctx) {
   const refreshTotals = () => { const el = $("billTotals"); if (el) el.innerHTML = totalsHTML(); };
   const bset = (k, v) => { V.bill[k] = v; refreshTotals(); };
   const bitem = (i, k, v) => { V.bill.items[i][k] = v; refreshTotals(); };
+  const blot = (i, v) => { V.bill.items[i].lotId = v || ""; refreshTotals(); };
+  // a line from the tile calculator: into the open quotation / invoice, or a new quotation
+  function addBillLine(line) {
+    if (!isAdmin()) return;
+    if (V.bill && $("suiteModal").classList.contains("open")) {
+      const empty = V.bill.items.findIndex((x) => !String(x.desc).trim() && !x.itemId);
+      if (empty >= 0) V.bill.items[empty] = { ...line }; else V.bill.items.push({ ...line });
+      $("billItems").innerHTML = itemsHTML(); refreshTotals();
+      toast("Added to the " + (V.bill.type === "INVOICE" ? "invoice" : "quotation"));
+    } else { billStart("QUOTATION", { items: [{ ...line }] }); V.bill.id = null; toast("Added to a new quotation. Enter the customer and save"); }
+  }
   const baddItem = () => { V.bill.items.push({ desc: "", qty: 1, price: 0, itemId: "" }); $("billItems").innerHTML = itemsHTML(); refreshTotals(); };
   const bdel = (i) => { V.bill.items.splice(i, 1); if (!V.bill.items.length) V.bill.items.push({ desc: "", qty: 1, price: 0, itemId: "" }); $("billItems").innerHTML = itemsHTML(); refreshTotals(); };
   function bpick(i, id) {
     const x = st().inventory.find((z) => z.id === id), it = V.bill.items[i];
-    it.itemId = id || "";
+    it.itemId = id || ""; it.lotId = "";
     if (x) { it.desc = x.name + (x.size && x.size !== "-" ? " " + x.size + (x.unit && x.unit !== "-" ? x.unit : "") : ""); it.price = x.price || 0; }
     $("billItems").innerHTML = itemsHTML(); refreshTotals();
   }
@@ -828,7 +859,7 @@ export function initSuite(ctx) {
     const b = V.bill, inv = b.type === "INVOICE";
     if (!b.cName.trim()) return toast("Enter the customer name");
     const items = b.items.filter((i) => String(i.desc).trim() && Number(i.qty) > 0)
-      .map((i) => ({ desc: String(i.desc).trim(), qty: Number(i.qty), price: Number(i.price) || 0, itemId: i.itemId || "" }));
+      .map((i) => ({ desc: String(i.desc).trim(), qty: Number(i.qty), price: Number(i.price) || 0, itemId: i.itemId || "", lotId: i.itemId ? i.lotId || "" : "" }));
     if (!items.length) return toast("Add at least one item with a description and quantity");
     const date = readDT("billDate"), dueAt = inv ? readDT("billDue") : null;
     if (isNaN(date) || (inv && isNaN(dueAt))) return toast("Enter valid dates");
@@ -894,8 +925,8 @@ export function initSuite(ctx) {
   async function deduct(id) {
     const d = S.docs.find((x) => x.id === id);
     if (!d) return;
-    const need = {};
-    (d.items || []).filter((i) => i.itemId).forEach((i) => { need[i.itemId] = (need[i.itemId] || 0) + i.qty; });
+    const need = {}; // itemId -> { lotId|"_": qty }
+    (d.items || []).filter((i) => i.itemId).forEach((i) => { const m = need[i.itemId] = need[i.itemId] || {}; const k = i.lotId || "_"; m[k] = (m[k] || 0) + (Number(i.qty) || 0); });
     if (!(await askConfirm(`Remove the quantities on ${d.number} from your inventory stock?`))) return;
     try {
       loading(true);
@@ -903,13 +934,27 @@ export function initSuite(ctx) {
       await runTransaction(db, async (tx) => {
         const refs = ids.map((i) => doc(db, "companies", cid, "inventory", i));
         const snaps = await Promise.all(refs.map((r) => tx.get(r)));
-        snaps.forEach((s, k) => {
+        const plans = snaps.map((s, k) => {
           if (!s.exists()) throw new Error("An item on this invoice no longer exists");
-          if ((s.data().qty || 0) < need[ids[k]]) throw new Error("Not enough stock for " + s.data().name);
+          const x = s.data(), lots = JSON.parse(JSON.stringify(x.lots || {})), sum = ctx.lotSummary({ ...x, lots });
+          let total = 0;
+          Object.entries(need[ids[k]]).forEach(([lotId, q]) => {
+            total += q;
+            if (lotId === "_") { if (sum.genQty < q) throw new Error(Object.keys(lots).length ? `${x.name}: choose the shade / batch on the invoice (edit ✏) – only ${sum.genQty} without a shade` : "Not enough stock for " + x.name); }
+            else {
+              const l = lots[lotId];
+              if (!l) throw new Error(`${x.name}: the shade / batch on the invoice no longer exists. Edit the invoice and choose again`);
+              if ((Number(l.qty) || 0) < q) throw new Error(`${x.name}: only ${Number(l.qty) || 0} in ${ctx.lotLabel(l)}`);
+              l.qty = (Number(l.qty) || 0) - q;
+              if (l.qty <= 0 && !(Number(l.hold) > 0)) delete lots[lotId];
+            }
+          });
+          if ((x.qty || 0) < total) throw new Error("Not enough stock for " + x.name);
+          return { x, lots, total };
         });
-        snaps.forEach((s, k) => {
-          tx.update(refs[k], { qty: (s.data().qty || 0) - need[ids[k]] });
-          tx.set(doc(C("history")), { action: "STOCK OUT (" + d.number + ")", qty: need[ids[k]], item: s.data().name, user: st().name, time: serverTimestamp() });
+        plans.forEach((p, k) => {
+          tx.update(refs[k], { qty: (p.x.qty || 0) - p.total, lots: p.lots, lastOutAt: Date.now() });
+          tx.set(doc(C("history")), { action: "STOCK OUT (" + d.number + ")", qty: p.total, item: p.x.name, itemId: ids[k], user: st().name, time: serverTimestamp() });
         });
         tx.update(D("docs", id), { stockDeducted: true });
       });
@@ -973,12 +1018,13 @@ export function initSuite(ctx) {
       return nav + `<p>Month: ${monthPicker()} &nbsp; <b>${mi.working}</b> working days (${mi.days} days minus Sundays)</p>
         <button class="role-btn" style="background:#28a745; width:auto; padding:10px 20px" onclick="SU.genPayroll()">⚙ Generate payslips</button>
         <p class="hint">Present days come from the attendance your employees mark. Approved paid and sick leave counts as paid, unpaid leave does not.
-        Payslips already marked PAID are never changed. You can edit days, bonus and deduction on each payslip afterwards.</p>`;
+        Payslips already marked PAID are never changed. You can edit days, bonus and deduction on each payslip afterwards.</p>
+        <p class="hint">Overtime pay (time after the shift, from Attendance In / Out) and the late fine are added automatically. Set the shift, overtime rate and late fine in 📊 Shop Reports → ⚙ Shop settings.</p>`;
     }
     if (V.paySub === "slips") {
       const list = S.payslips.filter((p) => p.month === key);
-      return nav + `<p>Month: ${monthPicker()}</p>` + (list.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Salary</th><th>Days</th><th>Bonus</th><th>Deduction</th><th>Net pay</th><th>Status</th><th></th></tr></thead><tbody>${list.map((p) =>
-        `<tr><td>${esc(p.name)}</td><td>${inr(p.monthly)}</td><td>${p.payDays}/${p.working}</td><td>${inr(p.bonus)}</td><td>${inr(p.deduction)}</td><td><b>${inr(p.net)}</b></td><td>${chip(p.status, p.status === "PAID" ? "chip-green" : "chip-yellow")}</td>
+      return nav + `<p>Month: ${monthPicker()}</p>` + (list.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Salary</th><th>Days</th><th>Bonus</th><th>Overtime</th><th>Late</th><th>Deduction</th><th>Net pay</th><th>Status</th><th></th></tr></thead><tbody>${list.map((p) =>
+        `<tr><td>${esc(p.name)}</td><td>${inr(p.monthly)}</td><td>${p.payDays}/${p.working}</td><td>${inr(p.bonus)}</td><td>${p.otHours ? p.otHours + " h · " + inr(p.otPay) : "-"}</td><td>${p.lateDays ? p.lateDays + (p.lateDeduct ? " · -" + inr(p.lateDeduct) : "") : "-"}</td><td>${inr(p.deduction)}</td><td><b>${inr(p.net)}</b></td><td>${chip(p.status, p.status === "PAID" ? "chip-green" : "chip-yellow")}</td>
         <td style="white-space:nowrap">${p.status !== "PAID" ? `<button class="edit-btn" onclick="SU.psEdit('${p.id}')">✏</button><button class="edit-btn" onclick="SU.markPaid('${p.id}')">✔ Paid</button>` : ""}
         <button class="edit-btn" onclick="SU.printSlip('${p.id}')">🖨</button><button class="bin" onclick="SU.delRec('payslips','${p.id}')">🗑</button></td></tr>`).join("")}</tbody></table></div>` : "<p class='hint'>No payslips for this month. Use Run Payroll.</p>");
     }
@@ -1006,6 +1052,12 @@ export function initSuite(ctx) {
       const att = await getDocs(query(C("attendance"), where("time", ">=", new Date(y, m - 1, 1)), where("time", "<", new Date(y, m, 1))));
       const present = {};
       att.docs.forEach((d) => { const a = d.data(), t = a.time && a.time.toDate ? a.time.toDate() : null; if (t && a.type !== "OUT") (present[a.uid] = present[a.uid] || new Set()).add(t.getDate()); });
+      // hours, overtime and late days from Attendance In / Out
+      const set = { ...ctx.SHOP_DEFAULTS, ...(ctx.shopSettings() || {}) };
+      const days = ctx.attDays(att.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; }), set);
+      const per = {};
+      days.forEach((r) => { const p = per[r.uid] = per[r.uid] || { mins: 0, otMin: 0, lateDays: 0 }; if (r.mins !== null) p.mins += r.mins; p.otMin += r.otMin; if (r.late) p.lateDays++; });
+      const shiftH = Math.max(0, ((ctx.hm(set.shiftEnd) || 0) - (ctx.hm(set.shiftStart) || 0)) / 60);
       let n = 0;
       for (const s of staff) {
         const id = `${s.uid}_${monthKey(y, m)}`, old = S.payslips.find((p) => p.id === id);
@@ -1013,8 +1065,12 @@ export function initSuite(ctx) {
         const monthly = salOf(s.uid).monthly, pset = present[s.uid] || new Set();
         const paidLeave = S.leaves.filter((l) => l.uid === s.uid && l.status === "APPROVED" && l.type !== "Unpaid Leave").reduce((sum, l) => sum + leaveDaysInMonth(l, y, m, pset), 0);
         const payDays = Math.min(working, pset.size + paidLeave), bonus = old ? old.bonus || 0 : 0, deduction = old ? old.deduction || 0 : 0;
+        const pm = per[s.uid] || { mins: 0, otMin: 0, lateDays: 0 };
+        const otRate = Number(set.otRate) > 0 ? Number(set.otRate) : (shiftH > 0 && working > 0 ? Math.round(monthly / working / shiftH * 100) / 100 : 0);
+        const otPay = Math.round(pm.otMin / 60 * otRate), lateDeduct = Math.round(pm.lateDays * (Number(set.lateFine) || 0));
         await setDoc(D("payslips", id), { uid: s.uid, name: s.name, month: monthKey(y, m), monthly, working, present: pset.size, paidLeave, payDays, bonus, deduction,
-          net: payNet(monthly, working, payDays, bonus, deduction), status: "DRAFT", updatedAt: serverTimestamp() });
+          hours: Math.round(pm.mins / 6) / 10, otHours: Math.round(pm.otMin / 6) / 10, otRate, otPay, lateDays: pm.lateDays, lateDeduct,
+          net: payNet(monthly, working, payDays, bonus + otPay, deduction + lateDeduct), status: "DRAFT", updatedAt: serverTimestamp() });
         n++;
       }
       toast(n + " payslip(s) generated");
@@ -1029,7 +1085,7 @@ export function initSuite(ctx) {
     openForm({ title: `Edit payslip - ${p.name}`, values: p,
       fields: [{ k: "payDays", label: `Paid days (present ${p.present} + paid leave ${p.paidLeave}; out of ${p.working} working days)`, type: "number" },
         { k: "bonus", label: "Bonus (₹)", type: "number" }, { k: "deduction", label: "Deduction (₹)", type: "number" }],
-      onSave: async (v) => { await updateDoc(D("payslips", id), { payDays: v.payDays, bonus: v.bonus, deduction: v.deduction, net: payNet(p.monthly, p.working, v.payDays, v.bonus, v.deduction), updatedAt: serverTimestamp() }); } });
+      onSave: async (v) => { await updateDoc(D("payslips", id), { payDays: v.payDays, bonus: v.bonus, deduction: v.deduction, net: payNet(p.monthly, p.working, v.payDays, v.bonus + (p.otPay || 0), v.deduction + (p.lateDeduct || 0)), updatedAt: serverTimestamp() }); } });
   }
   const markPaid = async (id) => {
     if (!(await askConfirm("Mark this payslip as paid? It cannot be changed afterwards."))) return;
@@ -1058,6 +1114,9 @@ export function initSuite(ctx) {
       <h1>${esc(st().companyName || "")}</h1><h3>PAYSLIP - ${m}/${y}</h3><p><b>Employee:</b> ${esc(p.name)}</p>
       <table><tr><td>Monthly salary</td><td class="r">${inr(p.monthly)}</td></tr><tr><td>Working days</td><td class="r">${p.working}</td></tr>
       <tr><td>Days present</td><td class="r">${p.present}</td></tr><tr><td>Paid leave days</td><td class="r">${p.paidLeave}</td></tr><tr><td>Paid days</td><td class="r">${p.payDays}</td></tr>
+      ${p.hours !== undefined ? `<tr><td>Hours worked</td><td class="r">${p.hours}</td></tr>` : ""}
+      ${p.otHours ? `<tr><td>Overtime (${p.otHours} h × ${inr(p.otRate)})</td><td class="r">+ ${inr(p.otPay)}</td></tr>` : ""}
+      ${p.lateDays ? `<tr><td>Late days: ${p.lateDays}</td><td class="r">${p.lateDeduct ? "- " + inr(p.lateDeduct) : "-"}</td></tr>` : ""}
       <tr><td>Bonus</td><td class="r">+ ${inr(p.bonus)}</td></tr><tr><td>Deduction</td><td class="r">- ${inr(p.deduction)}</td></tr>
       <tr class="net"><td>NET PAY</td><td class="r">${inr(p.net)}</td></tr></table>
       <p style="color:#777;margin-top:30px">Status: ${esc(p.status)}${p.paidAt ? " on " + dstr(p.paidAt) : ""}. This is a computer generated payslip.</p></body></html>`;
@@ -1334,7 +1393,7 @@ export function initSuite(ctx) {
     leadForm, candForm, ticketForm, noteForm, callForm, wa: waForm, tplPick, tplForm, quickWa, myNote: noteLead,
     billTab: (t) => { V.billTab = t; renderSuite(true); }, billStart, billFromLead, billEdit, bset, bitem, baddItem, bdel, bpick, bsave,
     clearStage, bsaveAndInvoice, payForm, toInvoice, deduct, remind, qstatus, printDoc, pmSet, paySub, salForm, genPayroll, psEdit, markPaid, printSlip, leaveForm, leaveSet,
-    ruleForm, ruleToggle, presets, postForm, copyPost, markPosted
+    ruleForm, ruleToggle, presets, postForm, copyPost, markPosted, blot
   };
-  return { start };
+  return { start, getDocs: () => S.docs, addBillLine };
 }

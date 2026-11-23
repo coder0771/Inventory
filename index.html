@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pro Inventory - Live Workspace</title>
-<link rel="stylesheet" href="style.css?v=20261123-1">
+<link rel="stylesheet" href="style.css?v=20261123-3">
 </head>
 <body>
 
@@ -123,6 +123,8 @@
             <button id="viewAttBtn" class="auth-btn hidden" onclick="showAttendanceModal()" style="background:#0056b3;">Attendance Log</button>
             <button id="markAttBtn" class="att-btn hidden" onclick="markAttendance()">✅ Attendance In</button>
             <button id="markOutBtn" class="att-btn att-out-btn hidden" onclick="markAttendanceOut()">🚪 Attendance Out</button>
+            <button id="shopBtn" class="auth-btn hidden" onclick="SH.open()" style="background:#0e7490;">📊 Shop Reports</button>
+            <button id="tileBtn" class="auth-btn" onclick="SH.openCalc()" style="background:#0e7490;">🧮 Tile Calculator</button>
             <button id="enquiryBtn" class="auth-btn" onclick="EQ.open()" style="background:#c0392b;">📝 Enquiry <span id="eqBadge" class="badge-low hidden">0</span></button>
             <button id="settingsBtn" class="auth-btn hidden" onclick="showSettingsModal()" style="background:#6c757d;">⚙ Settings</button>
             <button id="placesBtn" class="auth-btn hidden" onclick="showPlacesModal()" style="background:#16a085;">📍 Geo-Fence</button>
@@ -302,6 +304,18 @@
                 <input id="editPrice" class="modal-nav" type="number" placeholder="Price" style="width:44%">
                 <input id="editMinQty" class="modal-nav" type="number" placeholder="Min Alert Level" style="width:44%">
             </div>
+            <details class="more-details">
+                <summary>🧱 Tile size and 🏭 supplier</summary>
+                <div style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap;">
+                    <input id="editTileL" class="modal-nav" type="number" min="0" step="any" placeholder="Tile length (mm)" style="width:44%">
+                    <input id="editTileW" class="modal-nav" type="number" min="0" step="any" placeholder="Tile width (mm)" style="width:44%">
+                    <input id="editPcsBox" class="modal-nav" type="number" min="0" step="1" placeholder="Pieces per box" style="width:44%">
+                    <input id="editBoxSqft" class="modal-nav" type="number" min="0" step="any" placeholder="Sq ft per box (optional)" style="width:44%">
+                    <input id="editSupplier" class="modal-nav" placeholder="Supplier name" style="width:44%">
+                    <input id="editSupplierPhone" class="modal-nav" type="tel" placeholder="Supplier WhatsApp number" style="width:44%">
+                </div>
+                <p class="hint" id="editTileHint" style="margin:4px 0"></p>
+            </details>
             <div class="photo-row">
                 <img id="editPhotoPreview" alt="" class="photo-thumb hidden" style="width:64px;height:64px">
                 <button class="modal-nav btn-sm" style="background:#8e44ad" onclick="document.getElementById('editPhotoCam').click()">📷 Take photo</button>
@@ -320,6 +334,16 @@
             Broken: <span id="currentBroken" style="color:#c0392b; font-weight:bold">0</span>
         </div>
 
+        <div class="lot-box">
+            <label class="task-label" style="margin-top:0">🎨 Shade / batch (sell from one shade only)</label>
+            <select id="lotSel" class="modal-nav" onchange="lotChanged()" style="width:93%"></select>
+            <div id="newLotBox" class="hidden" style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap; margin-top:6px">
+                <input id="lotShade" class="modal-nav" placeholder="Shade (e.g. A, Light)" style="width:29%">
+                <input id="lotBatch" class="modal-nav" placeholder="Batch / lot no." style="width:29%">
+                <input id="lotGodown" class="modal-nav" list="godownList" placeholder="Godown" style="width:29%">
+            </div>
+            <datalist id="godownList"></datalist>
+        </div>
         <input id="transactionQty" class="modal-nav" type="number" min="0" placeholder="Amount..." style="width:90%; text-align:center; font-size:1.2em; border:2px solid #222;">
         <p style="font-size:0.75em; color:#666; margin:4px 0 10px;">Release / Final Out: leave the amount empty to use the full hold.</p>
 
@@ -331,6 +355,11 @@
         <div style="display:flex; justify-content:space-between;">
             <button class="modal-nav" onclick="releaseStock()" style="background:#fd7e14; width:45%">RELEASE</button>
             <button class="modal-nav" onclick="finalOut()" style="background:#222; width:45%">FINAL OUT</button>
+        </div>
+        <div class="move-row">
+            <input id="moveGodown" class="modal-nav" list="godownList" placeholder="Move the amount to godown..." style="flex:1">
+            <button class="modal-nav" onclick="moveStock()" style="background:#16a085">🏬 Move</button>
+            <button class="modal-nav" onclick="SH.openCalc(selectedItemId())" style="background:#0e7490">🧮 Calculator</button>
         </div>
         <div style="display:flex; justify-content:space-between; margin-top:10px;">
             <button class="modal-nav" onclick="brokenStock()" style="background:#c0392b; width:45%">BROKEN</button>
@@ -360,6 +389,25 @@
         <h3 style="text-align:center">📋 My Tasks</h3>
         <div id="empTaskBody"></div>
         <br><button onclick="closeEmpTaskModal()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- 🧮 TILE CALCULATOR -->
+<div id="tileModal" class="modal-overlay">
+    <div class="modal-content" style="width:700px; text-align:left;">
+        <h3 style="text-align:center">🧮 Tile Calculator</h3>
+        <div id="tileBody"></div>
+        <br><button onclick="SH.closeCalc()" class="auth-btn" style="width:100%">Close</button>
+    </div>
+</div>
+
+<!-- 📊 SHOP REPORTS (owner) -->
+<div id="shopModal" class="modal-overlay">
+    <div class="modal-content suite-content" style="text-align:left;">
+        <h3 style="text-align:center">📊 Shop Reports</h3>
+        <div id="shopTabs" class="stabs"></div>
+        <div id="shopBody"></div>
+        <br><button onclick="SH.close()" class="auth-btn" style="width:100%">Close</button>
     </div>
 </div>
 
@@ -557,6 +605,6 @@
 <div id="loadingOverlay" class="hidden">Loading...</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20261123-1"></script>
+<script type="module" src="app.js?v=20261123-3"></script>
 </body>
 </html>
