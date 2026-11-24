@@ -487,3 +487,8 @@ html[lang="hi"] body, html[lang="mr"] body { font-family: 'Noto Sans Devanagari'
 .mkt-prev canvas { width: 100%; max-width: 360px; border-radius: 12px; box-shadow: 0 4px 18px rgba(0,0,0,0.35); background: #111; }
 .mkt-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px; max-height: 200px; overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 8px; color: #222; font-size: 0.9em; }
 #mktCap { min-height: 120px; }
+
+/* developer credit on the login page */
+.dev-credit { margin-top: 18px; padding-top: 12px; border-top: 1px solid #eee; font-size: 0.85em; color: #666; line-height: 1.6; }
+.dev-credit b { color: #1f4011; }
+.dev-credit a { color: #0056b3; text-decoration: none; word-break: break-all; }

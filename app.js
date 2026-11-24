@@ -13,11 +13,11 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261124-2";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261124-2";
-import { initI18n } from "./i18n.js?v=20261124-2";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261124-2";
-import { initMarketing } from "./marketing.js?v=20261124-2";
+import { initSuite } from "./suite.js?v=20261124-3";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261124-3";
+import { initI18n } from "./i18n.js?v=20261124-3";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261124-3";
+import { initMarketing } from "./marketing.js?v=20261124-3";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
