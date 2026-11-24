@@ -13,12 +13,12 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-1";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-1";
-import { initI18n } from "./i18n.js?v=20261125-1";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-1";
-import { initMarketing } from "./marketing.js?v=20261125-1";
-import { initUI, stockStatus } from "./ui.js?v=20261125-1";
+import { initSuite } from "./suite.js?v=20261125-2";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-2";
+import { initI18n } from "./i18n.js?v=20261125-2";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-2";
+import { initMarketing } from "./marketing.js?v=20261125-2";
+import { initUI, stockStatus } from "./ui.js?v=20261125-2";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -652,6 +652,7 @@ function startRealtime() {
       companyData = { ...companyData, ...s.data() };
       if ($("companyTitle")) $("companyTitle").innerText = companyData.companyName || "";
       if ($("tbCompany")) $("tbCompany").innerText = companyData.companyName || "";
+      ui.refresh();
       if (currentRole === "EMPLOYEE") updateTrackNow();
     }
   }, (e) => console.error("Company listener:", e)));
@@ -2750,7 +2751,7 @@ const marketing = initMarketing({
 const ui = initUI({
   $, esc: escapeHTML, fmtD, fmtDT, toast, attDays, lotLabel, lotSummary,
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, history: historyList,
-    attendance: attSnapCache, companyName: companyData ? companyData.companyName : "" }),
+    attendance: attSnapCache, companyName: companyData ? companyData.companyName : "", geo: companyData && companyData.geo, shopGeo: companyData && companyData.shopGeo }),
   shopSettings: () => shop.getSettings(),
   visibleItems: () => (document.getElementById("pg-inventory") && !$("pg-inventory").classList.contains("hidden") ? filteredItems() : inventory)
 });
@@ -2904,7 +2905,7 @@ document.addEventListener("keydown", (e) => {
     document.querySelector("#inventoryBody .edit-btn")?.focus();
     return;
   }
-  const els = [...document.querySelectorAll(modalOpen ? ".modal-nav" : ".main-nav")];
+  const els = [...document.querySelectorAll(modalOpen ? ".modal-nav" : ".main-nav")].filter((el) => el.offsetParent !== null || el === document.activeElement);
   const i = els.indexOf(document.activeElement);
   if (i === -1) return;
   if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); (els[i + 1] || els[0]).focus(); }

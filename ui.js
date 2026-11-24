@@ -77,10 +77,13 @@ export function initUI(ctx) {
   function go(page) {
     closePageModals();
     V.page = page;
-    ["dashboard", "inventory"].forEach((p) => $("pg-" + p) && $("pg-" + p).classList.toggle("hidden", p !== page));
+    if (page === "location" && !isAdmin()) page = "dashboard";
+    V.page = page;
+    ["dashboard", "inventory", "location"].forEach((p) => $("pg-" + p) && $("pg-" + p).classList.toggle("hidden", p !== page));
     drawer(false);
     markActive();
     if (page === "dashboard") renderDashboard();
+    renderGeo();
     const main = document.querySelector(".pages"); if (main) main.scrollTop = 0;
     window.scrollTo(0, 0);
   }
@@ -118,6 +121,14 @@ export function initUI(ctx) {
   // a window shown as a page opened or closed (also by its own Close button): update the menu highlight
   const mo = new MutationObserver(() => markActive());
   PAGE_MODALS.forEach((id) => $(id) && mo.observe($(id), { attributes: true, attributeFilter: ["class"] }));
+  // phone: a dot on "More" when any menu item has a number waiting
+  function badges() {
+    const d = $("moreBadge"); if (!d) return;
+    const any = [...document.querySelectorAll(".sb-nav .nav-badge")].some((b) => !b.classList.contains("hidden") && b.closest(".nav-item") && !b.closest(".nav-item").classList.contains("hidden") && b.innerText.trim() !== "0");
+    d.classList.toggle("hidden", !any);
+  }
+  const bo = new MutationObserver(() => badges());
+  document.querySelectorAll(".sb-nav .nav-badge").forEach((b) => bo.observe(b, { attributes: true, attributeFilter: ["class"], childList: true, characterData: true, subtree: true }));
   // global search: the inventory search
   function search(v) {
     if (V.page !== "inventory" || document.body.classList.contains("page-modal-open")) go("inventory");
@@ -141,12 +152,14 @@ export function initUI(ctx) {
     $("sbRole").innerText = admin ? "Owner (Admin)" : "Employee";
     $("pmName").innerText = nm; $("pmMail").innerText = u.email || u.phoneNumber || "";
     $("pmCompany").innerText = S.companyName || "";
+    if ($("empAttCard")) $("empAttCard").classList.toggle("hidden", admin);
     go("dashboard");
   }
 
   /* ---------------- dashboard ---------------- */
   let timer = null;
-  function refresh() { clearTimeout(timer); timer = setTimeout(() => { if (V.page === "dashboard" && !$("app").classList.contains("hidden")) renderDashboard(); renderTx(); renderAttSummary(); renderStaffCards(); }, 120); }
+  function refresh() { clearTimeout(timer); timer = setTimeout(() => { renderGeo(); badges();
+    const sd = $("staffDisplay"), sn = $("staffNames"); if (sd && sn) sd.title = "Employees: " + sn.innerText; if (V.page === "dashboard" && !$("app").classList.contains("hidden")) renderDashboard(); renderTx(); renderAttSummary(); renderStaffCards(); }, 120); }
   const card = (icon, tone, label, value, sub, trend) => `<div class="stat-card tone-${tone}">
       <div class="stat-ic">${ic(icon)}</div>
       <div class="stat-body"><div class="stat-label">${label}</div><div class="stat-val">${value}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ""}
@@ -173,6 +186,7 @@ export function initUI(ctx) {
     document.querySelectorAll("[data-range]").forEach((b) => b.classList.toggle("on", Number(b.dataset.range) === V.range));
     // employee: attendance card
     const ea = $("empAttCard"); if (ea) ea.classList.toggle("hidden", admin);
+    renderGeo();
   }
   function smooth(pts) {
     if (pts.length < 2) return "";
@@ -249,6 +263,28 @@ export function initUI(ctx) {
   const range = (d) => { V.range = d; renderDashboard(); };
   let rz = null, lastW = window.innerWidth;
   window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) > 40 && V.page === "dashboard") { lastW = window.innerWidth; renderDashboard(); } }, 250); });
+
+  /* ---------------- attendance location (owner) ---------------- */
+  function renderGeo() {
+    const S = st(), admin = isAdmin(), g = S.geo, sg = S.shopGeo;
+    const w = $("geoWarn");
+    if (w) {
+      const show = admin && V.page === "dashboard";
+      w.classList.toggle("hidden", !show);
+      w.classList.toggle("ok", !!g);
+      if (show) w.innerHTML = g
+        ? `<div class="warn-txt"><span class="stat-ic tone-green">${ic("map-pin")}</span><div><h3>Attendance by location is on</h3>
+          <p class="page-sub"><span>Geo-fence: ${esc(g.radius)} m</span> · <span>${sg ? "Shop radius tracking: " + esc(sg.radius) + " m" : "Shop radius tracking is off"}</span></p></div></div>
+          <button class="btn btn-ghost" onclick="UI.go('location')">${ic("settings")}Location settings</button>`
+        : `<div class="warn-txt"><span class="stat-ic tone-amber">${ic("map-pin")}</span><div><h3>Attendance location is not set</h3>
+          <p class="page-sub">Save the shop's location (geo-fence) so employees can mark Attendance In / Out from the shop.</p></div></div>
+          <button class="btn btn-primary" onclick="UI.go('location')">${ic("map-pin")}Set location</button>`;
+    }
+    const el = $("geoStatus"); if (!el) return;
+    const line = (on, title, txt) => `<div class="loc-chip ${on ? "on" : "off"}">${ic(on ? "circle-check" : "triangle-alert")}<div><b>${title}</b><div class="hint notr">${txt}</div></div></div>`;
+    el.innerHTML = line(!!g, g ? "Attendance geo-fence is on" : "Attendance geo-fence is not set", g ? `${Number(g.lat).toFixed(5)}, ${Number(g.lng).toFixed(5)} · ${g.radius} m` : "-")
+      + line(!!sg, sg ? "Shop radius tracking is on" : "Shop radius tracking is off", sg ? `${Number(sg.lat).toFixed(5)}, ${Number(sg.lng).toFixed(5)} · ${sg.radius} m` : "-");
+  }
 
   /* ---------------- quick actions ---------------- */
   function quick(kind) {

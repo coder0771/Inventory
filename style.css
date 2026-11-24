@@ -1078,3 +1078,20 @@ td[data-l="Time"] { white-space: nowrap; }
 #editModal div[style*="display:flex"] > input { flex: 1 1 0; width: auto !important; min-width: 0; }
 #editModal .modal-content > div[style*="justify-content:space-between"] { gap: 8px; }
 #editModal .modal-content > div[style*="justify-content:space-between"] > button { flex: 1; width: auto !important; margin: 0; }
+/* attendance location page */
+.warn-card { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; border-left: 4px solid var(--warning); }
+.warn-txt { display: flex; gap: 14px; align-items: center; }
+.warn-card h3 { margin: 0; font-size: 1rem; }
+.loc-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.loc-chip { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow-sm); }
+.loc-chip > svg.ic { width: 22px; height: 22px; }
+.loc-chip.on > svg.ic { color: var(--secondary); } .loc-chip.off > svg.ic { color: var(--warning); }
+.loc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.loc-grid .geo-panel { margin: 0; background: var(--surface); padding: 18px 20px; }
+.loc-grid .geo-row input { flex: 1 1 140px; width: auto; }
+.loc-places .card-head { margin: 0; }
+.more-dot { position: absolute; top: 6px; margin-left: 14px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); border: 2px solid var(--surface); }
+.bottom-nav button { position: relative; }
+@media (max-width: 960px) { .loc-grid, .loc-status { grid-template-columns: minmax(0, 1fr); } }
+.warn-card.ok { border-left-color: var(--secondary); padding: 12px 18px; }
+.warn-card.ok .stat-ic { width: 38px; height: 38px; }
