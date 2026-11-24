@@ -13,11 +13,12 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261124-3";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261124-3";
-import { initI18n } from "./i18n.js?v=20261124-3";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261124-3";
-import { initMarketing } from "./marketing.js?v=20261124-3";
+import { initSuite } from "./suite.js?v=20261125-1";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-1";
+import { initI18n } from "./i18n.js?v=20261125-1";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-1";
+import { initMarketing } from "./marketing.js?v=20261125-1";
+import { initUI, stockStatus } from "./ui.js?v=20261125-1";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -112,7 +113,7 @@ async function sha256(text) {
 const PAGES = ["boot", "loginPage", "rolePage", "adminChoicePage", "createCompanyPage",
   "companyLoginPage", "adminPasswordPage", "employeePage", "devLoginPage", "developerPage", "app"];
 let pageStack = []; // the pages the person has walked through, so BACK can go one step back
-const showPage = (id) => { PAGES.forEach(hide); show(id); };
+const showPage = (id) => { PAGES.forEach(hide); show(id); if (window.__uiPage) window.__uiPage(id); };
 function showOnly(id) {
   showPage(id);
   if (id === "boot") return;
@@ -594,6 +595,7 @@ function openDashboard() {
   showOnly("app");
   saveSession();
   $("companyTitle").innerText = companyData.companyName;
+  if ($("tbCompany")) $("tbCompany").innerText = companyData.companyName;
   $("roleBadge").innerText = currentRole;
 
   const admin = currentRole === "ADMIN";
@@ -624,6 +626,7 @@ function openDashboard() {
   enquiry.start();
   shop.start();
   marketing.start();
+  ui.start();
   if (!admin) {
     startTracking(); watchMembership(); checkLocationAccess(); refreshAttendanceButton();
     const h = setInterval(refreshAttendanceButton, 300000); // a new day: the button works again
@@ -648,6 +651,7 @@ function startRealtime() {
     if (s.exists()) {
       companyData = { ...companyData, ...s.data() };
       if ($("companyTitle")) $("companyTitle").innerText = companyData.companyName || "";
+      if ($("tbCompany")) $("tbCompany").innerText = companyData.companyName || "";
       if (currentRole === "EMPLOYEE") updateTrackNow();
     }
   }, (e) => console.error("Company listener:", e)));
@@ -662,12 +666,7 @@ function startRealtime() {
   if (currentRole === "ADMIN") {
     unsubs.push(onSnapshot(query(collection(db, ...base, "history"), orderBy("time", "desc")), (snap) => {
       historyList = snap.docs.map((d) => { const x = d.data(); return { ...x, ms: x.time?.toDate ? x.time.toDate().getTime() : Date.now() }; });
-      $("historyBody").innerHTML = snap.docs.map((d) => {
-        const h = d.data();
-        const t = h.time?.toDate ? fmtDT(h.time.toDate()) : "";
-        return `<tr><td>${t}</td><td>${escapeHTML(h.user)}</td><td><b>${escapeHTML(h.action)}</b></td>
-          <td>${escapeHTML(h.item)}</td><td>${escapeHTML(h.qty)}</td></tr>`;
-      }).join("");
+      ui.refresh(); // dashboard charts and the Transactions page
     }, (e) => console.error("History listener:", e)));
 
     unsubs.push(onSnapshot(collection(db, ...base, "staff"), (snap) => {
@@ -675,7 +674,9 @@ function startRealtime() {
       syncTeam();
       const names = staffList.map((s) => escapeHTML(s.name));
       $("staffNames").innerHTML = names.length ? names.join(", ") : "None";
+      if ($("staffCount")) $("staffCount").innerText = staffList.length || "";
       renderPresence();
+      ui.refresh();
     }, (e) => console.error("Staff listener:", e)));
 
     // employee left / entered shop radius events
@@ -707,6 +708,7 @@ function startRealtime() {
       const flags = {};
       attDays(attSnapCache, shop.getSettings()).forEach((r) => { flags[r.uid + "_" + r.date] = r; });
       setTimeout(() => shop.bump(), 0);
+      ui.refresh();
       $("attendanceBody").innerHTML = snap.docs.map((d) => {
         const a = d.data(), out = a.type === "OUT";
         const t = a.time?.toDate ? fmtDT(a.time.toDate()) : "";
@@ -951,9 +953,11 @@ window.saveItem = async function () {
   finally { loading(false); }
 };
 
+// delete from the list or the details window (same checks and history as the Update window)
+window.deleteItemById = (id) => { selectedItem = inventory.find((i) => i.id === id); return window.deleteItem(); };
 window.deleteItem = async function () {
   if (!selectedItem || currentRole !== "ADMIN") return;
-  if (!confirm("Delete this product?")) return;
+  if (!(await askConfirm("Delete this product?"))) return;
   try {
     loading(true);
     const { id, name, qty } = selectedItem;
@@ -1633,7 +1637,8 @@ function updateDashboard() {
   });
   $("totalItems").innerText = inventory.length;
   $("lowStock").innerText = low;
-  $("totalValue").innerText = total.toLocaleString();
+  $("totalValue").innerText = total.toLocaleString("en-IN");
+  ui.refresh();
 }
 
 function updateCategoryDropdown() {
@@ -1645,31 +1650,59 @@ function updateCategoryDropdown() {
   sel.value = cats.includes(prev) ? prev : "ALL";
 }
 
+// status of a product: Out of Stock > Low Stock > On Hold > In Stock
+const STATUS_CHIP = { out: '<span class="st st-out">Out of Stock</span>', low: '<span class="st st-low">Low Stock</span>', hold: '<span class="st st-hold">On Hold</span>', ok: '<span class="st st-ok">In Stock</span>' };
+const PAGE_SIZE = 25;
+let invPage = 1, invShown = [];
 function renderInventory(list) {
-  $("inventoryBody").innerHTML = list.map((i) => {
+  invShown = list;
+  const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  if (invPage > pages) invPage = pages;
+  const from = (invPage - 1) * PAGE_SIZE, slice = list.slice(from, from + PAGE_SIZE);
+  const admin = currentRole === "ADMIN";
+  $("inventoryBody").innerHTML = slice.length ? slice.map((i) => {
     const qty = Number(i.qty) || 0, hold = Number(i.hold) || 0, broken = Number(i.broken) || 0, price = Number(i.price) || 0;
     const min = i.minQty ?? 5;
-    const low = qty <= min;
-    const pic = i.photo || i.photoUrl;
+    const status = stockStatus(i), low = status === "low" || status === "out";
+    const pic = i.photo || i.photoUrl, id = escapeHTML(i.id);
     const photoHtml = pic
-      ? `<img src="${escapeHTML(pic)}" alt="" onclick="viewPhoto('${escapeHTML(i.id)}')" title="Tap to see the full photo" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #ddd;cursor:zoom-in">`
-      : `<div style="width:40px;height:40px;border-radius:6px;background:#f1f3f5;border:1px dashed #ccc;display:inline-flex;align-items:center;justify-content:center;color:#aaa;font-size:1.2em">📦</div>`;
-    return `<tr ${low ? 'class="low-stock-row"' : ""}>
-      <td>${photoHtml}</td>
-      <td><strong>${escapeHTML(i.name)}</strong> ${low ? '<span class="badge-low">LOW</span>' : ""}${lotLine(i)}</td>
-      <td><span class="badge-cat">${escapeHTML(i.category || "General")}</span></td>
-      <td>${escapeHTML(i.size || "-")}</td>
-      <td>${escapeHTML(i.unit || "-")}</td>
-      <td><b>${qty}</b></td>
-      <td style="color:purple"><b>${hold}</b></td>
-      <td style="color:#c0392b"><b>${broken}</b></td>
-      <td>${min}</td>
-      <td>₹${price}</td>
-      <td>₹${((qty + hold) * price).toLocaleString()}</td>
-      <td><button class="edit-btn main-nav" onclick="editItem('${escapeHTML(i.id)}')">Update</button></td>
+      ? `<img src="${escapeHTML(pic)}" alt="" class="inv-thumb" onclick="viewPhoto('${id}')" title="Tap to see the full photo">`
+      : `<span class="inv-thumb ph"><svg class="ic"><use href="#i-package"/></svg></span>`;
+    const size = [i.size, i.unit].filter((x) => x && x !== "-").map(escapeHTML).join(" · ") || "-";
+    return `<tr class="${low ? "low-stock-row" : ""}">
+      <td data-l="Product"><div class="prod-cell">${photoHtml}<div><strong class="notr">${escapeHTML(i.name)}</strong>
+        <div class="code notr">#${escapeHTML(String(i.id).slice(0, 6).toUpperCase())}${min ? ` · <span class="hint">Min ${min}</span>` : ""}</div>${lotLine(i)}</div></div></td>
+      <td data-l="Category"><span class="badge-cat notr">${escapeHTML(i.category || "General")}</span></td>
+      <td data-l="Size / Unit" class="notr">${size}</td>
+      <td data-l="Available" class="num"><b class="${low ? "txt-red" : ""}">${qty}</b></td>
+      <td data-l="Hold" class="num"><b class="${hold ? "txt-amber" : "txt-mute"}">${hold}</b></td>
+      <td data-l="Broken" class="num"><b class="${broken ? "txt-red" : "txt-mute"}">${broken}</b></td>
+      <td data-l="Price" class="num">₹${price.toLocaleString("en-IN")}</td>
+      <td data-l="Total Value" class="num"><b>₹${((qty + hold) * price).toLocaleString("en-IN")}</b></td>
+      <td data-l="Status">${STATUS_CHIP[status]}</td>
+      <td data-l="Action"><div class="row-act">
+        <button class="edit-btn main-nav" onclick="editItem('${id}')" title="Stock IN / OUT / HOLD / RELEASE / Broken"><svg class="ic"><use href="#i-arrow-left-right"/></svg>Update</button>
+        <button class="icon-btn sm" onclick="UI.details('${id}')" title="Details"><svg class="ic"><use href="#i-eye"/></svg></button>
+        ${admin ? `<button class="icon-btn sm danger" onclick="deleteItemById('${id}')" title="Delete Item"><svg class="ic"><use href="#i-trash-2"/></svg></button>` : ""}
+      </div></td>
     </tr>`;
-  }).join("");
+  }).join("") : `<tr><td colspan="10" class="empty-row"><svg class="ic"><use href="#i-package-x"/></svg><div>${inventory.length ? "No product matches the search or filters." : "No products yet. Add your first product with “Add Product”."}</div></td></tr>`;
+  renderPager(list.length, pages);
 }
+function renderPager(n, pages) {
+  const el = $("invPager"); if (!el) return;
+  if (!n) { el.innerHTML = ""; return; }
+  const from = (invPage - 1) * PAGE_SIZE + 1, to = Math.min(n, invPage * PAGE_SIZE);
+  let nums = "";
+  for (let k = 1; k <= pages; k++) {
+    if (k === 1 || k === pages || Math.abs(k - invPage) <= 1) nums += `<button class="${k === invPage ? "on" : ""}" onclick="invGo(${k})">${k}</button>`;
+    else if (Math.abs(k - invPage) === 2) nums += `<span class="hint">…</span>`;
+  }
+  el.innerHTML = `<span class="hint">Showing ${from}–${to} of ${n}</span><div class="pager-btns">
+    <button ${invPage <= 1 ? "disabled" : ""} onclick="invGo(${invPage - 1})" title="Previous"><svg class="ic"><use href="#i-chevron-left"/></svg></button>${nums}
+    <button ${invPage >= pages ? "disabled" : ""} onclick="invGo(${invPage + 1})" title="Next"><svg class="ic"><use href="#i-chevron-right"/></svg></button></div>`;
+}
+window.invGo = (k) => { invPage = k; renderInventory(invShown); const t = document.querySelector(".inv-card"); if (t && t.getBoundingClientRect().top < 0) t.scrollIntoView({ behavior: "smooth" }); };
 
 function lotLine(i) {
   const lots = Object.values(i.lots || {});
@@ -1680,15 +1713,29 @@ function lotLine(i) {
 }
 const lotSearchText = (i) => Object.values(i.lots || {}).map((l) => [l.shade, l.batch, l.godown].join(" ")).join(" ").toLowerCase();
 
+let lastFilterKey = "";
+const SORTS = {
+  name: (a, b) => (a.name || "").localeCompare(b.name || ""),
+  new: (a, b) => (b.createdMs || 0) - (a.createdMs || 0),
+  qtyAsc: (a, b) => (Number(a.qty) || 0) - (Number(b.qty) || 0),
+  qtyDesc: (a, b) => (Number(b.qty) || 0) - (Number(a.qty) || 0),
+  value: (a, b) => ((Number(b.qty) || 0) + (Number(b.hold) || 0)) * (Number(b.price) || 0) - ((Number(a.qty) || 0) + (Number(a.hold) || 0)) * (Number(a.price) || 0),
+  cat: (a, b) => (a.category || "General").localeCompare(b.category || "General") || (a.name || "").localeCompare(b.name || "")
+};
+function filteredItems() {
+  const text = normalizeString($("search")?.value).toLowerCase();
+  const cat = $("categoryFilter").value, stat = $("statusFilter") ? $("statusFilter").value : "ALL", sort = $("sortBy") ? $("sortBy").value : "name";
+  const key = [text, cat, stat, sort].join("|");
+  if (key !== lastFilterKey) { invPage = 1; lastFilterKey = key; } // new search / filter: back to page 1
+  return inventory.filter((i) =>
+    ((i.name || "").toLowerCase().includes(text) || lotSearchText(i).includes(text) || String(i.id).slice(0, 6).toLowerCase() === text.replace(/^#/, "")) &&
+    (cat === "ALL" || (i.category || "General") === cat) &&
+    (stat === "ALL" || stockStatus(i) === stat)).sort(SORTS[sort] || SORTS.name);
+}
 window.filterInventory = function () {
   updateCategoryDropdown();
-  const text = normalizeString($("search")?.value).toLowerCase();
-  const cat = $("categoryFilter").value;
-  renderInventory(inventory.filter((i) =>
-    ((i.name || "").toLowerCase().includes(text) || lotSearchText(i).includes(text)) &&
-    (cat === "ALL" || (i.category || "General") === cat)));
+  renderInventory(filteredItems());
 };
-
 
 /* ---------- IMPORT FROM EXCEL (admin only) ----------
    Columns (header names are case-insensitive): Name, Category, Size, Unit, Qty, Hold, MinQty, Price
@@ -1755,8 +1802,8 @@ window.importInventory = async function (input) {
     const existing = new Map(inventory.map((i) => [key(i.name, i.size || "-"), i]));
     const updates = items.filter((i) => existing.has(key(i.name, i.size))).length;
 
-    if (!confirm(`Import ${items.length} item(s)?\n${items.length - updates} new, ${updates} will update existing items.` +
-      (skipped ? `\n${skipped} row(s) without a name will be skipped.` : ""))) return;
+    if (!(await askConfirm(`Import ${items.length} item(s)?\n${items.length - updates} new, ${updates} will update existing items.` +
+      (skipped ? `\n${skipped} row(s) without a name will be skipped.` : "")))) return;
 
     // Firestore batches allow 500 writes; use 400 per batch to stay safe
     for (let i = 0; i < items.length; i += 400) {
@@ -1843,6 +1890,23 @@ function askConfirm(msg) {
     confirmResolve = res;
   });
 }
+// a text box in our own window (instead of the browser's prompt). Resolves to the text, or null for Cancel
+let promptResolve = null;
+function askText(msg, value) {
+  return new Promise((res) => {
+    if (promptResolve) promptResolve(null);
+    $("promptText").innerText = msg;
+    $("promptInput").value = value || "";
+    $("promptModal").classList.add("open");
+    promptResolve = res;
+    setTimeout(() => { $("promptInput").focus(); $("promptInput").select(); }, 30);
+  });
+}
+window.promptAnswer = (ok) => {
+  $("promptModal").classList.remove("open");
+  if (promptResolve) promptResolve(ok ? $("promptInput").value : null);
+  promptResolve = null;
+};
 window.confirmAnswer = (yes) => {
   $("confirmModal").classList.remove("open");
   if (confirmResolve) confirmResolve(yes);
@@ -2329,7 +2393,7 @@ window.deleteTask = async (id) => {
 window.editAdminTask = async (id) => {
   const t = adminTasks.find((x) => x.id === id);
   if (!t) return;
-  const text = prompt("Edit task", t.text);
+  const text = await askText("Edit task", t.text);
   if (text === null) return;
   if (!normalizeString(text)) return toast("The task cannot be empty");
   try { await updateDoc(doc(db, "companies", companyID, "adminTasks", id), { text: normalizeString(text), tr: await trOf(normalizeString(text)) }); toast("Task updated"); }
@@ -2681,6 +2745,16 @@ const marketing = initMarketing({
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, inventory, history: historyList, companyName: companyData ? companyData.companyName : "" }),
   addUnsub: (fn) => unsubs.push(fn)
 });
+
+// 🖥 the new layout: sidebar, pages, dashboard charts, Transactions, exports, theme (ui.js)
+const ui = initUI({
+  $, esc: escapeHTML, fmtD, fmtDT, toast, attDays, lotLabel, lotSummary,
+  getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, history: historyList,
+    attendance: attSnapCache, companyName: companyData ? companyData.companyName : "" }),
+  shopSettings: () => shop.getSettings(),
+  visibleItems: () => (document.getElementById("pg-inventory") && !$("pg-inventory").classList.contains("hidden") ? filteredItems() : inventory)
+});
+window.__uiPage = (id) => ui.page(id);
 
 /* ---------- STOCK ITEM PHOTOS: take with the camera or upload ----------
    A small copy is kept with the item (for the table); the large copy is saved separately and loaded only when you tap it. */

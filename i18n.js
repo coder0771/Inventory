@@ -4896,7 +4896,580 @@ const DICT = {
 "Language": [
 "भाषा",
 "भाषा"
-]
+],
+// --- Pro Inventory 2.0 layout ---
+"Employee Movement Log: when an employee leaves or enters the shop radius": [
+"कर्मचारी आवाजाही रिकॉर्ड: जब कर्मचारी दुकान के दायरे से निकले या अंदर आए",
+"कर्मचारी ये-जा नोंद: कर्मचारी दुकानाच्या परिघातून बाहेर गेला किंवा आत आला तेव्हा"
+],
+"Company Settings, appearance and attendance location": [
+"कंपनी सेटिंग्स, रूप-रंग और हाज़िरी लोकेशन",
+"कंपनी सेटिंग्ज, रंगरूप आणि हजेरी लोकेशन"
+],
+"Records: {}": [
+"रिकॉर्ड: {}",
+"नोंदी: {}"
+],
+"Main": [
+"मुख्य",
+"मुख्य"
+],
+"Dashboard": [
+"डैशबोर्ड",
+"डॅशबोर्ड"
+],
+"Inventory": [
+"इन्वेंटरी",
+"इन्व्हेंटरी"
+],
+"Transactions": [
+"लेन-देन",
+"व्यवहार"
+],
+"Team": [
+"टीम",
+"टीम"
+],
+"Geo-Fence Places": [
+"जियो-फेंस जगहें",
+"जिओ-फेन्स ठिकाणे"
+],
+"Business": [
+"व्यापार",
+"व्यवसाय"
+],
+"Reports": [
+"रिपोर्ट",
+"अहवाल"
+],
+"System": [
+"सिस्टम",
+"सिस्टम"
+],
+"Theme": [
+"थीम",
+"थीम"
+],
+"Light": [
+"लाइट",
+"लाइट"
+],
+"Dark": [
+"डार्क",
+"डार्क"
+],
+"Live overview of your stock ·": [
+"आपके स्टॉक की लाइव झलक ·",
+"तुमच्या स्टॉकचा लाइव्ह आढावा ·"
+],
+"View Inventory": [
+"इन्वेंटरी देखें",
+"इन्व्हेंटरी पहा"
+],
+"Add Product": [
+"प्रोडक्ट जोड़ें",
+"उत्पादन जोडा"
+],
+"Today's attendance": [
+"आज की हाज़िरी",
+"आजची हजेरी"
+],
+"Mark it from inside the shop. Your location is checked.": [
+"दुकान के अंदर से लगाएँ। आपकी लोकेशन जाँची जाती है।",
+"दुकानाच्या आतून लावा. तुमचे लोकेशन तपासले जाते."
+],
+"Total Products": [
+"कुल प्रोडक्ट",
+"एकूण उत्पादने"
+],
+"items in the list": [
+"सूची में आइटम",
+"यादीतील आयटम"
+],
+"Total Stock": [
+"कुल स्टॉक",
+"एकूण स्टॉक"
+],
+"available to sell": [
+"बिक्री के लिए उपलब्ध",
+"विक्रीसाठी उपलब्ध"
+],
+"at or below min alert": [
+"न्यूनतम चेतावनी तक या उससे कम",
+"किमान सूचनेइतके किंवा कमी"
+],
+"Stock on Hold": [
+"होल्ड पर स्टॉक",
+"होल्डवरील स्टॉक"
+],
+"kept for customers": [
+"ग्राहकों के लिए रखा",
+"ग्राहकांसाठी राखून ठेवलेला"
+],
+"Broken Stock": [
+"टूटा स्टॉक",
+"तुटलेला स्टॉक"
+],
+"damaged boxes": [
+"खराब बॉक्स",
+"खराब बॉक्स"
+],
+"Total Inventory Value": [
+"इन्वेंटरी का कुल मूल्य",
+"इन्व्हेंटरीचे एकूण मूल्य"
+],
+"stock + hold × price": [
+"स्टॉक + होल्ड × कीमत",
+"स्टॉक + होल्ड × किंमत"
+],
+"Today's Transactions": [
+"आज के लेन-देन",
+"आजचे व्यवहार"
+],
+"stock movements today": [
+"आज की स्टॉक हलचल",
+"आजच्या स्टॉक हालचाली"
+],
+"{} out of stock": [
+"{} स्टॉक में नहीं",
+"{} स्टॉकमध्ये नाही"
+],
+"vs yesterday: {}": [
+"कल की तुलना में: {}",
+"कालच्या तुलनेत: {}"
+],
+"Stock Movement": [
+"स्टॉक हलचल",
+"स्टॉक हालचाल"
+],
+"Stock In vs Stock Out from the audit history": [
+"ऑडिट इतिहास से स्टॉक इन बनाम स्टॉक आउट",
+"ऑडिट इतिहासातून स्टॉक इन विरुद्ध स्टॉक आउट"
+],
+"Stock movement is visible to the owner.": [
+"स्टॉक हलचल मालिक को दिखती है।",
+"स्टॉक हालचाल मालकाला दिसते."
+],
+"Stock Health": [
+"स्टॉक की सेहत",
+"स्टॉकची स्थिती"
+],
+"Available, on hold and broken boxes": [
+"उपलब्ध, होल्ड और टूटे बॉक्स",
+"उपलब्ध, होल्ड आणि तुटलेले बॉक्स"
+],
+"Healthy stock": [
+"अच्छा स्टॉक",
+"चांगला स्टॉक"
+],
+"Available": [
+"उपलब्ध",
+"उपलब्ध"
+],
+"On Hold": [
+"होल्ड पर",
+"होल्डवर"
+],
+"Quick Actions": [
+"झटपट काम",
+"झटपट कामे"
+],
+"Most used tasks": [
+"सबसे ज़्यादा इस्तेमाल होने वाले काम",
+"सर्वाधिक वापरली जाणारी कामे"
+],
+"Stock In": [
+"स्टॉक इन",
+"स्टॉक इन"
+],
+"Stock Out": [
+"स्टॉक आउट",
+"स्टॉक आउट"
+],
+"Create Enquiry": [
+"पूछताछ बनाएँ",
+"चौकशी तयार करा"
+],
+"Hold / Release": [
+"होल्ड / रिलीज़",
+"होल्ड / रिलीज"
+],
+"Recently Updated Inventory": [
+"हाल में बदली इन्वेंटरी",
+"अलीकडे बदललेली इन्व्हेंटरी"
+],
+"Items running low": [
+"कम होते आइटम",
+"कमी होत असलेले आयटम"
+],
+"View all": [
+"सब देखें",
+"सर्व पहा"
+],
+"All items are above their min alert level.": [
+"सभी आइटम न्यूनतम चेतावनी स्तर से ऊपर हैं।",
+"सर्व आयटम किमान सूचना पातळीच्या वर आहेत."
+],
+"Category Distribution": [
+"श्रेणी के हिसाब से",
+"श्रेणीनुसार विभागणी"
+],
+"Add products to see the category split.": [
+"श्रेणी का बँटवारा देखने के लिए प्रोडक्ट जोड़ें।",
+"श्रेणीनुसार विभागणी पाहण्यासाठी उत्पादने जोडा."
+],
+"By stock value": [
+"स्टॉक मूल्य के हिसाब से",
+"स्टॉक मूल्यानुसार"
+],
+"By quantity in stock": [
+"स्टॉक मात्रा के हिसाब से",
+"स्टॉक प्रमाणानुसार"
+],
+"Others": [
+"अन्य",
+"इतर"
+],
+"No stock in / out recorded in this period.": [
+"इस अवधि में कोई स्टॉक इन / आउट नहीं।",
+"या कालावधीत स्टॉक इन / आउट नाही."
+],
+"No stock movements yet. They appear here as soon as stock goes in or out.": [
+"अभी कोई स्टॉक हलचल नहीं। स्टॉक इन या आउट होते ही यहाँ दिखेगी।",
+"अजून स्टॉक हालचाल नाही. स्टॉक इन किंवा आउट होताच इथे दिसेल."
+],
+"per week": [
+"प्रति सप्ताह",
+"दर आठवड्याला"
+],
+"All products with live stock, hold and broken boxes": [
+"लाइव स्टॉक, होल्ड और टूटे बॉक्स के साथ सभी प्रोडक्ट",
+"लाइव्ह स्टॉक, होल्ड आणि तुटलेल्या बॉक्ससह सर्व उत्पादने"
+],
+"Export": [
+"एक्सपोर्ट",
+"एक्सपोर्ट"
+],
+"Add New Product": [
+"नया प्रोडक्ट जोड़ें",
+"नवीन उत्पादन जोडा"
+],
+"Fill the details and save. Stock can be added later with Stock In.": [
+"जानकारी भरें और सेव करें। स्टॉक बाद में स्टॉक इन से जोड़ सकते हैं।",
+"माहिती भरा आणि सेव्ह करा. स्टॉक नंतर स्टॉक इनने जोडता येईल."
+],
+"Product name": [
+"प्रोडक्ट का नाम",
+"उत्पादनाचे नाव"
+],
+"Opening stock": [
+"शुरुआती स्टॉक",
+"सुरुवातीचा स्टॉक"
+],
+"Price (₹)": [
+"कीमत (₹)",
+"किंमत (₹)"
+],
+"Min alert": [
+"न्यूनतम चेतावनी",
+"किमान सूचना"
+],
+"All Status": [
+"सभी स्थिति",
+"सर्व स्थिती"
+],
+"In Stock": [
+"स्टॉक में",
+"स्टॉकमध्ये"
+],
+"Low Stock": [
+"कम स्टॉक",
+"कमी स्टॉक"
+],
+"Out of Stock": [
+"स्टॉक खत्म",
+"स्टॉक संपला"
+],
+"Sort: Name A–Z": [
+"क्रम: नाम A–Z",
+"क्रम: नाव A–Z"
+],
+"Sort: Newest first": [
+"क्रम: नए पहले",
+"क्रम: नवीन आधी"
+],
+"Sort: Stock low → high": [
+"क्रम: स्टॉक कम → ज़्यादा",
+"क्रम: स्टॉक कमी → जास्त"
+],
+"Sort: Stock high → low": [
+"क्रम: स्टॉक ज़्यादा → कम",
+"क्रम: स्टॉक जास्त → कमी"
+],
+"Sort: Highest value": [
+"क्रम: सबसे ज़्यादा मूल्य",
+"क्रम: सर्वाधिक मूल्य"
+],
+"Sort: Category": [
+"क्रम: श्रेणी",
+"क्रम: श्रेणी"
+],
+"Product": [
+"प्रोडक्ट",
+"उत्पादन"
+],
+"Size / Unit": [
+"साइज़ / यूनिट",
+"आकार / युनिट"
+],
+"Total Value": [
+"कुल मूल्य",
+"एकूण मूल्य"
+],
+"Home": [
+"होम",
+"होम"
+],
+"More": [
+"और",
+"अधिक"
+],
+"Choose the product": [
+"प्रोडक्ट चुनें",
+"उत्पादन निवडा"
+],
+"Stock In – choose the product": [
+"स्टॉक इन – प्रोडक्ट चुनें",
+"स्टॉक इन – उत्पादन निवडा"
+],
+"Stock Out – choose the product": [
+"स्टॉक आउट – प्रोडक्ट चुनें",
+"स्टॉक आउट – उत्पादन निवडा"
+],
+"Hold / Release – choose the product": [
+"होल्ड / रिलीज़ – प्रोडक्ट चुनें",
+"होल्ड / रिलीज – उत्पादन निवडा"
+],
+"No product found.": [
+"कोई प्रोडक्ट नहीं मिला।",
+"उत्पादन सापडले नाही."
+],
+"Search product...": [
+"प्रोडक्ट खोजें...",
+"उत्पादन शोधा..."
+],
+"Staff Attendance Log with check-in / check-out, hours and location": [
+"चेक-इन / चेक-आउट, घंटे और लोकेशन के साथ स्टाफ हाज़िरी रिकॉर्ड",
+"चेक-इन / चेक-आउट, तास आणि लोकेशनसह कर्मचारी हजेरी नोंद"
+],
+"Log": [
+"रिकॉर्ड",
+"नोंद"
+],
+"Your team, today's attendance and where they are": [
+"आपकी टीम, आज की हाज़िरी और वे कहाँ हैं",
+"तुमची टीम, आजची हजेरी आणि ते कुठे आहेत"
+],
+"🚶 Employee Movement Log: when an employee leaves or enters the shop radius": [
+"🚶 कर्मचारी आवाजाही रिकॉर्ड: जब कर्मचारी दुकान के दायरे से निकले या अंदर आए",
+"🚶 कर्मचारी ये-जा नोंद: कर्मचारी दुकानाच्या परिघातून बाहेर गेला किंवा आत आला तेव्हा"
+],
+"Stock Transaction Audit History: every stock in, out, hold, release, broken and change": [
+"स्टॉक लेन-देन ऑडिट इतिहास: हर स्टॉक इन, आउट, होल्ड, रिलीज़, टूटा और बदलाव",
+"स्टॉक व्यवहार ऑडिट इतिहास: प्रत्येक स्टॉक इन, आउट, होल्ड, रिलीज, तुटलेले आणि बदल"
+],
+"All types": [
+"सभी प्रकार",
+"सर्व प्रकार"
+],
+"Godown moves": [
+"गोदाम बदलाव",
+"गोदाम बदल"
+],
+"Other changes": [
+"अन्य बदलाव",
+"इतर बदल"
+],
+"Reset": [
+"रीसेट",
+"रीसेट"
+],
+"{} records": [
+"{} रिकॉर्ड",
+"{} नोंदी"
+],
+"In: {}": [
+"इन: {}",
+"इन: {}"
+],
+"Out: {}": [
+"आउट: {}",
+"आउट: {}"
+],
+"No transactions match.": [
+"कोई लेन-देन नहीं मिला।",
+"कोणताही व्यवहार जुळला नाही."
+],
+"Showing the latest 300 – export to Excel for all {}.": [
+"नवीनतम 300 दिख रहे हैं – सभी {} के लिए Excel में एक्सपोर्ट करें।",
+"नवीनतम 300 दिसत आहेत – सर्व {} साठी Excel मध्ये एक्सपोर्ट करा."
+],
+"⚙ Company Settings, appearance and attendance location": [
+"⚙ कंपनी सेटिंग्स, रूप-रंग और हाज़िरी लोकेशन",
+"⚙ कंपनी सेटिंग्ज, रंगरूप आणि हजेरी लोकेशन"
+],
+"Appearance": [
+"रूप-रंग",
+"रंगरूप"
+],
+"Saved on this device. The language is chosen with the 🌐 switch at the top.": [
+"इसी डिवाइस पर सेव होता है। भाषा ऊपर 🌐 से चुनें।",
+"याच डिव्हाइसवर सेव्ह होते. भाषा वरच्या 🌐 ने निवडा."
+],
+"Attendance location": [
+"हाज़िरी लोकेशन",
+"हजेरी लोकेशन"
+],
+"Collapse the menu": [
+"मेन्यू छोटा करें",
+"मेनू लहान करा"
+],
+"Menu": [
+"मेन्यू",
+"मेनू"
+],
+"Search products, shades, godowns...": [
+"प्रोडक्ट, शेड, गोदाम खोजें...",
+"उत्पादने, शेड, गोदाम शोधा..."
+],
+"Light / dark mode": [
+"लाइट / डार्क मोड",
+"लाइट / डार्क मोड"
+],
+"Profile": [
+"प्रोफ़ाइल",
+"प्रोफाइल"
+],
+"Search product, shade, godown...": [
+"प्रोडक्ट, शेड, गोदाम खोजें...",
+"उत्पादन, शेड, गोदाम शोधा..."
+],
+"Sort": [
+"क्रम",
+"क्रम"
+],
+"Search item, user or action...": [
+"आइटम, यूज़र या काम खोजें...",
+"आयटम, वापरकर्ता किंवा काम शोधा..."
+],
+"Present today": [
+"आज उपस्थित",
+"आज हजर"
+],
+"Late today": [
+"आज देर से",
+"आज उशिरा"
+],
+"Checked out": [
+"चेक-आउट किया",
+"चेक-आउट केले"
+],
+"Not in today": [
+"आज नहीं आए",
+"आज आले नाहीत"
+],
+"Inside shop": [
+"दुकान के अंदर",
+"दुकानाच्या आत"
+],
+"Outside shop": [
+"दुकान के बाहर",
+"दुकानाबाहेर"
+],
+"after the shift start": [
+"शिफ्ट शुरू होने के बाद",
+"शिफ्ट सुरू झाल्यानंतर"
+],
+"Attendance Out marked": [
+"हाज़िरी आउट लगी",
+"हजेरी आउट लावली"
+],
+"no Attendance In": [
+"हाज़िरी इन नहीं",
+"हजेरी इन नाही"
+],
+"of {} employees": [
+"{} कर्मचारियों में से",
+"{} कर्मचाऱ्यांपैकी"
+],
+"No employees have joined yet. Share the company name and join code with them.": [
+"अभी कोई कर्मचारी नहीं जुड़ा। उन्हें कंपनी का नाम और जॉइन कोड दें।",
+"अजून कोणी कर्मचारी जोडले नाहीत. त्यांना कंपनीचे नाव आणि जॉइन कोड द्या."
+],
+"Showing {}–{} of {}": [
+"{3} में से {1}–{2} दिख रहे हैं",
+"{3} पैकी {1}–{2} दिसत आहेत"
+],
+"Previous": [
+"पिछला",
+"मागील"
+],
+"No product matches the search or filters.": [
+"खोज या फ़िल्टर से कोई प्रोडक्ट नहीं मिला।",
+"शोध किंवा फिल्टरशी कोणतेही उत्पादन जुळले नाही."
+],
+"No products yet. Add your first product with “Add Product”.": [
+"अभी कोई प्रोडक्ट नहीं। “प्रोडक्ट जोड़ें” से पहला प्रोडक्ट जोड़ें।",
+"अजून उत्पादने नाहीत. “उत्पादन जोडा” ने पहिले उत्पादन जोडा."
+],
+"Stock IN / OUT / HOLD / RELEASE / Broken": [
+"स्टॉक IN / OUT / HOLD / RELEASE / टूटा",
+"स्टॉक IN / OUT / HOLD / RELEASE / तुटलेले"
+],
+"Update stock": [
+"स्टॉक अपडेट करें",
+"स्टॉक अपडेट करा"
+],
+"Recent movements": [
+"हाल की हलचल",
+"अलीकडील हालचाली"
+],
+"Shades / batches / godowns": [
+"शेड / बैच / गोदाम",
+"शेड / बॅच / गोदाम"
+],
+"Added": [
+"जोड़ा",
+"जोडले"
+],
+"Last stock out": [
+"आखिरी स्टॉक आउट",
+"शेवटचा स्टॉक आउट"
+],
+"Supplier": [
+"सप्लायर",
+"पुरवठादार"
+],
+"Supplier phone": [
+"सप्लायर फ़ोन",
+"पुरवठादार फोन"
+],
+"Tile": [
+"टाइल",
+"टाइल"
+],
+"Excel export is still loading. Try again in a moment": [
+"Excel एक्सपोर्ट अभी लोड हो रहा है। थोड़ी देर में फिर कोशिश करें",
+"Excel एक्सपोर्ट अजून लोड होत आहे. थोड्या वेळाने पुन्हा प्रयत्न करा"
+],
+"Allow pop-ups to save the PDF": [
+"PDF सेव करने के लिए पॉप-अप की अनुमति दें",
+"PDF सेव्ह करण्यासाठी पॉप-अपला परवानगी द्या"
+],
+"Pro Inventory": [
+"Pro Inventory",
+"Pro Inventory"
+],
 };
 
 /* <i18npure> */
@@ -5027,7 +5600,7 @@ export function initI18n({ db, doc, getDoc, setDoc }) {
   function doAttrs(el) {
     // a text box itself is never changed, but its hint (placeholder) is translated
     if (!el.getAttribute || (el.tagName === "TEXTAREA" ? skip(el.parentElement) : skip(el))) return;
-    for (const a of ["placeholder", "title"]) {
+    for (const a of ["placeholder", "title", "data-l"]) {
       if (!el.hasAttribute(a)) continue;
       const cur = el.getAttribute(a);
       el.__a = el.__a || {};
@@ -5083,7 +5656,7 @@ export function initI18n({ db, doc, getDoc, setDoc }) {
     obs.disconnect();
     walk(document.body); // translate (or restore English) everything already on screen
     document.title = translate(titleEn, lang);
-    obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["placeholder", "title"] });
+    obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["placeholder", "title", "data-l"] });
     const pick = document.getElementById("langPick");
     if (pick && pick.value !== lang) pick.value = lang;
   }
