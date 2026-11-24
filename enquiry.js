@@ -552,6 +552,24 @@ export function initEnquiry(ctx) {
     const data = await res.json();
     return (data.content || []).map((b) => b.text || "").join("");
   }
+  // read any photo with Claude AI (same saved key as the memo scan). Used by "Add items from a photo" and "Bill from a Tally photo".
+  // Returns the parsed JSON object the prompt asks for.
+  async function readPhoto(dataUrl, prompt, maxTokens) {
+    const cfg = await aiCfg();
+    if (!cfg || !cfg.key) throw new Error(isAdmin() ? "Photo reading is not set up yet. Add the AI key in Settings > 📨 Open message settings > 🤖 Photo scan." : "Photo reading is not set up yet. Ask the owner to add the AI key.");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": cfg.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: cfg.model || "claude-sonnet-5-5", max_tokens: maxTokens || 4000, messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: dataUrl.split(",")[1] } }, { type: "text", text: prompt }] }] })
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error("The AI could not read the photo: " + ((err.error && err.error.message) || "error " + res.status)); }
+    const data = await res.json();
+    const text = (data.content || []).map((b) => b.text || "").join("");
+    const a = text.indexOf("{"), b = text.lastIndexOf("}");
+    if (a < 0 || b < a) throw new Error("Could not read the photo. Take a clear, straight photo in good light and try again.");
+    try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { throw new Error("Could not read the photo. Take a clear, straight photo in good light and try again."); }
+  }
   // FREE reader: Tesseract (open source, runs on the phone itself, no key and no cost)
   function loadTesseract() {
     if (window.Tesseract) return Promise.resolve();
@@ -798,5 +816,5 @@ export function initEnquiry(ctx) {
   window.EQ = { open, close, back, newForm, list: goList, edit, set, setItem, addLine, delLine, pick, dateOn, save, tick, cross, del, print, filter: setFilter, search,
     scan, message, msgEdit, sendWa, sendSms, sharePhotos, sendDone, follows, followSend,
     openKit, closeKit, saveKit, kitPhoto, kitPhotoRemove, saveAi, removeAi };
-  return { start };
+  return { start, readPhoto };
 }

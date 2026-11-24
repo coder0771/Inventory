@@ -136,7 +136,7 @@ export function initUI(ctx) {
   }
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K") && $("globalSearch") && !$("app").classList.contains("hidden")) { e.preventDefault(); $("globalSearch").focus(); }
-    if (e.key === "Escape") { prof(false); drawer(false); }
+
   });
 
   // called when the dashboard opens (after login) and on logout
@@ -443,6 +443,20 @@ export function initUI(ctx) {
   let saved = "light"; try { saved = localStorage.getItem("pi_theme") || "light"; } catch (e) {}
   setTheme(saved);
 
+  // Escape: first close an open menu or the side menu (returns true when something was closed)
+  window.__uiEscape = () => {
+    const menus = [...document.querySelectorAll(".drop-menu:not(.hidden)")];
+    if (menus.length) { menus.forEach((m) => m.classList.add("hidden")); return true; }
+    if ($("profMenu") && !$("profMenu").classList.contains("hidden")) { prof(false); return true; }
+    if (document.body.classList.contains("drawer-open")) { drawer(false); return true; }
+    return false;
+  };
+  // BACK / Escape inside the app with no window open: Inventory / Attendance Location -> Dashboard
+  window.__uiBack = () => {
+    if ($("app").classList.contains("hidden") || document.body.classList.contains("page-modal-open")) return false;
+    if (V.page !== "dashboard") { go("dashboard"); return true; }
+    return false;
+  };
   // login / logout: the 🌐 language switch sits in the top bar inside the app
   function page(id) {
     const lb = $("langBox"), tb = document.querySelector(".tb-right");

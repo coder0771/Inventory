@@ -1095,3 +1095,17 @@ td[data-l="Time"] { white-space: nowrap; }
 @media (max-width: 960px) { .loc-grid, .loc-status { grid-template-columns: minmax(0, 1fr); } }
 .warn-card.ok { border-left-color: var(--secondary); padding: 12px 18px; }
 .warn-card.ok .stat-ic { width: 38px; height: 38px; }
+/* products read from a photo */
+.scan-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--light); border: 1px dashed #9fd3b4; color: var(--text); font-size: .86rem; }
+.scan-bar b { color: var(--primary); }
+[data-theme="dark"] .scan-bar { border-color: var(--border); }
+.scan-list { display: flex; flex-direction: column; gap: 10px; max-height: 58vh; overflow-y: auto; padding-right: 4px; }
+.scan-row { display: flex; gap: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+.scan-row.off { opacity: .5; }
+.scan-on input { width: 20px; height: 20px; margin-top: 8px; }
+.scan-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.scan-fields select { width: 100%; margin: 0; }
+.scan-grid { display: grid; grid-template-columns: 2fr 1.2fr 1fr .8fr .9fr .9fr; gap: 8px; }
+.scan-grid input:disabled { opacity: .55; }
+@media (max-width: 720px) { .scan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .scan-grid .s2 { grid-column: span 2; } }
+.modal-content .card-head { flex-wrap: nowrap; } .modal-content .card-head > div { min-width: 0; }

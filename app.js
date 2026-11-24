@@ -13,12 +13,12 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-2";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-2";
-import { initI18n } from "./i18n.js?v=20261125-2";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-2";
-import { initMarketing } from "./marketing.js?v=20261125-2";
-import { initUI, stockStatus } from "./ui.js?v=20261125-2";
+import { initSuite } from "./suite.js?v=20261125-3";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-3";
+import { initI18n } from "./i18n.js?v=20261125-3";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-3";
+import { initMarketing } from "./marketing.js?v=20261125-3";
+import { initUI, stockStatus } from "./ui.js?v=20261125-3";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -189,18 +189,38 @@ function taskBackStep() {
   return true;
 }
 
-function appBack() {
+// windows whose own Close does a little more than hiding the window
+const CLOSE_FN = {
+  scanItemsModal: () => { window.closeScanItems(); return true; },
+  kitModal: () => { if (!window.EQ) return false; window.EQ.closeKit(); return true; },
+  aiChatModal: () => { if (!window.SU) return false; window.SU.closeAiChat(); return true; },
+  noteModal: () => { if (!window.SH) return false; window.SH.closeNotes(); return true; },
+  tileModal: () => { if (!window.SH) return false; window.SH.closeCalc(); return true; },
+  shopModal: () => { if (!window.SH) return false; window.SH.close(); return true; },
+  mktModal: () => { if (!window.MK) return false; window.MK.close(); return true; },
+  suiteModal: () => { if (!window.SU) return false; window.SU.close(); return true; },
+  myWorkModal: () => { if (!window.SU) return false; window.SU.closeMy(); return true; },
+  photoModal: () => { window.closePhotoModal(); return true; },
+  placesModal: () => { window.closePlacesModal(); return true; },
+  empTaskModal: () => { window.closeEmpTaskModal(); return true; }
+};
+function appBack(opts) {
   const top = modalStack.filter((id) => $(id) && $(id).classList.contains("modal-overlay") && $(id).classList.contains("open")).pop();
   if (top) {
     if (top === "taskModal" && taskBackStep()) return true;
     if (top === "suiteModal" && window.SU && window.SU.back()) return true;
     if (top === "enquiryModal" && window.EQ && window.EQ.back()) return true;
     if (top === "confirmModal") window.confirmAnswer(false);
+    else if (top === "promptModal") window.promptAnswer(false);
     else if (top === "formModal") window.SU.formClose();
     else if (top === "editModal") closeEditModal();
+    else if (CLOSE_FN[top] && CLOSE_FN[top]()) { /* closed by its own Close */ }
     else $(top).classList.remove("open");
     return true;
   }
+  // inside the app: Inventory / Attendance Location -> Dashboard first
+  if (pageStack[pageStack.length - 1] === "app" && window.__uiBack && window.__uiBack()) return true;
+  if (opts && opts.esc && pageStack[pageStack.length - 1] === "app") return false; // Escape never logs out of the dashboard
   if (pageStack.length > 1) {
     const cur = pageStack.pop();
     if (cur === "app" || cur === "developerPage") { stopListeners(); resetSession(); clearSession(); }
@@ -226,6 +246,14 @@ function appBack() {
     if (handled && n === 0) pushTrap();  // re-arm so the next BACK press is caught too
   });
 })();
+
+// ⎋ Escape = one step back (close the top window, then the page, then the previous screen). Never logs out of the dashboard.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented || e.isComposing) return;
+  if (!$("loadingOverlay").classList.contains("hidden")) return;
+  if (window.__uiEscape && window.__uiEscape()) { e.preventDefault(); return; } // an open menu / the side menu
+  if (appBack({ esc: true })) e.preventDefault();
+});
 
 function stopListeners() { unsubs.forEach((u) => u()); unsubs = []; stopTracking(); }
 
@@ -2724,7 +2752,8 @@ const suite = initSuite({
   addUnsub: (fn) => unsubs.push(fn),
   createTask: createTaskDoc,
   shopSettings: () => shop.getSettings(),
-  attDays, hm, SHOP_DEFAULTS, lotSummary, lotLabel
+  attDays, hm, SHOP_DEFAULTS, lotSummary, lotLabel,
+  readPhoto: (img, prompt, n) => enquiry.readPhoto(img, prompt, n), compressImage
 });
 
 
@@ -2776,6 +2805,118 @@ window.pickNewItemPhoto = async function (input) {
   finally { loading(false); }
 };
 window.clearNewItemPhoto = function () { newItemPhoto = null; $("newItemPreview").src = ""; hide("newItemPhotoBox"); };
+
+/* ---------- 📸 ADD ITEMS FROM A PHOTO ----------
+   Photo of a supplier bill, delivery challan, stock list or handwritten list -> Claude AI reads the lines ->
+   the person checks / corrects every line -> new products are added, existing products get Stock IN. Nothing is saved without "Add to inventory". */
+let scanRows = [];
+const scanKey = (v) => normalizeString(v).toLowerCase().replace(/\s+/g, " ");
+function scanMatch(r) {
+  const n = scanKey(r.stockName || r.name), sz = scanKey(r.size);
+  if (!n) return "";
+  const same = inventory.filter((i) => scanKey(i.name) === n);
+  const bySize = same.find((i) => !sz || scanKey(i.size) === sz || scanKey(i.size) === "-");
+  if (bySize) return bySize.id;
+  if (same.length === 1 && !sz) return same[0].id;
+  // "Glossy Marble 600x600" written with the size inside the name
+  const full = inventory.find((i) => scanKey(i.name + " " + (i.size && i.size !== "-" ? i.size : "")) === scanKey(r.name + " " + (r.size || "")));
+  return full ? full.id : "";
+}
+window.scanItemsPhoto = async function (input) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    loading(true);
+    const img = await compressImage(file, 1600, 0.85, 4000000);
+    const stock = inventory.map((i) => i.name + (i.size && i.size !== "-" ? " | " + i.size : "")).slice(0, 400);
+    const r = await enquiry.readPhoto(img,
+      "This photo is from an Indian tiles, ceramics, sanitaryware, plumbing and hardware showroom. It can be a supplier bill / purchase invoice, a delivery challan, " +
+      "a printed or handwritten stock list, or product boxes with labels. List every product line you can read.\n" +
+      "For each line give: name (product name, spelling corrected, without the quantity), category (only if clear, e.g. Floor Tiles, Wall Tiles, Sanitary, Plumbing, Hardware; else empty), " +
+      "size (e.g. 600x600, 1 inch; else empty), unit (box, pcs, nos, sqft, kg...; else empty), qty (number of units received or listed, as a number; 0 if not written), " +
+      "price (rate per unit as a number, 0 if not written), and stockName: the exact name from our product list below if it is clearly the same product, else empty.\n" +
+      "Copy numbers exactly. Never invent a product or a number. Skip totals, taxes, transport and discount lines.\n" +
+      (stock.length ? "Our product list (name | size): " + stock.join("; ") + "\n" : "") +
+      'Reply with ONLY this JSON: {"supplier":"","billNo":"","items":[{"name":"","category":"","size":"","unit":"","qty":0,"price":0,"stockName":""}]}', 4000);
+    const items = (r && Array.isArray(r.items) ? r.items : []).filter((x) => x && normalizeString(x.name));
+    if (!items.length) return toast("No products could be read. Take a clear, straight photo in good light and try again.");
+    scanRows = items.map((x) => {
+      const row = { on: true, name: normalizeString(x.name), category: normalizeString(x.category), size: normalizeString(x.size), unit: normalizeString(x.unit),
+        qty: Math.max(0, Number(x.qty) || 0), price: Math.max(0, Number(x.price) || 0), stockName: normalizeString(x.stockName), supplier: normalizeString(r.supplier) };
+      row.match = scanMatch(row);
+      return row;
+    });
+    $("scanSupplier").innerText = [r.supplier ? "Supplier: " + normalizeString(r.supplier) : "", r.billNo ? "Bill no.: " + normalizeString(r.billNo) : ""].filter(Boolean).join(" · ");
+    renderScanRows();
+    $("scanItemsModal").classList.add("open");
+  } catch (err) { console.error(err); toast(err.message); }
+  finally { loading(false); }
+};
+function renderScanRows() {
+  const opts = [...inventory].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  $("scanItemsBody").innerHTML = scanRows.map((r, k) => `<div class="scan-row ${r.on ? "" : "off"}">
+    <label class="scan-on"><input type="checkbox" ${r.on ? "checked" : ""} onchange="scanSet(${k},'on',this.checked)"></label>
+    <div class="scan-fields">
+      <select onchange="scanSet(${k},'match',this.value)" title="Add as a new product, or add the quantity to a product you already have">
+        <option value="">➕ New product</option>${opts.map((i) => `<option value="${escapeHTML(i.id)}" ${r.match === i.id ? "selected" : ""}>📦 ${escapeHTML(i.name)}${i.size && i.size !== "-" ? " " + escapeHTML(i.size) : ""} (stock ${Number(i.qty) || 0})</option>`).join("")}</select>
+      <div class="scan-grid">
+        <label class="fld s2"><span>Product name</span><input value="${escapeHTML(r.name)}" oninput="scanSet(${k},'name',this.value)" ${r.match ? "disabled" : ""}></label>
+        <label class="fld"><span>Category</span><input value="${escapeHTML(r.category)}" oninput="scanSet(${k},'category',this.value)" ${r.match ? "disabled" : ""}></label>
+        <label class="fld"><span>Size</span><input value="${escapeHTML(r.size)}" oninput="scanSet(${k},'size',this.value)" ${r.match ? "disabled" : ""}></label>
+        <label class="fld"><span>Unit</span><input value="${escapeHTML(r.unit)}" oninput="scanSet(${k},'unit',this.value)" ${r.match ? "disabled" : ""}></label>
+        <label class="fld"><span>${r.match ? "Stock IN qty" : "Opening stock"}</span><input type="number" min="0" value="${r.qty}" oninput="scanSet(${k},'qty',this.value)"></label>
+        <label class="fld"><span>Price (₹)</span><input type="number" min="0" value="${r.price}" oninput="scanSet(${k},'price',this.value)" ${r.match ? "disabled" : ""}></label>
+      </div>
+      <div class="hint">${r.match ? "Adds the quantity to this product as Stock IN. Its price is not changed." : "A new product will be added with this opening stock."}</div>
+    </div></div>`).join("");
+  const n = scanRows.filter((r) => r.on).length;
+  $("scanSaveBtn").innerText = `Add ${n} to inventory`;
+  $("scanSaveBtn").disabled = !n;
+}
+window.scanSet = (k, f, v) => {
+  const r = scanRows[k]; if (!r) return;
+  if (f === "on") r.on = !!v; else if (f === "qty" || f === "price") r[f] = Math.max(0, Number(v) || 0); else r[f] = v;
+  if (f === "on" || f === "match") renderScanRows();
+  else { const n = scanRows.filter((x) => x.on).length; $("scanSaveBtn").innerText = `Add ${n} to inventory`; }
+};
+window.closeScanItems = () => { $("scanItemsModal").classList.remove("open"); scanRows = []; };
+window.saveScanItems = async function () {
+  const rows = scanRows.filter((r) => r.on);
+  if (!rows.length) return toast("Tick at least one line");
+  const bad = rows.find((r) => !r.match && !normalizeString(r.name));
+  if (bad) return toast("Every new product needs a name");
+  const user = displayName || contactOf(currentUser) || "Unknown";
+  let added = 0, stocked = 0;
+  try {
+    loading(true);
+    for (const r of rows) {
+      if (r.match) {
+        if (!(r.qty > 0)) continue;
+        const ref = doc(db, "companies", companyID, "inventory", r.match);
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists()) throw new Error("A product you chose no longer exists. Choose again");
+          const d = snap.data();
+          tx.update(ref, { qty: (Number(d.qty) || 0) + r.qty });
+          tx.set(doc(collection(db, "companies", companyID, "history")), { action: "STOCK IN (photo)", qty: r.qty, item: d.name, itemId: r.match, user, time: serverTimestamp() });
+        });
+        stocked++; scanRows = scanRows.filter((x) => x !== r);
+      } else {
+        const ref = await addDoc(collection(db, "companies", companyID, "inventory"), {
+          name: normalizeString(r.name), category: normalizeString(r.category) || "General", size: normalizeString(r.size) || "-", unit: normalizeString(r.unit) || "-",
+          qty: r.qty, hold: 0, broken: 0, photoUrl: "", photo: "", price: r.price, minQty: 5,
+          ...(r.supplier ? { supplier: r.supplier } : {}), createdBy: currentUser.uid, createdAt: serverTimestamp()
+        });
+        if (r.qty > 0) await addDoc(collection(db, "companies", companyID, "history"), { action: "STOCK IN (new product, photo)", qty: r.qty, item: normalizeString(r.name), itemId: ref.id, user, time: serverTimestamp() });
+        added++; scanRows = scanRows.filter((x) => x !== r);
+      }
+    }
+    window.closeScanItems();
+    toast(`Done: ${added} new product(s) added, ${stocked} product(s) got Stock IN`);
+  } catch (err) { console.error(err); toast(err.message + (added + stocked ? ` (${added + stocked} line(s) were saved and removed from this list)` : "")); renderScanRows(); }
+  finally { loading(false); }
+};
 
 function showEditPhoto(src) {
   const img = $("editPhotoPreview");

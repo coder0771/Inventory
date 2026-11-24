@@ -5563,6 +5563,158 @@ const DICT = {
 "कर्मचारी: {}",
 "कर्मचारी: {}"
 ],
+"Add from photo": [
+"फोटो से जोड़ें",
+"फोटोवरून जोडा"
+],
+"📷 Take a photo": [
+"📷 फोटो लें",
+"📷 फोटो काढा"
+],
+"🖼 Upload a photo": [
+"🖼 फोटो अपलोड करें",
+"🖼 फोटो अपलोड करा"
+],
+"Read the products from a photo of a supplier bill, challan or stock list": [
+"सप्लायर बिल, चालान या स्टॉक सूची के फोटो से प्रोडक्ट पढ़ें",
+"पुरवठादार बिल, चलन किंवा स्टॉक यादीच्या फोटोवरून उत्पादने वाचा"
+],
+"Many products at once?": [
+"एक साथ कई प्रोडक्ट?",
+"एकाच वेळी अनेक उत्पादने?"
+],
+"Take a photo of the supplier bill, challan or stock list and the products are read for you.": [
+"सप्लायर बिल, चालान या स्टॉक सूची का फोटो लें, प्रोडक्ट अपने आप पढ़ लिए जाएँगे।",
+"पुरवठादार बिल, चलन किंवा स्टॉक यादीचा फोटो काढा, उत्पादने आपोआप वाचली जातील."
+],
+"📷 Take photo": [
+"📷 फोटो लें",
+"📷 फोटो काढा"
+],
+"🖼 Upload": [
+"🖼 अपलोड",
+"🖼 अपलोड"
+],
+"📸 Products read from the photo": [
+"📸 फोटो से पढ़े गए प्रोडक्ट",
+"📸 फोटोवरून वाचलेली उत्पादने"
+],
+"Check every line. Untick lines you don't want, correct names and quantities, and choose an existing product to add Stock IN to it. Nothing is saved until you press Add.": [
+"हर लाइन जाँचें। जो लाइन नहीं चाहिए उसका टिक हटाएँ, नाम और मात्रा ठीक करें, और पुराने प्रोडक्ट में स्टॉक IN जोड़ने के लिए उसे चुनें। जोड़ें दबाने तक कुछ सेव नहीं होता।",
+"प्रत्येक ओळ तपासा. नको असलेल्या ओळींची खूण काढा, नावे आणि प्रमाण दुरुस्त करा, आणि आधीच्या उत्पादनात स्टॉक IN जोडण्यासाठी ते निवडा. जोडा दाबेपर्यंत काहीही सेव्ह होत नाही."
+],
+"From a supplier bill the price is usually your purchase rate: change it to your selling price for new products if needed.": [
+"सप्लायर बिल में कीमत अक्सर आपकी खरीद दर होती है: ज़रूरत हो तो नए प्रोडक्ट के लिए इसे अपनी बिक्री कीमत में बदलें।",
+"पुरवठादार बिलातील किंमत बहुधा तुमचा खरेदी दर असतो: गरज असल्यास नवीन उत्पादनांसाठी ती विक्री किमतीत बदला."
+],
+"Add to inventory": [
+"इन्वेंटरी में जोड़ें",
+"इन्व्हेंटरीत जोडा"
+],
+"Add {} to inventory": [
+"{} इन्वेंटरी में जोड़ें",
+"{} इन्व्हेंटरीत जोडा"
+],
+"➕ New product": [
+"➕ नया प्रोडक्ट",
+"➕ नवीन उत्पादन"
+],
+"Stock IN qty": [
+"स्टॉक IN मात्रा",
+"स्टॉक IN प्रमाण"
+],
+"Adds the quantity to this product as Stock IN. Its price is not changed.": [
+"यह मात्रा इस प्रोडक्ट में स्टॉक IN के रूप में जुड़ेगी। इसकी कीमत नहीं बदलेगी।",
+"हे प्रमाण या उत्पादनात स्टॉक IN म्हणून जोडले जाईल. किंमत बदलणार नाही."
+],
+"A new product will be added with this opening stock.": [
+"इस शुरुआती स्टॉक के साथ नया प्रोडक्ट जुड़ेगा।",
+"या सुरुवातीच्या स्टॉकसह नवीन उत्पादन जोडले जाईल."
+],
+"Add as a new product, or add the quantity to a product you already have": [
+"नए प्रोडक्ट के रूप में जोड़ें, या पहले से मौजूद प्रोडक्ट में मात्रा जोड़ें",
+"नवीन उत्पादन म्हणून जोडा, किंवा आधीच्या उत्पादनात प्रमाण जोडा"
+],
+"Supplier: {}": [
+"सप्लायर: {}",
+"पुरवठादार: {}"
+],
+"Bill no.: {}": [
+"बिल नं.: {}",
+"बिल क्र.: {}"
+],
+"No products could be read. Take a clear, straight photo in good light and try again.": [
+"कोई प्रोडक्ट नहीं पढ़ा जा सका। अच्छी रोशनी में साफ़, सीधा फोटो लेकर फिर कोशिश करें।",
+"कोणतेही उत्पादन वाचता आले नाही. चांगल्या प्रकाशात स्पष्ट, सरळ फोटो काढून पुन्हा प्रयत्न करा."
+],
+"Tick at least one line": [
+"कम से कम एक लाइन टिक करें",
+"किमान एक ओळ निवडा"
+],
+"Every new product needs a name": [
+"हर नए प्रोडक्ट का नाम चाहिए",
+"प्रत्येक नवीन उत्पादनाला नाव हवे"
+],
+"Done: {} new product(s) added, {} product(s) got Stock IN": [
+"हो गया: {1} नए प्रोडक्ट जुड़े, {2} प्रोडक्ट में स्टॉक IN हुआ",
+"झाले: {1} नवीन उत्पादने जोडली, {2} उत्पादनांत स्टॉक IN झाला"
+],
+"Could not read the photo. Take a clear, straight photo in good light and try again.": [
+"फोटो नहीं पढ़ा जा सका। अच्छी रोशनी में साफ़, सीधा फोटो लेकर फिर कोशिश करें।",
+"फोटो वाचता आला नाही. चांगल्या प्रकाशात स्पष्ट, सरळ फोटो काढून पुन्हा प्रयत्न करा."
+],
+"Photo reading is not set up yet. Add the AI key in Settings > 📨 Open message settings > 🤖 Photo scan.": [
+"फोटो पढ़ना अभी चालू नहीं है। सेटिंग्स > 📨 संदेश सेटिंग्स खोलें > 🤖 फोटो स्कैन में AI की डालें।",
+"फोटो वाचन अजून चालू नाही. सेटिंग्ज > 📨 संदेश सेटिंग्ज उघडा > 🤖 फोटो स्कॅन मध्ये AI की टाका."
+],
+"Photo reading is not set up yet. Ask the owner to add the AI key.": [
+"फोटो पढ़ना अभी चालू नहीं है। मालिक से AI की डालने को कहें।",
+"फोटो वाचन अजून चालू नाही. मालकाला AI की टाकायला सांगा."
+],
+"📷 Tally bill photo": [
+"📷 Tally बिल फोटो",
+"📷 Tally बिल फोटो"
+],
+"🖼 Upload Tally bill": [
+"🖼 Tally बिल अपलोड करें",
+"🖼 Tally बिल अपलोड करा"
+],
+"Have a Tally bill? Take a photo and the invoice is filled for you.": [
+"Tally बिल है? फोटो लें, इनवॉइस अपने आप भर जाएगा।",
+"Tally बिल आहे? फोटो काढा, इनव्हॉइस आपोआप भरले जाईल."
+],
+"Invoice filled from the Tally bill. Check it, then Save.": [
+"Tally बिल से इनवॉइस भर गया। जाँचें, फिर सेव करें।",
+"Tally बिलावरून इनव्हॉइस भरले. तपासा, मग सेव्ह करा."
+],
+"No bill lines could be read. Take a clear, straight photo of the whole bill in good light and try again.": [
+"बिल की कोई लाइन नहीं पढ़ी जा सकी। अच्छी रोशनी में पूरे बिल का साफ़, सीधा फोटो लेकर फिर कोशिश करें।",
+"बिलाची एकही ओळ वाचता आली नाही. चांगल्या प्रकाशात संपूर्ण बिलाचा स्पष्ट, सरळ फोटो काढून पुन्हा प्रयत्न करा."
+],
+"Check the customer, every line, the GST and the dates, then Save. If it is already paid, record the payment after saving.": [
+"ग्राहक, हर लाइन, GST और तारीखें जाँचें, फिर सेव करें। अगर भुगतान हो चुका है तो सेव के बाद भुगतान दर्ज करें।",
+"ग्राहक, प्रत्येक ओळ, GST आणि तारखा तपासा, मग सेव्ह करा. पैसे आधीच मिळाले असल्यास सेव्हनंतर पेमेंट नोंदवा."
+],
+"Filled from a Tally bill photo.": [
+"Tally बिल फोटो से भरा गया।",
+"Tally बिल फोटोवरून भरले."
+],
+"Filled from a Tally bill photo (Tally bill no. {}).": [
+"Tally बिल फोटो से भरा गया (Tally बिल नं. {})।",
+"Tally बिल फोटोवरून भरले (Tally बिल क्र. {})."
+],
+"⚠ A bill with Tally number {} is already in your invoices ({}). Save only if this is a different bill.": [
+"⚠ Tally नंबर {1} वाला बिल पहले से आपके इनवॉइस में है ({2})। यह अलग बिल हो तभी सेव करें।",
+"⚠ Tally क्रमांक {1} चे बिल आधीच तुमच्या इनव्हॉइसमध्ये आहे ({2}). हे वेगळे बिल असेल तरच सेव्ह करा."
+],
+"✅ Same as the total on the Tally bill ({})": [
+"✅ Tally बिल के कुल ({}) के बराबर",
+"✅ Tally बिलाच्या एकूण ({}) इतकेच"
+],
+"⚠ The Tally bill total is {} but this invoice comes to {}. Check the lines, GST % and discount.": [
+"⚠ Tally बिल का कुल {1} है पर यह इनवॉइस {2} बनता है। लाइनें, GST % और छूट जाँचें।",
+"⚠ Tally बिलाचे एकूण {1} आहे पण हे इनव्हॉइस {2} होते. ओळी, GST % आणि सूट तपासा."
+],
 };
 
 /* <i18npure> */

@@ -739,6 +739,7 @@ export function initSuite(ctx) {
       <button class="auth-btn ${type === "INVOICE" ? "on" : ""}" onclick="SU.billTab('INVOICE')">Invoices</button>
       <button class="auth-btn ${type === "QUOTATION" ? "on" : ""}" onclick="SU.billTab('QUOTATION')">Quotations</button>
       <button class="auth-btn" style="background:#28a745" onclick="SU.billStart('${type}')">➕ New ${label}</button>
+      ${type === "INVOICE" ? tallyBtns() : ""}
       ${chip("Outstanding " + inr(bal))}</div>` + (list.length ? list.map(docRow).join("") : `<p class="hint">${label === "Invoice" ? "No invoices yet." : "No quotations yet."}</p>`);
   }
 
@@ -761,7 +762,7 @@ export function initSuite(ctx) {
     V.billTab = type; V.tab = "bill";
     V.bill = { id: d ? d.id : null, type, cName: d?.cName || "", cPhone: d?.cPhone || "", cEmail: d?.cEmail || "", cAddress: d?.cAddress || "",
       date: d?.date || now(), dueAt: d?.dueAt || now() + 15 * 86400000, taxPct: d?.taxPct || 0, discount: d?.discount || 0, notes: d?.notes || "",
-      leadId: d?.leadId || "", items: d?.items ? d.items.map((i) => ({ ...i })) : [{ desc: "", qty: 1, price: 0, itemId: "" }] };
+      leadId: d?.leadId || "", tallyNo: d?.tallyNo || "", photo: d?.photo || null, items: d?.items ? d.items.map((i) => ({ ...i })) : [{ desc: "", qty: 1, price: 0, itemId: "" }] };
     V.lock = true;
     $("suiteModal").classList.add("open");
     renderSuite(true);
@@ -800,11 +801,17 @@ export function initSuite(ctx) {
     <button class="bin" onclick="SU.bdel(${i})">✖</button></div>`).join("");
   const totalsHTML = () => {
     const t = calcTotals(V.bill.items, V.bill.taxPct, V.bill.discount);
-    return `Subtotal ${inr(t.subtotal)} · Discount ${inr(t.disc)} · Tax ${inr(t.tax)}<br><span class="sval">Total ${inr(t.total)}</span>${lotWarn()}`;
+    const ph = V.bill.photo && V.bill.photo.grandTotal > 0 ? V.bill.photo.grandTotal : 0;
+    const cmp = ph ? (Math.abs(ph - t.total) <= 1.5 ? `<div class="hint">✅ Same as the total on the Tally bill (${inr(ph)})</div>`
+      : `<div class="calc-warn">⚠ The Tally bill total is ${inr(ph)} but this invoice comes to ${inr(t.total)}. Check the lines, GST % and discount.</div>`) : "";
+    return `Subtotal ${inr(t.subtotal)} · Discount ${inr(t.disc)} · Tax ${inr(t.tax)}<br><span class="sval">Total ${inr(t.total)}</span>${cmp}${lotWarn()}`;
   };
   function viewBillForm() {
     const b = V.bill, inv = b.type === "INVOICE";
     return `<h3 style="margin-top:0">${b.id ? "Edit" : "New"} ${inv ? "Invoice" : "Quotation"}</h3>
+      ${inv ? `<div class="scan-bar">📸 ${b.photo ? `<span><b>Filled from a Tally bill photo${b.tallyNo ? " (Tally bill no. " + esc(b.tallyNo) + ")" : ""}.</b> Check the customer, every line, the GST and the dates, then Save. If it is already paid, record the payment after saving.</span>`
+        : `<span>Have a Tally bill? Take a photo and the invoice is filled for you.</span>`} ${tallyBtns()}</div>
+        ${b.photo && b.photo.dup ? `<div class="calc-warn">⚠ A bill with Tally number ${esc(b.tallyNo)} is already in your invoices (${esc(b.photo.dup)}). Save only if this is a different bill.</div>` : ""}` : ""}
       <div class="grid2"><input placeholder="Customer name *" value="${esc(b.cName)}" oninput="SU.bset('cName',this.value)">
         <input placeholder="Phone" value="${esc(b.cPhone)}" oninput="SU.bset('cPhone',this.value)">
         <input placeholder="Email" value="${esc(b.cEmail)}" oninput="SU.bset('cEmail',this.value)">
@@ -845,6 +852,65 @@ export function initSuite(ctx) {
     $("billItems").innerHTML = itemsHTML(); refreshTotals();
   }
 
+  /* ---------- 📸 invoice from a photo of a Tally bill (Claude AI reads it; the owner checks and saves) ---------- */
+  const tallyBtns = () => `<button class="auth-btn" style="background:#0e7490" onclick="document.getElementById('tallyCam').click()">📷 Tally bill photo</button>
+    <button class="auth-btn" style="background:#0e7490" onclick="document.getElementById('tallyFile').click()">🖼 Upload Tally bill</button>`;
+  const numOf = (v) => { const n = Number(String(v === null || v === undefined ? "" : v).replace(/[₹,\s]/g, "")); return isFinite(n) ? n : 0; };
+  const keyOf = (v) => String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
+  function dateOf(v) {
+    const m = String(v || "").match(/(\d{1,2})[\/\-. ](\d{1,2}|[A-Za-z]{3,})[\/\-. ](\d{2,4})/);
+    if (!m) return null;
+    const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    const mo = /^\d+$/.test(m[2]) ? Number(m[2]) : MON[m[2].slice(0, 3).toLowerCase()];
+    let y = Number(m[3]); if (y < 100) y += 2000;
+    const d = new Date(y, (mo || 1) - 1, Number(m[1]), 12, 0, 0);
+    return mo && !isNaN(d) ? d.getTime() : null;
+  }
+  async function tallyPhoto(input) {
+    const file = input.files && input.files[0];
+    input.value = "";
+    if (!file || !isAdmin()) return;
+    try {
+      loading(true);
+      const img = await ctx.compressImage(file, 2000, 0.85, 4500000);
+      const stock = st().inventory.map((i) => i.name + (i.size && i.size !== "-" ? " | " + i.size : "")).slice(0, 400);
+      const r = await ctx.readPhoto(img,
+        "This is a photo of a sales bill / tax invoice printed from Tally (TallyPrime or Tally ERP 9) by an Indian tiles, ceramics, sanitaryware and hardware showroom. " +
+        "Read the bill exactly. Copy every number exactly as printed; never invent a value; use \"\" or 0 when something is not on the bill.\n" +
+        "Give: invoiceNo, date (DD/MM/YYYY), buyer (the customer / 'Buyer (Bill to)' name, not the seller), phone, address, gstin (buyer's), " +
+        "items: one entry per product line with desc (description of goods), qty (number), unit, rate (per unit, before GST), discountPct (0 if none), amount (line amount before GST), gstPct (GST rate %, 0 if not shown per line), " +
+        "stockName (the exact name from our product list below if it is clearly the same product, else \"\"); then taxable (total taxable value), cgst, sgst, igst (tax amounts), discount (bill-level discount amount, 0 if none), roundOff, grandTotal.\n" +
+        "Do not put tax, round off, freight or total lines in items.\n" +
+        (stock.length ? "Our product list (name | size): " + stock.join("; ") + "\n" : "") +
+        'Reply with ONLY this JSON: {"invoiceNo":"","date":"","buyer":"","phone":"","address":"","gstin":"","items":[{"desc":"","qty":0,"unit":"","rate":0,"discountPct":0,"amount":0,"gstPct":0,"stockName":""}],"taxable":0,"cgst":0,"sgst":0,"igst":0,"discount":0,"roundOff":0,"grandTotal":0}', 4000);
+      const lines = (r && Array.isArray(r.items) ? r.items : []).filter((x) => x && String(x.desc || "").trim() && numOf(x.qty) > 0);
+      if (!lines.length) return toast("No bill lines could be read. Take a clear, straight photo of the whole bill in good light and try again.");
+      const inv = st().inventory;
+      const items = lines.map((x) => {
+        const qty = numOf(x.qty), amt = numOf(x.amount), rate = numOf(x.rate), dp = numOf(x.discountPct);
+        const price = amt > 0 ? Math.round((amt / qty) * 100) / 100 : Math.round(rate * (1 - dp / 100) * 100) / 100;
+        const sn = keyOf(x.stockName);
+        const hit = sn ? inv.find((i) => keyOf(i.name) === sn) || inv.find((i) => keyOf(i.name + " " + (i.size || "")) === sn) : null;
+        return { desc: String(x.desc).trim() + (x.unit && !hit ? " (" + String(x.unit).trim() + ")" : ""), qty, price, itemId: hit ? hit.id : "", lotId: "" };
+      });
+      const taxable = numOf(r.taxable) || items.reduce((a, i) => a + i.qty * i.price, 0), taxAmt = numOf(r.cgst) + numOf(r.sgst) + numOf(r.igst);
+      const rates = [...new Set(lines.map((x) => numOf(x.gstPct)).filter((g) => g > 0))];
+      const taxPct = rates.length === 1 ? rates[0] : taxable > 0 && taxAmt > 0 ? Math.round((taxAmt / (taxable - numOf(r.discount))) * 10000) / 100 : 0;
+      const tallyNo = String(r.invoiceNo || "").trim();
+      const dup = tallyNo ? S.docs.find((d) => d.type === "INVOICE" && keyOf(d.tallyNo) === keyOf(tallyNo)) : null;
+      const date = dateOf(r.date) || now();
+      const notes = ["Tally bill" + (tallyNo ? " no. " + tallyNo : ""), r.gstin ? "Buyer GSTIN: " + String(r.gstin).trim() : "", numOf(r.roundOff) ? "Round off on Tally bill: " + numOf(r.roundOff) : ""].filter(Boolean).join(" · ");
+      const keep = V.bill && V.bill.type === "INVOICE" ? V.bill : null;
+      billStart("INVOICE", { id: keep ? keep.id : undefined, cName: String(r.buyer || "").trim() || (keep ? keep.cName : ""), cPhone: String(r.phone || "").trim() || (keep ? keep.cPhone : ""),
+        cEmail: keep ? keep.cEmail : "", cAddress: String(r.address || "").trim() || (keep ? keep.cAddress : ""), date, dueAt: date + 15 * 86400000, taxPct, discount: numOf(r.discount),
+        notes: keep && keep.notes ? keep.notes + "\n" + notes : notes, leadId: keep ? keep.leadId : "", tallyNo, items,
+        photo: { grandTotal: numOf(r.grandTotal), dup: dup && (!keep || dup.id !== keep.id) ? dup.number : "" } });
+      if (keep && !keep.id) V.bill.id = null;
+      toast("Invoice filled from the Tally bill. Check it, then Save.");
+    } catch (e) { console.error(e); toast(e.message); }
+    finally { loading(false); }
+  }
+
   async function nextNumber(type) {
     const key = type === "INVOICE" ? "invoice" : "quotation";
     return runTransaction(db, async (tx) => {
@@ -865,7 +931,8 @@ export function initSuite(ctx) {
     if (isNaN(date) || (inv && isNaN(dueAt))) return toast("Enter valid dates");
     const tot = calcTotals(items, b.taxPct, b.discount);
     const data = { type: b.type, cName: b.cName.trim(), cPhone: b.cPhone, cEmail: b.cEmail, cAddress: b.cAddress, date, dueAt, items,
-      taxPct: Number(b.taxPct) || 0, discount: tot.disc, subtotal: tot.subtotal, tax: tot.tax, total: tot.total, notes: b.notes, leadId: b.leadId, updatedAt: serverTimestamp() };
+      taxPct: Number(b.taxPct) || 0, discount: tot.disc, subtotal: tot.subtotal, tax: tot.tax, total: tot.total, notes: b.notes, leadId: b.leadId, updatedAt: serverTimestamp(),
+      ...(b.tallyNo ? { tallyNo: String(b.tallyNo).trim() } : {}) };
     try {
       loading(true);
       if (b.id) { await updateDoc(D("docs", b.id), data); toast("Saved"); }
@@ -1396,7 +1463,7 @@ export function initSuite(ctx) {
     leadForm, candForm, ticketForm, noteForm, callForm, wa: waForm, tplPick, tplForm, quickWa, myNote: noteLead,
     billTab: (t) => { V.billTab = t; renderSuite(true); }, billStart, billFromLead, billEdit, bset, bitem, baddItem, bdel, bpick, bsave,
     clearStage, bsaveAndInvoice, payForm, toInvoice, deduct, remind, qstatus, printDoc, pmSet, paySub, salForm, genPayroll, psEdit, markPaid, printSlip, leaveForm, leaveSet,
-    ruleForm, ruleToggle, presets, postForm, copyPost, markPosted, blot
+    ruleForm, ruleToggle, presets, postForm, copyPost, markPosted, blot, tallyPhoto
   };
   return { start, getDocs: () => S.docs, getLeaves: () => S.leaves, addBillLine };
 }
