@@ -526,13 +526,13 @@ export function initEnquiry(ctx) {
 
   /* ---------------- 📷 fill the form from a photo of the memo (Claude AI reads the handwriting) ---------------- */
   async function aiCfg() {
-    if (V.ai !== undefined) return V.ai;
+    if (V.ai) return V.ai; // "off" is not remembered: when the developer turns it on, it works without reloading
     try { const a = await getDoc(D("aiConfig", "main")); V.ai = a.exists() ? a.data() : null; } catch (e) { V.ai = null; }
     return V.ai;
   }
   async function readMemo(dataUrl) {
     const cfg = await aiCfg();
-    if (!cfg || !cfg.key) throw new Error(isAdmin() ? "Photo scan is not set up yet. Add the AI key in Enquiry > ⚙ Messages & scan." : "Photo scan is not set up yet. Ask the owner to add the AI key.");
+    if (!cfg || !cfg.key) throw new Error(isAdmin() ? "Photo reading is not turned on yet. Contact the developer to turn it on." : "Photo reading is not turned on yet. Ask the owner.");
     const stock = st().inventory.map((i) => i.name).filter(Boolean).slice(0, 400);
     const prompt = 'This is a photo of a handwritten "ESTIMATE - MEMO" enquiry slip from an Indian tiles, ceramics, sanitaryware and hardware showroom. ' +
       "Read every field. Correct spelling mistakes in people's names, places and product words (for example \"Ramsh Patl\" becomes \"Ramesh Patil\", \"wall tils\" becomes \"wall tiles\"). " +
@@ -556,7 +556,7 @@ export function initEnquiry(ctx) {
   // Returns the parsed JSON object the prompt asks for.
   async function readPhoto(dataUrl, prompt, maxTokens) {
     const cfg = await aiCfg();
-    if (!cfg || !cfg.key) throw new Error(isAdmin() ? "Photo reading is not set up yet. Add the AI key in Settings > 📨 Open message settings > 🤖 Photo scan." : "Photo reading is not set up yet. Ask the owner to add the AI key.");
+    if (!cfg || !cfg.key) throw new Error(isAdmin() ? "Photo reading is not turned on yet. Contact the developer to turn it on." : "Photo reading is not turned on yet. Ask the owner.");
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": cfg.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
@@ -706,15 +706,13 @@ export function initEnquiry(ctx) {
     const kit = K();
     KIT_FIELDS.forEach(([el, k]) => { if ($(el)) $(el).value = kit[k]; });
     $("kitAuto").checked = kit.autoWelcome;
-    $("aiKey").value = ""; $("aiModel").value = "";
     $("kitModal").classList.add("open");
     for (const [id, el] of [["card", "kitCardImg"], ["showroom", "kitShowImg"]]) {
       $(el).src = ""; $(el).classList.add("hidden");
       try { const d = await getDoc(D("brand", id)); if (d.exists() && d.data().img) { $(el).src = d.data().img; $(el).classList.remove("hidden"); } } catch (e) {}
     }
     try { const a = await getDoc(D("aiConfig", "main")); const ok = a.exists() && a.data().key;
-      $("aiStatus").innerText = ok ? "✅ Photo scan is on (key ending …" + a.data().key.slice(-4) + ", model " + (a.data().model || "claude-sonnet-5-5") + ")" : "Photo scan is off: no key saved yet.";
-      if (ok) $("aiModel").value = a.data().model || ""; } catch (e) { $("aiStatus").innerText = ""; }
+      $("aiStatus").innerText = ok ? "✅ Photo reading is on" : "Photo reading is off."; } catch (e) { $("aiStatus").innerText = ""; }
   }
   const closeKit = () => $("kitModal").classList.remove("open");
   async function saveKit() {
@@ -753,25 +751,6 @@ export function initEnquiry(ctx) {
       toast("Photo removed");
     } catch (err) { toast(err.message); }
   }
-  async function saveAi() {
-    const key = ($("aiKey").value || "").trim(), model = ($("aiModel").value || "").trim();
-    try {
-      loading(true);
-      const cur = await getDoc(D("aiConfig", "main"));
-      if (!key && !(cur.exists() && cur.data().key)) return toast("Paste the API key first");
-      await setDoc(D("aiConfig", "main"), { ...(key ? { key } : {}), model, updatedAt: serverTimestamp() }, { merge: true });
-      V.ai = undefined; $("aiKey").value = "";
-      $("aiStatus").innerText = "✅ Photo scan is on" + (model ? " (model " + model + ")" : "");
-      toast("Photo scan settings saved");
-    } catch (err) { console.error(err); toast("Could not save: " + err.message); }
-    finally { loading(false); }
-  }
-  async function removeAi() {
-    if (!(await askConfirm("Turn off photo scan and delete the saved key?"))) return;
-    try { await deleteDoc(D("aiConfig", "main")); V.ai = undefined; $("aiStatus").innerText = "Photo scan is off: no key saved yet."; toast("Key removed"); }
-    catch (err) { toast(err.message); }
-  }
-
   /* ---------------- ⌨ arrow keys move between the boxes and buttons of the Enquiry window ---------------- */
   function arrowNav(ev) {
     if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(ev.key) || ev.altKey || ev.ctrlKey || ev.metaKey) return;
@@ -815,6 +794,6 @@ export function initEnquiry(ctx) {
 
   window.EQ = { open, close, back, newForm, list: goList, edit, set, setItem, addLine, delLine, pick, dateOn, save, tick, cross, del, print, filter: setFilter, search,
     scan, message, msgEdit, sendWa, sendSms, sharePhotos, sendDone, follows, followSend,
-    openKit, closeKit, saveKit, kitPhoto, kitPhotoRemove, saveAi, removeAi };
+    openKit, closeKit, saveKit, kitPhoto, kitPhotoRemove };
   return { start, readPhoto };
 }

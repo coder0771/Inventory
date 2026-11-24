@@ -1109,3 +1109,9 @@ td[data-l="Time"] { white-space: nowrap; }
 .scan-grid input:disabled { opacity: .55; }
 @media (max-width: 720px) { .scan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .scan-grid .s2 { grid-column: span 2; } }
 .modal-content .card-head { flex-wrap: nowrap; } .modal-content .card-head > div { min-width: 0; }
+/* developer console: photo reading key */
+#devBody .task-card { background: var(--surface) !important; color: var(--text); }
+.dev-ai { border-left: 4px solid var(--secondary); }
+.dev-ai-co { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.dev-ai-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.dev-ai-row input { flex: 1 1 200px; margin: 0; }

@@ -13,12 +13,12 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-3";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-3";
-import { initI18n } from "./i18n.js?v=20261125-3";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-3";
-import { initMarketing } from "./marketing.js?v=20261125-3";
-import { initUI, stockStatus } from "./ui.js?v=20261125-3";
+import { initSuite } from "./suite.js?v=20261125-5";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-5";
+import { initI18n } from "./i18n.js?v=20261125-5";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-5";
+import { initMarketing } from "./marketing.js?v=20261125-5";
+import { initUI, stockStatus } from "./ui.js?v=20261125-5";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -2672,14 +2672,16 @@ window.loadDevData = async function () {
     const snap = await getDocs(collection(db, "companies"));
     devCompanies = [];
     for (const c of snap.docs) {
-      const [staff, members] = await Promise.all([
+      const [staff, members, ai] = await Promise.all([
         getDocs(collection(db, "companies", c.id, "staff")),
-        getDocs(collection(db, "companies", c.id, "members"))
+        getDocs(collection(db, "companies", c.id, "members")),
+        getDoc(doc(db, "companies", c.id, "aiConfig", "main")).catch(() => null)
       ]);
       devCompanies.push({
         id: c.id, ...c.data(),
         staff: staff.docs.map((d) => d.data()),
-        admins: members.docs.map((d) => d.data()).filter((m) => m.admin === true || m.role === "ADMIN")
+        admins: members.docs.map((d) => d.data()).filter((m) => m.admin === true || m.role === "ADMIN"),
+        ai: ai && ai.exists() && ai.data().key ? { last4: String(ai.data().key).slice(-4), model: ai.data().model || "" } : null
       });
     }
     renderDevData();
@@ -2689,7 +2691,16 @@ window.loadDevData = async function () {
 
 function renderDevData() {
   $("devCount").innerText = devCompanies.length;
-  $("devBody").innerHTML = devCompanies.length ? devCompanies.map((c) => `
+  const on = devCompanies.filter((c) => c.ai).length;
+  const allBox = `<div class="task-card dev-ai" style="flex-direction:column; align-items:stretch; text-align:left">
+      <div class="task-title" style="font-size:1.1em">🤖 Photo reading – AI key for all companies</div>
+      <div class="task-meta">Used for the enquiry memo scan, "Add from photo" in Inventory and "Tally bill photo" in Billing. Only developers can set it; owners and employees cannot see or change it here.
+        On in ${on} of ${devCompanies.length} companies.</div>
+      <div class="dev-ai-row"><input id="devAiKeyAll" type="password" autocomplete="off" placeholder="Anthropic API key (sk-ant-...)">
+        <input id="devAiModelAll" placeholder="Model (empty = claude-sonnet-5-5)">
+        <button class="btn btn-primary" onclick="devSaveAi('ALL')">Save for all companies</button>
+        <button class="btn btn-danger" onclick="devRemoveAi('ALL')">Turn off for all</button></div></div>`;
+  $("devBody").innerHTML = allBox + (devCompanies.length ? devCompanies.map((c) => `
     <div class="task-card" style="flex-direction:column; align-items:stretch; background:rgba(255,255,255,0.95); text-align:left">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
         <div><div class="task-title" style="font-size:1.15em">🏢 ${escapeHTML(c.companyName || "(no name)")}</div>
@@ -2701,8 +2712,40 @@ function renderDevData() {
         <thead><tr><th>#</th><th>Employee</th><th>Email / Phone</th><th>Joined</th></tr></thead>
         <tbody>${c.staff.length ? c.staff.map((s, n) => `<tr><td>${n + 1}</td><td>${escapeHTML(s.name)}</td><td>${escapeHTML(s.email || "-")}</td>
           <td>${s.joinedAt?.toDate ? fmtD(s.joinedAt.toDate()) : "-"}</td></tr>`).join("") : '<tr><td colspan="4">No employees</td></tr>'}</tbody>
-      </table></div>`).join("") : "<p style='color:white'>No companies exist.</p>";
+      </table>
+      <div class="dev-ai-co"><b>🤖 Photo reading:</b> ${c.ai ? `<span class="st st-ok">On</span> <span class="task-meta">key …${escapeHTML(c.ai.last4)}${c.ai.model ? " · " + escapeHTML(c.ai.model) : ""}</span>` : `<span class="st st-out">Off</span>`}
+        <div class="dev-ai-row"><input id="devAiKey_${escapeHTML(c.id)}" type="password" autocomplete="off" placeholder="${c.ai ? "New key (empty = keep the saved one)" : "Anthropic API key (sk-ant-...)"}">
+          <input id="devAiModel_${escapeHTML(c.id)}" placeholder="Model (empty = claude-sonnet-5-5)" value="${c.ai ? escapeHTML(c.ai.model) : ""}">
+          <button class="btn btn-primary sm" onclick="devSaveAi('${escapeHTML(c.id)}')">Save</button>
+          ${c.ai ? `<button class="btn btn-danger sm" onclick="devRemoveAi('${escapeHTML(c.id)}')">Turn off</button>` : ""}</div></div></div>`).join("") : "<p>No companies exist.</p>");
 }
+
+// 🤖 photo reading key: only the developer sets it (database rule: aiConfig is written by developers only)
+window.devSaveAi = async (id) => {
+  const all = id === "ALL", key = normalizeString($(all ? "devAiKeyAll" : "devAiKey_" + id)?.value), model = normalizeString($(all ? "devAiModelAll" : "devAiModel_" + id)?.value);
+  const targets = all ? devCompanies : devCompanies.filter((c) => c.id === id);
+  if (!key && (all || !targets[0] || !targets[0].ai)) return toast("Paste the API key first");
+  if (key && !/^sk-ant-/.test(key)) return toast("This does not look like an Anthropic API key (it starts with sk-ant-)");
+  if (all && !(await askConfirm(`Use this key for photo reading in all ${targets.length} companies?`))) return;
+  try {
+    loading(true);
+    for (const c of targets) await setDoc(doc(db, "companies", c.id, "aiConfig", "main"), { ...(key ? { key } : {}), model, updatedAt: serverTimestamp(), setBy: "developer" }, { merge: true });
+    toast(all ? "Photo reading is on for all companies" : "Photo reading saved");
+    await loadDevData();
+  } catch (err) { console.error(err); toast(err.code === "permission-denied" ? "Publish the latest firestore.rules in Firebase first" : "Could not save: " + err.message); }
+  finally { loading(false); }
+};
+window.devRemoveAi = async (id) => {
+  const all = id === "ALL", targets = all ? devCompanies : devCompanies.filter((c) => c.id === id);
+  if (!(await askConfirm(all ? "Turn off photo reading and delete the key in ALL companies?" : "Turn off photo reading and delete the key for this company?"))) return;
+  try {
+    loading(true);
+    for (const c of targets) await deleteDoc(doc(db, "companies", c.id, "aiConfig", "main"));
+    toast("Photo reading turned off");
+    await loadDevData();
+  } catch (err) { console.error(err); toast(err.code === "permission-denied" ? "Publish the latest firestore.rules in Firebase first" : "Could not turn off: " + err.message); }
+  finally { loading(false); }
+};
 
 window.devDeleteCompany = async (id) => {
   const c = devCompanies.find((x) => x.id === id);

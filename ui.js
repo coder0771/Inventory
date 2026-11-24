@@ -462,7 +462,11 @@ export function initUI(ctx) {
     const lb = $("langBox"), tb = document.querySelector(".tb-right");
     document.body.classList.toggle("in-app", id === "app");
     if (id === "app") { if (lb && tb && lb.parentNode !== tb) tb.insertBefore(lb, tb.firstChild); }
-    else { if (lb && lb.parentNode !== document.body) document.body.appendChild(lb); closePageModals(); drawer(false); prof(false); }
+    else {
+      if (lb && lb.parentNode !== document.body) document.body.appendChild(lb); closePageModals(); drawer(false); prof(false);
+      // leaving the app (logout, developer console): no window of the app stays open
+      document.querySelectorAll(".modal-overlay.open").forEach((m) => { if (m.id !== "confirmModal" && m.id !== "promptModal") m.classList.remove("open"); });
+    }
   }
 
   window.UI = { details, closeDetails, go, open, drawer, collapse, theme, setTheme, prof, search, range, quick, picked, renderPick, addPanel, txSet, txReset, exportInv, exportTx, exportAtt };

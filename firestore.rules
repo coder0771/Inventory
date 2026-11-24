@@ -355,11 +355,11 @@ service cloud.firestore {
         allow write: if isAdmin(cid);
         allow delete: if isDeveloper();
       }
-      // AI key for reading memo photos: readable by the company's own members (so employees can scan), set by the admin
+      // AI key for photo reading (memo scan, products from a photo, Tally bills): set ONLY by the developer
+      // (developer console). The company's members can read it so their phones can read photos.
       match /aiConfig/{id} {
-        allow read: if isMember(cid);
-        allow write: if isAdmin(cid);
-        allow delete: if isDeveloper();
+        allow read: if isMember(cid) || isDeveloper();
+        allow write, delete: if isDeveloper();
       }
       // large stock item photos (the small one is kept on the item itself)
       match /itemPhotos/{itemId} {
