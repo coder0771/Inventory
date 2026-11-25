@@ -372,7 +372,7 @@ export function initEnquiry(ctx) {
       <button class="auth-btn" onclick="EQ.addLine()">➕ Add line</button>
       <div class="memo-field" style="margin-top:8px"><label>Extra notes</label><textarea class="task-input" rows="2" oninput="EQ.set('note', this.value)">${esc(f.note)}</textarea></div>
     </div>
-    <button class="role-btn" style="background:#28a745" onclick="EQ.save()">💾 Save Enquiry</button>
+    <button class="role-btn" style="background:var(--primary)" onclick="EQ.save()">💾 Save Enquiry</button>
     <button class="auth-btn" style="background:#666" onclick="EQ.list()">Cancel</button>`;
   }
   const set = (k, v) => { V.form[k] = v; };

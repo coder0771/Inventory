@@ -310,7 +310,7 @@ export function initShop(ctx) {
     } else if (t.tileSqft > 0) {
       h += `<div class="calc-big">🔲 Tiles needed: <b>${r.pieces}</b> pieces</div><div class="hint">Enter pieces per box (or sq ft per box) to get the number of boxes.</div>`;
     } else h += `<div class="hint">Enter the tile size to see how many boxes are needed.</div>`;
-    h += `<div class="calc-actions">${isAdmin() && r.boxes ? `<button class="role-btn" style="background:#28a745" onclick="SH.ctoQuote()">➕ Add to quotation</button>` : ""}
+    h += `<div class="calc-actions">${isAdmin() && r.boxes ? `<button class="role-btn" style="background:var(--primary)" onclick="SH.ctoQuote()">➕ Add to quotation</button>` : ""}
       ${r.boxes || r.pieces ? `<button class="auth-btn" style="background:#25D366" onclick="SH.cshare()">💬 Share on WhatsApp</button>` : ""}</div>`;
     el.innerHTML = h;
   }
@@ -452,7 +452,7 @@ export function initShop(ctx) {
     const list = all.filter((c) => (V.credFilter !== "due" || dueKeys.has(c.key)) && (!q || (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q)));
     const total = all.reduce((s, c) => s + Math.max(0, c.due), 0);
     return `<div class="suite-bar"><button class="auth-btn" style="background:#dc3545" onclick="SH.cgive()">➕ Give udhaar</button>
-        <button class="auth-btn" style="background:#28a745" onclick="SH.creceive()">💵 Receive payment</button>
+        <button class="auth-btn" style="background:var(--primary)" onclick="SH.creceive()">💵 Receive payment</button>
         <span class="chip chip-red">Total to collect: ${inr(total)}</span>
         <button class="auth-btn ${V.credFilter === "due" ? "on" : ""}" onclick="SH.cfilter()">💬 Reminders due: ${dueKeys.size}</button>
         <input placeholder="🔍 Name or mobile" value="${esc(V.credSearch || "")}" onfocus="SH.typing()" oninput="SH.csearch(this.value)" style="min-width:160px"></div>
@@ -464,7 +464,7 @@ export function initShop(ctx) {
         <div class="task-info"><div class="task-title"><span class="notr">${esc(c.name || "Customer")}</span> ${c.due > 0.005 ? `<span class="chip chip-red">Due ${inr(c.due)}</span>` : `<span class="chip chip-green">Nothing due</span>`}${dueKeys.has(c.key) ? ' <span class="chip chip-yellow">💬 Reminder due</span>' : ""}</div>
         <div class="task-meta">${c.phone ? `📞 <span class="notr">${esc(c.phone)}</span> · ` : ""}Invoices: ${inr(c.invDue)} · Udhaar: ${inr(c.manual)}${c.lastPay ? " · Last payment: " + dstr(c.lastPay) : ""}${creditMeta[metaId(c.key)]?.lastReminderAt ? " · Last reminder: " + dstr(creditMeta[metaId(c.key)].lastReminderAt) : ""}</div></div>
         <div class="decide-col" style="flex-wrap:wrap; gap:6px">
-          ${c.due > 0.005 ? `<button class="edit-btn" style="background:#28a745" onclick="SH.creceive('${esc(c.key)}')">💵 Payment</button><button class="edit-btn" style="background:#25D366" onclick="SH.cremind('${esc(c.key)}')">💬 Remind</button>` : ""}
+          ${c.due > 0.005 ? `<button class="edit-btn" style="background:var(--primary)" onclick="SH.creceive('${esc(c.key)}')">💵 Payment</button><button class="edit-btn" style="background:#25D366" onclick="SH.cremind('${esc(c.key)}')">💬 Remind</button>` : ""}
           <button class="edit-btn" onclick="SH.cgive('${esc(c.key)}')">➕ Udhaar</button><button class="edit-btn" onclick="SH.cstate('${esc(c.key)}')">📜 Statement</button></div></div>`).join("")
       : `<p class="hint">${V.credFilter === "due" ? "No reminders are due." : "No customer owes money. Use ➕ Give udhaar to record a credit sale."}</p>`;
   }
@@ -492,7 +492,7 @@ export function initShop(ctx) {
         <td>${r.id ? `<button class="bin btn-sm" onclick="SH.cdelEntry('${r.id}')">🗑</button>` : ""}</td></tr>`; }).join("");
     return `<h3 style="margin-top:0">📜 <span class="notr">${esc(c.name || "Customer")}</span>${c.phone ? ` · <span class="notr">${esc(c.phone)}</span>` : ""}</h3>
       <div class="suite-bar"><span class="chip ${c.due > 0.005 ? "chip-red" : "chip-green"}">Due ${inr(c.due)}</span>
-        ${c.due > 0.005 ? `<button class="auth-btn" style="background:#28a745" onclick="SH.creceive('${esc(c.key)}')">💵 Receive payment</button><button class="auth-btn" style="background:#25D366" onclick="SH.cremind('${esc(c.key)}')">💬 Remind</button>` : ""}
+        ${c.due > 0.005 ? `<button class="auth-btn" style="background:var(--primary)" onclick="SH.creceive('${esc(c.key)}')">💵 Receive payment</button><button class="auth-btn" style="background:#25D366" onclick="SH.cremind('${esc(c.key)}')">💬 Remind</button>` : ""}
         <button class="auth-btn" onclick="SH.cgive('${esc(c.key)}')">➕ Give udhaar</button></div>
       <div class="table-wrap"><table class="stable"><thead><tr><th>Date</th><th>Details</th><th>Given</th><th>Received</th><th>Balance</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="6">No entries</td></tr>'}</tbody></table></div>
       <button class="auth-btn" style="background:#666; margin-top:10px" onclick="SH.cstate('')">← Back</button>`;
@@ -503,7 +503,7 @@ export function initShop(ctx) {
     $("shopBody").innerHTML = `<h3 style="margin-top:0">${title}</h3>` + fields.map((f) => `<label class="task-label">${f.label}${f.req ? " *" : ""}</label>` +
       (f.type === "select" ? `<select id="sf_${f.k}" style="width:95%">${f.opts.map((o) => `<option ${o === f.v ? "selected" : ""}>${o}</option>`).join("")}</select>`
         : `<input id="sf_${f.k}" type="${f.type || "text"}" ${f.type === "number" ? 'min="0" step="any"' : ""} value="${esc(f.v ?? "")}" placeholder="${esc(f.ph || "")}" style="width:95%">`)).join("") +
-      `<button class="role-btn" style="background:#28a745" id="sfSave">💾 Save</button><button class="auth-btn" style="background:#666" onclick="SH.cancelForm()">Cancel</button>`;
+      `<button class="role-btn" style="background:var(--primary)" id="sfSave">💾 Save</button><button class="auth-btn" style="background:#666" onclick="SH.cancelForm()">Cancel</button>`;
     $("sfSave").onclick = async () => {
       const v = {};
       for (const f of fields) {
@@ -617,7 +617,7 @@ export function initShop(ctx) {
     if (V.dayData.error) return head + `<p class="hint">Could not load: ${esc(V.dayData.error)}</p>`;
     const f = dayFigures();
     const card = (label, val, color) => `<div class="scard" style="border-top:4px solid ${color}"><div class="hint">${label}</div><div class="sval">${val}</div></div>`;
-    return head + `<div class="sgrid">${card("Sales (invoices)", inr(f.sales), "#28a745")}${card("Money received", inr(f.received), "#0056b3")}${card("Udhaar given", inr(f.given.reduce((s, e) => s + (Number(e.amount) || 0), 0)), "#dc3545")}
+    return head + `<div class="sgrid">${card("Sales (invoices)", inr(f.sales), "var(--primary-ink)")}${card("Money received", inr(f.received), "#0056b3")}${card("Udhaar given", inr(f.given.reduce((s, e) => s + (Number(e.amount) || 0), 0)), "#dc3545")}
         ${card("Enquiries", f.enq.length, "#c0392b")}${card("Boxes out", f.outQty, "#e67e22")}${card("Staff present", f.rows.length + " / " + (st().staff || []).length, "#6f42c1")}</div>
       <h4>💵 Money received</h4>${Object.keys(f.recv).length ? `<table class="stable"><tbody>${Object.entries(f.recv).map(([m, v]) => `<tr><td>${esc(m)}</td><td><b>${inr(v)}</b></td></tr>`).join("")}</tbody></table>` : `<p class="hint">No payments recorded.</p>`}
       <h4>🧾 Invoices (${f.inv.length}) · Quotations (${f.quo.length})</h4>${f.inv.length ? f.inv.map((d) => `<div class="task-meta">${esc(d.number)} · <span class="notr">${esc(d.cName)}</span> · ${inr(d.total)}</div>`).join("") : `<p class="hint">No invoices.</p>`}
@@ -701,7 +701,7 @@ export function initShop(ctx) {
       <h4>📊 Day report</h4><div class="grid2">${f("closingTime", "Closing time (report reminder)", "time")}${f("ownerPhone", "Send the report to WhatsApp number", "tel")}</div>
       <h4>📒 Udhaar and stock</h4><div class="grid2">${f("reminderDays", "Payment reminder every (days)", "number", 'min="1"')}${f("deadDays", "Dead stock after (days)", "number", 'min="7"')}</div>
       ${f("wastage", "Tile calculator: extra for cutting (%)", "number", 'min="0" step="any"')}
-      <button class="role-btn" style="background:#28a745; margin-top:12px" onclick="SH.saveSet()">💾 Save settings</button>`;
+      <button class="role-btn" style="background:var(--primary); margin-top:12px" onclick="SH.saveSet()">💾 Save settings</button>`;
   }
   async function saveSet() {
     const g = (k) => ($("ss_" + k)?.value || "").trim(), n = (k, min) => Math.max(min || 0, Number(g(k)) || 0);

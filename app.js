@@ -13,12 +13,12 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-5";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-5";
-import { initI18n } from "./i18n.js?v=20261125-5";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-5";
-import { initMarketing } from "./marketing.js?v=20261125-5";
-import { initUI, stockStatus } from "./ui.js?v=20261125-5";
+import { initSuite } from "./suite.js?v=20261125-6";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-6";
+import { initI18n } from "./i18n.js?v=20261125-6";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-6";
+import { initMarketing } from "./marketing.js?v=20261125-6";
+import { initUI, stockStatus } from "./ui.js?v=20261125-6";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -799,6 +799,7 @@ window.editItem = function (id) {
   $("currentHold").innerText = selectedItem.hold ?? 0;
   $("currentBroken").innerText = selectedItem.broken ?? 0;
   $("transactionQty").value = "";
+  if ($("stockAfter")) $("stockAfter").innerHTML = "";
   $("moveGodown").value = "";
   lotPick = "_";
   clearNewShadePhoto();
@@ -1021,6 +1022,38 @@ async function stockEvent(itemId, name, before, after, min) {
   } catch (e) { console.warn("Notification not saved", e); }
 }
 window.__stockEvent = stockEvent;
+// ---- what a stock action will do (shown live under the amount, and in the confirmation) ----
+const CONFIRM_TYPES = ["HOLD", "RELEASE", "FINAL", "BROKEN", "BROKENOUT", "MOVE"];
+const ACTION_WORD = { IN: "Stock IN", OUT: "Stock OUT", HOLD: "HOLD", RELEASE: "RELEASE (hold back to stock)", FINAL: "FINAL OUT (hold delivered)", BROKEN: "BROKEN (stock to broken)", BROKENOUT: "BROKEN OUT (remove broken)", MOVE: "MOVE to another godown" };
+function stockPreview(type, qty) {
+  const i = selectedItem; if (!i) return null;
+  const lots = i.lots || {}, sum = lotSummary(i), lot = lotPick !== "_" && lotPick !== "+" ? lots[lotPick] : null;
+  const avail = lot ? Number(lot.qty) || 0 : sum.genQty, onHold = lot ? Number(lot.hold) || 0 : sum.genHold;
+  const amt = qty === null ? onHold : qty;
+  let s = Number(i.qty) || 0, h = Number(i.hold) || 0, b = Number(i.broken) || 0, err = "";
+  switch (type) {
+    case "IN": s += amt; break;
+    case "OUT": if (avail < amt) err = `Only ${avail} available`; s -= amt; break;
+    case "HOLD": if (avail < amt) err = `Only ${avail} available`; s -= amt; h += amt; break;
+    case "RELEASE": if (onHold < amt) err = `Only ${onHold} on hold`; h -= amt; s += amt; break;
+    case "FINAL": if (onHold < amt) err = `Only ${onHold} on hold`; h -= amt; break;
+    case "BROKEN": if (avail < amt) err = `Only ${avail} available`; s -= amt; b += amt; break;
+    case "BROKENOUT": if (b < amt) err = `Only ${b} in broken stock`; b -= amt; break;
+    case "MOVE": if (avail < amt) err = `Only ${avail} available`; break;
+  }
+  if (!(amt > 0)) err = type === "RELEASE" || type === "FINAL" ? "Nothing is on hold" : "Enter the amount";
+  const where = lot ? " [" + lotLabel(lot) + "]" : "";
+  const target = type === "MOVE" ? " → 🏬 " + normalizeString($("moveGodown").value) : "";
+  return { error: err, text: `${ACTION_WORD[type]}\nAmount: ${amt} × ${i.name}${where}${target}\nStock: ${Number(i.qty) || 0} → ${s}\nHold: ${Number(i.hold) || 0} → ${h}\nBroken: ${Number(i.broken) || 0} → ${b}\n\nContinue?` };
+}
+window.stockHint = () => {
+  const el = $("stockAfter"); if (!el || !selectedItem) return;
+  const raw = normalizeString($("transactionQty").value), q = Number(raw);
+  if (!raw || !(q > 0)) { el.innerHTML = ""; return; }
+  const i = selectedItem, s = Number(i.qty) || 0, h = Number(i.hold) || 0;
+  el.innerHTML = `<span>After IN: ${s + q}</span> · <span>After OUT: ${s - q}</span> · <span>After HOLD: ${s - q} + ${h + q}</span>` + (q > s ? ` <span class="txt-red">Only ${s} in stock</span>` : "");
+};
+
 async function updateStock(type) {
   if (!selectedItem) return;
   const raw = normalizeString($("transactionQty")?.value);
@@ -1042,6 +1075,12 @@ async function updateStock(type) {
     if (!target) return toast("Type the godown to move the stock to");
   }
 
+  // important operations: show what will happen and ask first (the transaction below still checks the live stock)
+  if (CONFIRM_TYPES.includes(type)) {
+    const p = stockPreview(type, useAllHold ? null : qty);
+    if (p && p.error) return toast(p.error);
+    if (!(await askConfirm(p ? p.text : "Continue?"))) return;
+  }
   const itemRef = doc(db, "companies", companyID, "inventory", selectedItem.id);
   try {
     loading(true);
@@ -1914,9 +1953,11 @@ function pushAlert(html, cls) {
 
 function askConfirm(msg) {
   return new Promise((res) => {
+    if (confirmResolve) confirmResolve(false); // an older question still open: that one is a No
     $("confirmText").innerText = msg;
     $("confirmModal").classList.add("open");
     confirmResolve = res;
+    setTimeout(() => { const y = document.querySelector("#confirmModal .btn-danger"); if (y) y.focus(); }, 30); // Enter = Yes, Escape = No
   });
 }
 // a text box in our own window (instead of the browser's prompt). Resolves to the text, or null for Cancel
@@ -2151,7 +2192,7 @@ function renderTaskAdmin(force) {
   else if (taskView === "assignType") {
     h = `<p>Is this task for a single employee or for all employees?</p>
       <button class="role-btn" style="background:#6f42c1" onclick="taskGo('pick')">👤 Single Employee</button>
-      <button class="role-btn" style="background:#28a745" onclick="taskGo('assignAll')">👥 All Employees</button>${backBtn("menu")}`;
+      <button class="role-btn" style="background:var(--primary)" onclick="taskGo('assignAll')">👥 All Employees</button>${backBtn("menu")}`;
   }
 
   else if (taskView === "pick") {
@@ -2171,13 +2212,13 @@ function renderTaskAdmin(force) {
       ${single ? `<label class="task-label">Privacy</label>
         <div class="task-radio"><label><input type="radio" name="taskPrivacy" value="PUBLIC" checked> Public (all employees can see it)</label><br>
         <label><input type="radio" name="taskPrivacy" value="PRIVATE"> Private (only that employee can see it)</label></div>` : ""}
-      <button class="role-btn" style="background:#28a745" onclick="submitTask('${single ? "SINGLE" : "ALL"}')">Submit Task</button>
+      <button class="role-btn" style="background:var(--primary)" onclick="submitTask('${single ? "SINGLE" : "ALL"}')">Submit Task</button>
       ${backBtn(single ? "pick" : "assignType")}`;
   }
 
   else if (taskView === "adminTasks") {
     h = `<div style="display:flex; gap:6px"><input id="adminTaskText" class="task-input" style="flex:1; margin:0" placeholder="Type your own task...">
-      <button class="auth-btn" style="background:#28a745" onclick="addAdminTask()">Add</button></div>
+      <button class="auth-btn" style="background:var(--primary)" onclick="addAdminTask()">Add</button></div>
       <div id="adminTaskList" style="margin-top:12px"></div>${backBtn("menu")}`;
   }
 
@@ -2206,7 +2247,7 @@ function renderTaskAdmin(force) {
         </div>
         ${open ? `<div style="width:100%; margin-top:8px"><label class="task-label">New end date &amp; time</label>
           ${dtPicker("extendEnd", Date.now() + 86400000)}
-          <button class="auth-btn" style="background:#28a745" onclick="submitExtend()">Submit</button>
+          <button class="auth-btn" style="background:var(--primary)" onclick="submitExtend()">Submit</button>
           <button class="auth-btn" style="background:#666" onclick="closeExtend()">Cancel</button></div>` : ""}
       </div>`;
     }).join("") : "<p>No incompleted tasks 🎉</p>";
@@ -2265,7 +2306,7 @@ function renderTaskAdmin(force) {
         </div>
         <label class="task-label">Start (DD / MM / YYYY and time)</label>${dtPicker("editStart", t.startAt)}
         <label class="task-label">End (DD / MM / YYYY and time)</label>${dtPicker("editEnd", t.endAt)}
-        <button class="role-btn" style="background:#28a745" onclick="saveTaskEdit()">💾 Save Changes</button>${backBtn("assigned")}`;
+        <button class="role-btn" style="background:var(--primary)" onclick="saveTaskEdit()">💾 Save Changes</button>${backBtn("assigned")}`;
     }
   }
 
@@ -2535,7 +2576,7 @@ function renderGiveForm() {
     <label class="task-label">End (DD / MM / YYYY and time) - task must be completed by</label>
     ${dtPicker("giveEnd", Date.now() + 86400000)}
     <p class="hint">Everyone in the company can see this task. When it is completed, it goes to the owner for approval.</p>
-    <button class="role-btn" style="background:#28a745" onclick="submitGiveTask()">Submit Task</button>
+    <button class="role-btn" style="background:var(--primary)" onclick="submitGiveTask()">Submit Task</button>
     <button class="auth-btn" style="background:#666; width:100%; margin-top:12px" onclick="closeGiveTask()">← Back</button>`;
 }
 window.giveScopeChanged = () => {
@@ -2821,7 +2862,7 @@ const marketing = initMarketing({
 
 // 🖥 the new layout: sidebar, pages, dashboard charts, Transactions, exports, theme (ui.js)
 const ui = initUI({
-  $, esc: escapeHTML, fmtD, fmtDT, toast, attDays, lotLabel, lotSummary,
+  $, esc: escapeHTML, fmtD, fmtDT, toast, attDays, lotLabel, lotSummary, askConfirm, db, doc, getDoc, setDoc,
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, history: historyList,
     attendance: attSnapCache, companyName: companyData ? companyData.companyName : "", geo: companyData && companyData.geo, shopGeo: companyData && companyData.shopGeo }),
   shopSettings: () => shop.getSettings(),

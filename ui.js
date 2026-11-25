@@ -5,6 +5,7 @@
 // No business logic lives here: every action calls the existing functions.
 // =====================================================================
 
+import { initTheme } from "./theme.js?v=20261125-6";
 /* <uipure> */
 const DAYMS = 86400000;
 export const isIn = (a) => /^STOCK IN/.test(a || "");
@@ -57,9 +58,9 @@ export function initUI(ctx) {
   const inr = (n) => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
   const short = (n) => { n = Number(n) || 0; return n >= 1e7 ? "₹" + (n / 1e7).toFixed(2).replace(/\.?0+$/, "") + "Cr" : n >= 1e5 ? "₹" + (n / 1e5).toFixed(1).replace(/\.0$/, "") + "L" : inr(n); };
   const num = (n) => (Number(n) || 0).toLocaleString("en-IN");
-  const V = { page: "dashboard", range: 7, tx: { q: "", type: "ALL", from: "", to: "" } };
+  const V = { emp: { q: "", st: "ALL" }, page: "dashboard", range: 7, tx: { q: "", type: "ALL", from: "", to: "" } };
   // windows that are shown as pages inside the layout (their own code is unchanged)
-  const PAGE_MODALS = ["historyModal", "staffModal", "movementModal", "attendanceModal", "shopModal", "enquiryModal", "taskModal", "empTaskModal", "suiteModal", "myWorkModal", "mktModal", "settingsModal"];
+  const PAGE_MODALS = ["appearanceModal", "historyModal", "staffModal", "movementModal", "attendanceModal", "shopModal", "enquiryModal", "taskModal", "empTaskModal", "suiteModal", "myWorkModal", "mktModal", "settingsModal"];
   const W = (f) => () => { const fn = f(); if (typeof fn === "function") fn(); };
   const CLOSERS = { suiteModal: W(() => window.SU && SU.close), myWorkModal: W(() => window.SU && SU.closeMy), shopModal: W(() => window.SH && SH.close), mktModal: W(() => window.MK && MK.close),
     enquiryModal: W(() => window.EQ && EQ.close), historyModal: W(() => window.closeHistoryModal), staffModal: W(() => window.closeStaffModal), movementModal: W(() => window.closeMovementModal),
@@ -91,6 +92,13 @@ export function initUI(ctx) {
   function open(fn) { closePageModals(); drawer(false); try { fn(); } finally { setTimeout(markActive, 0); } }
   function markActive() {
     const openModal = PAGE_MODALS.find((id) => $(id) && $(id).classList.contains("open"));
+    // the theme panel lives in Settings (owner) and in Appearance (everyone)
+    const inSet = $("settingsModal") && $("settingsModal").classList.contains("open"), inApp = $("appearanceModal") && $("appearanceModal").classList.contains("open");
+    if (inApp && $("themeHostPage") && !$("themeHostPage").innerHTML) TH.render("themeHostPage");
+    else if (inSet && !inApp && $("themeHostSettings") && !$("themeHostSettings").innerHTML) TH.render("themeHostSettings");
+    if (!inSet && !inApp && (($("themeHostPage") && $("themeHostPage").innerHTML) || ($("themeHostSettings") && $("themeHostSettings").innerHTML))) {
+      TH.leftPanel(); $("themeHostPage").innerHTML = ""; $("themeHostSettings").innerHTML = "";
+    }
     document.querySelectorAll("[data-go],[data-modal]").forEach((el) => {
       const on = openModal ? el.dataset.modal === openModal || (el.dataset.modal2 === openModal) : el.dataset.go === V.page;
       el.classList.toggle("active", !!on);
@@ -103,15 +111,10 @@ export function initUI(ctx) {
     document.body.classList.toggle("side-collapsed", on);
     try { localStorage.setItem("pi_side", on ? "1" : "0"); } catch (e) {}
   }
-  function setTheme(t) {
-    t = t === "dark" ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", t);
-    try { localStorage.setItem("pi_theme", t); } catch (e) {}
-    const b = $("themeBtn"); if (b) b.innerHTML = ic(t === "dark" ? "sun" : "moon");
-    document.querySelectorAll("[data-theme-pick]").forEach((x) => x.classList.toggle("on", x.dataset.themePick === t));
-    if (V.page === "dashboard") renderDashboard();
-  }
-  const theme = () => setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  // 🎨 Appearance & Theme Settings (theme.js): per person and per company
+  const TH = initTheme({ $, esc, toast: ctx.toast, askConfirm: ctx.askConfirm, db: ctx.db, doc: ctx.doc, getDoc: ctx.getDoc, setDoc: ctx.setDoc });
+  const setTheme = (mode) => TH.quick(mode);
+  const theme = () => TH.quick();
   function prof(on) {
     const m = $("profMenu"); if (!m) return;
     const show = on === undefined ? m.classList.contains("hidden") : on;
@@ -154,6 +157,7 @@ export function initUI(ctx) {
     $("pmCompany").innerText = S.companyName || "";
     if ($("empAttCard")) $("empAttCard").classList.toggle("hidden", admin);
     go("dashboard");
+    TH.load(u.uid, S.companyID);
   }
 
   /* ---------------- dashboard ---------------- */
@@ -378,7 +382,12 @@ export function initUI(ctx) {
   function renderStaffCards() {
     const el = $("staffCards"); if (!el || !isAdmin()) return;
     const S = st(), att = {}; todayAtt().forEach((r) => (att[r.uid] = r));
-    el.innerHTML = (S.staff || []).length ? S.staff.map((s) => {
+    const q = (V.emp.q || "").toLowerCase(), want = V.emp.st;
+    const stOf = (a) => (a ? (a.outMs ? "out" : a.late ? "late" : "present") : "absent");
+    const list = (S.staff || []).filter((s) => (!q || (s.name || "").toLowerCase().includes(q) || (s.email || "").toLowerCase().includes(q)) && (want === "ALL" || stOf(att[s.uid]) === want));
+    if ($("empCount")) $("empCount").innerText = (S.staff || []).length ? `${list.length} / ${S.staff.length}` : "";
+    el.innerHTML = !(S.staff || []).length ? `<p class="hint">No employees have joined yet. Share the company name and join code with them.</p>`
+      : !list.length ? `<p class="hint">No employee matches the search.</p>` : list.map((s) => {
       const a = att[s.uid];
       const status = a ? (a.outMs ? `<span class="st st-info">Checked out</span>` : a.late ? `<span class="st st-hold">Late today</span>` : `<span class="st st-ok">Present today</span>`) : `<span class="st st-out">Not in today</span>`;
       const where = s.presence === "OUT" ? `<span class="st st-low">Outside shop</span>` : s.presence === "IN" ? `<span class="st st-ok">Inside shop</span>` : "";
@@ -386,7 +395,7 @@ export function initUI(ctx) {
         <div class="emp-id"><b class="notr">${esc(s.name || "")}</b><div class="hint notr">${esc(s.email || "-")}</div><span class="role-chip">Employee</span></div></div>
         <div class="emp-meta">${status} ${where}<div class="hint">Joined: ${s.joinedAt && s.joinedAt.toDate ? fmtD(s.joinedAt.toDate()) : "-"}${a && a.inMs ? " · In: " + new Date(a.inMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true }) : ""}</div></div>
         <div class="emp-act"><button class="btn-ghost danger" onclick="removeEmployee('${esc(s.uid)}')">${ic("user-x")} Remove</button></div></div>`;
-    }).join("") : `<p class="hint">No employees have joined yet. Share the company name and join code with them.</p>`;
+    }).join("");
   }
   function renderAttSummary() {
     const el = $("attSummary"); if (!el || !isAdmin()) return;
@@ -439,10 +448,6 @@ export function initUI(ctx) {
     pdf("Attendance", Object.keys(rows[0] || { Date: "" }), rows.map((r) => Object.values(r)));
   }
 
-  // theme from last time (before anything is drawn)
-  let saved = "light"; try { saved = localStorage.getItem("pi_theme") || "light"; } catch (e) {}
-  setTheme(saved);
-
   // Escape: first close an open menu or the side menu (returns true when something was closed)
   window.__uiEscape = () => {
     const menus = [...document.querySelectorAll(".drop-menu:not(.hidden)")];
@@ -464,11 +469,12 @@ export function initUI(ctx) {
     if (id === "app") { if (lb && tb && lb.parentNode !== tb) tb.insertBefore(lb, tb.firstChild); }
     else {
       if (lb && lb.parentNode !== document.body) document.body.appendChild(lb); closePageModals(); drawer(false); prof(false);
+      if (id !== "boot") TH.load(null); // start screens and the developer console: the original colours
       // leaving the app (logout, developer console): no window of the app stays open
       document.querySelectorAll(".modal-overlay.open").forEach((m) => { if (m.id !== "confirmModal" && m.id !== "promptModal") m.classList.remove("open"); });
     }
   }
 
-  window.UI = { details, closeDetails, go, open, drawer, collapse, theme, setTheme, prof, search, range, quick, picked, renderPick, addPanel, txSet, txReset, exportInv, exportTx, exportAtt };
+  window.UI = { empSet: (k, v) => { V.emp[k] = v; renderStaffCards(); }, openAppearance: () => open(() => $("appearanceModal").classList.add("open")), details, closeDetails, go, open, drawer, collapse, theme, setTheme, prof, search, range, quick, picked, renderPick, addPanel, txSet, txReset, exportInv, exportTx, exportAtt };
   return { start, refresh, go, markActive, page };
 }

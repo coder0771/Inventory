@@ -669,7 +669,7 @@ export function initMarketing(ctx) {
       ${s("geminiKey", "Google Gemini API key", "AIza...")}${f("veoModel", "Veo model", "text", DEF.veoModel)}
       <h4>🪔 Festivals</h4><p class="hint">One per line: date (YYYY-MM-DD), a space, then the name. Greetings start 3 days before.</p>
       <textarea id="mk_fests" class="task-input notr" rows="6">${esc(fests().map(([d, n]) => d + " " + n).join("\n"))}</textarea>
-      <button class="role-btn" style="background:#28a745; margin-top:12px" onclick="MK.saveSet()">💾 Save settings</button>`;
+      <button class="role-btn" style="background:var(--primary); margin-top:12px" onclick="MK.saveSet()">💾 Save settings</button>`;
   }
   async function saveSet() {
     const g = (k) => ($("mk_" + k)?.value || "").trim(), ck = (k) => !!$("mk_" + k)?.checked;

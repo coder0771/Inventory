@@ -632,8 +632,8 @@ export function initSuite(ctx) {
     won.forEach((l) => { const n = l.assignedName || "Unassigned"; perEmp[n] = (perEmp[n] || 0) + (l.value || 0); });
     const card = (label, val, color) => `<div class="scard" style="border-top:4px solid ${color}"><div class="hint">${label}</div><div class="sval">${val}</div></div>`;
     return `<div class="sgrid">${card("Open pipeline", inr(S.leads.filter(openLead).reduce((s, l) => s + (l.value || 0), 0)), "#17a2b8")}
-      ${card("Won this month", inr(wonMonth), "#28a745")}${card("Conversion rate", conv + "%", "#6f42c1")}
-      ${card("Total invoiced", inr(invoiced), "#0056b3")}${card("Collected", inr(collected), "#28a745")}
+      ${card("Won this month", inr(wonMonth), "var(--primary-ink)")}${card("Conversion rate", conv + "%", "#6f42c1")}
+      ${card("Total invoiced", inr(invoiced), "#0056b3")}${card("Collected", inr(collected), "var(--primary-ink)")}
       ${card("Outstanding", inr(invoiced - collected), "#fd7e14")}${card("Overdue", inr(overdue), "#dc3545")}
       ${card("Leads (all)", S.leads.length, "#555")}</div>
       <h4>Payments collected - last 6 months</h4>
@@ -648,7 +648,7 @@ export function initSuite(ctx) {
       <button onclick="SU.wa('candidates','${c.id}')">💬</button><button onclick="SU.candForm('${c.id}')">✏</button><button onclick="SU.delRec('candidates','${c.id}')">🗑</button></div></div>`;
   function viewHire() {
     const hired = S.candidates.filter((c) => c.stage === "Hired").length;
-    return `<div class="suite-bar"><button class="auth-btn" style="background:#28a745" onclick="SU.candForm()">➕ Add Candidate</button>${chip(S.candidates.length + " candidates")} ${chip(hired + " hired", "chip-green")}</div>` + kanban("candidates", S.candidates, candCard);
+    return `<div class="suite-bar"><button class="auth-btn" style="background:var(--primary)" onclick="SU.candForm()">➕ Add Candidate</button>${chip(S.candidates.length + " candidates")} ${chip(hired + " hired", "chip-green")}</div>` + kanban("candidates", S.candidates, candCard);
   }
   function candForm(id) {
     const c = id ? S.candidates.find((x) => x.id === id) : null;
@@ -678,7 +678,7 @@ export function initSuite(ctx) {
   function viewHelp() {
     if (V.sub === "ticket") return viewTicket();
     const over = S.tickets.filter((k) => k.dueAt && k.dueAt < now() && openTicket(k)).length;
-    return `<div class="suite-bar"><button class="auth-btn" style="background:#28a745" onclick="SU.ticketForm()">➕ New Ticket</button>
+    return `<div class="suite-bar"><button class="auth-btn" style="background:var(--primary)" onclick="SU.ticketForm()">➕ New Ticket</button>
       ${chip(S.tickets.filter(openTicket).length + " open")} ${over ? `<span class="badge-low">${over} past SLA</span>` : ""}</div>` + kanban("tickets", S.tickets, ticketCard);
   }
   function ticketForm(id) {
@@ -738,7 +738,7 @@ export function initSuite(ctx) {
     return `<div class="suite-bar">
       <button class="auth-btn ${type === "INVOICE" ? "on" : ""}" onclick="SU.billTab('INVOICE')">Invoices</button>
       <button class="auth-btn ${type === "QUOTATION" ? "on" : ""}" onclick="SU.billTab('QUOTATION')">Quotations</button>
-      <button class="auth-btn" style="background:#28a745" onclick="SU.billStart('${type}')">➕ New ${label}</button>
+      <button class="auth-btn" style="background:var(--primary)" onclick="SU.billStart('${type}')">➕ New ${label}</button>
       ${type === "INVOICE" ? tallyBtns() : ""}
       ${chip("Outstanding " + inr(bal))}</div>` + (list.length ? list.map(docRow).join("") : `<p class="hint">${label === "Invoice" ? "No invoices yet." : "No quotations yet."}</p>`);
   }
@@ -753,7 +753,7 @@ export function initSuite(ctx) {
         <button class="edit-btn" onclick="SU.printDoc('${d.id}')">🖨 Print</button>
         ${inv && bal > 0.005 ? `<button class="edit-btn" onclick="SU.payForm('${d.id}')">💵 Payment</button><button class="edit-btn" onclick="SU.remind('${d.id}')">💬 Remind</button><button class="edit-btn" style="background:#8e44ad" onclick="SU.aiMsg('docs','${d.id}')">🤖 AI</button>` : ""}
         ${hasStock ? `<button class="edit-btn" onclick="SU.deduct('${d.id}')">📦 Deduct stock</button>` : ""}
-        ${!inv ? `<button class="edit-btn" style="background:#28a745" onclick="SU.toInvoice('${d.id}')">➡ Transfer to Invoice</button>
+        ${!inv ? `<button class="edit-btn" style="background:var(--primary)" onclick="SU.toInvoice('${d.id}')">➡ Transfer to Invoice</button>
           <select onchange="SU.qstatus('${d.id}',this.value)">${["Draft", "Sent", "Accepted", "Rejected"].map((s) => `<option ${s === (d.status || "Draft") ? "selected" : ""}>${s}</option>`).join("")}</select>` : ""}
         <button class="edit-btn" onclick="SU.billEdit('${d.id}')">✏</button><button class="bin" onclick="SU.delRec('docs','${d.id}')">🗑</button></div></div>`;
   }
@@ -825,7 +825,7 @@ export function initSuite(ctx) {
         <input type="number" min="0" placeholder="Discount (₹)" value="${b.discount}" oninput="SU.bset('discount',this.value)"></div>
       <textarea class="task-input" rows="2" placeholder="Notes / terms" oninput="SU.bset('notes',this.value)">${esc(b.notes)}</textarea>
       <div id="billTotals" class="totals">${totalsHTML()}</div>
-      <button class="role-btn" style="background:#28a745" onclick="SU.bsave()">💾 Save</button>
+      <button class="role-btn" style="background:var(--primary)" onclick="SU.bsave()">💾 Save</button>
       ${b.id && !inv ? `<button class="role-btn" style="background:#0056b3" onclick="SU.bsaveAndInvoice()">💾 Save and ➡ Transfer to Invoice</button>` : ""}
       <button class="auth-btn" style="background:#666" onclick="SU.go('bill')">Cancel</button>`;
   }
@@ -1086,7 +1086,7 @@ export function initSuite(ctx) {
     if (V.paySub === "run") {
       const mi = monthInfo(V.pm.y, V.pm.m);
       return nav + `<p>Month: ${monthPicker()} &nbsp; <b>${mi.working}</b> working days (${mi.days} days minus Sundays)</p>
-        <button class="role-btn" style="background:#28a745; width:auto; padding:10px 20px" onclick="SU.genPayroll()">⚙ Generate payslips</button>
+        <button class="role-btn" style="background:var(--primary); width:auto; padding:10px 20px" onclick="SU.genPayroll()">⚙ Generate payslips</button>
         <p class="hint">Present days come from the attendance your employees mark. Approved paid and sick leave counts as paid, unpaid leave does not.
         Payslips already marked PAID are never changed. You can edit days, bonus and deduction on each payslip afterwards.</p>
         <p class="hint">Overtime pay (time after the shift, from Attendance In / Out) and the late fine are added automatically. Set the shift, overtime rate and late fine in 📊 Shop Reports → ⚙ Shop settings.</p>`;
@@ -1101,7 +1101,7 @@ export function initSuite(ctx) {
     const sorted = [...S.leaves].sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1) || (b.from || 0) - (a.from || 0));
     return nav + (sorted.length ? sorted.map((l) => `<div class="task-card"><div class="task-info"><div class="task-title">${esc(l.name)} ${lvChip(l.status)}</div>
       <div class="task-meta">${esc(l.type)} · ${dstr(l.from)} to ${dstr(l.to)} (${l.days} day(s))<br>${esc(l.reason || "")}</div></div>
-      <div class="decide-col">${l.status === "PENDING" ? `<button class="edit-btn" style="background:#28a745" onclick="SU.leaveSet('${l.id}','APPROVED')">✔ Approve</button><button class="edit-btn" style="background:#dc3545" onclick="SU.leaveSet('${l.id}','REJECTED')">✖ Reject</button>` : ""}
+      <div class="decide-col">${l.status === "PENDING" ? `<button class="edit-btn" style="background:var(--primary)" onclick="SU.leaveSet('${l.id}','APPROVED')">✔ Approve</button><button class="edit-btn" style="background:#dc3545" onclick="SU.leaveSet('${l.id}','REJECTED')">✖ Reject</button>` : ""}
       <button class="bin" onclick="SU.delRec('leaves','${l.id}')">🗑</button></div></div>`).join("") : "<p class='hint'>No leave requests.</p>");
   }
 
@@ -1203,7 +1203,7 @@ export function initSuite(ctx) {
   const trigLabel = (k) => (TRIGGERS.find((t) => t[0] === k) || [k, k])[1];
 
   function viewAuto() {
-    return `<div class="suite-bar"><button class="auth-btn" style="background:#28a745" onclick="SU.ruleForm()">➕ New automation</button>
+    return `<div class="suite-bar"><button class="auth-btn" style="background:var(--primary)" onclick="SU.ruleForm()">➕ New automation</button>
       <button class="auth-btn" onclick="SU.presets()">✨ Add recommended automations</button></div>
       <p class="hint">An automation runs when you or your team use the app and the trigger happens (for example a lead is added). It does not run while nobody has the app open.</p>` +
       (S.rules.length ? S.rules.map((r) => `<div class="task-card" style="${r.enabled === false ? "opacity:.55" : ""}"><div class="task-info">
@@ -1392,7 +1392,7 @@ export function initSuite(ctx) {
     const posts = [...S.posts].sort((a, b) => (a.scheduledAt || 0) - (b.scheduledAt || 0)), t = now();
     const by = {};
     S.posts.forEach((p) => { const k = p.platform + (p.status === "Posted" ? "|done" : "|plan"); by[k] = (by[k] || 0) + 1; });
-    return `<div class="suite-bar"><button class="auth-btn" style="background:#28a745" onclick="SU.postForm()">➕ Plan a post</button>
+    return `<div class="suite-bar"><button class="auth-btn" style="background:var(--primary)" onclick="SU.postForm()">➕ Plan a post</button>
       ${chip(S.posts.filter((p) => p.status !== "Posted").length + " planned")} ${chip(S.posts.filter((p) => p.status === "Posted").length + " posted", "chip-green")}
       ${PLATFORMS.filter((p) => by[p + "|plan"] || by[p + "|done"]).map((p) => chip(`${p}: ${by[p + "|done"] || 0}/${(by[p + "|done"] || 0) + (by[p + "|plan"] || 0)}`)).join(" ")}</div>
       <p class="hint">You get a reminder when a post is due. Posting itself is done by you (the platforms need their own paid API for automatic posting).</p>` +
@@ -1437,7 +1437,7 @@ export function initSuite(ctx) {
     <div class="task-meta">👤 ${esc(k.cName || "-")} · 📞 ${esc(k.phone || "-")}<br>${slaText(k)}<br>${esc(k.description || "")}</div></div>
     <div class="decide-col" style="flex-wrap:wrap"><select onchange="SU.setStage('tickets','${k.id}',this.value)">${TICKET_STATUS.map((s) => `<option ${s === k.status ? "selected" : ""}>${s}</option>`).join("")}</select>
     <button class="edit-btn" onclick="SU.noteForm('${k.id}')">➕ Note</button></div></div>`).join("") : "<p class='hint'>No tickets are assigned to you.</p>";
-  const myLeave = () => `<button class="auth-btn" style="background:#28a745" onclick="SU.leaveForm()">➕ Apply for leave</button>` +
+  const myLeave = () => `<button class="auth-btn" style="background:var(--primary)" onclick="SU.leaveForm()">➕ Apply for leave</button>` +
     (S.leaves.length ? [...S.leaves].sort((a, b) => b.from - a.from).map((l) => `<div class="task-card"><div class="task-info"><div class="task-title">${esc(l.type)} ${lvChip(l.status)}</div>
       <div class="task-meta">${dstr(l.from)} to ${dstr(l.to)} (${l.days} day(s))<br>${esc(l.reason || "")}</div></div></div>`).join("") : "<p class='hint'>No leave requests yet.</p>");
   const mySlips = () => { const list = S.payslips.filter((p) => p.status !== "DRAFT").sort((a, b) => b.month.localeCompare(a.month));
