@@ -13,13 +13,13 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-7";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-7";
-import { initI18n } from "./i18n.js?v=20261125-7";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-7";
-import { initMarketing } from "./marketing.js?v=20261125-7";
-import { initUI, stockStatus } from "./ui.js?v=20261125-7";
-import { initStudio } from "./studio.js?v=20261125-7";
+import { initSuite } from "./suite.js?v=20261125-8";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-8";
+import { initI18n } from "./i18n.js?v=20261125-8";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-8";
+import { initMarketing } from "./marketing.js?v=20261125-8";
+import { initUI, stockStatus } from "./ui.js?v=20261125-8";
+import { initStudio } from "./studio.js?v=20261125-8";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -1954,9 +1954,17 @@ function pushAlert(html, cls) {
   setTimeout(() => card.remove(), 20000);
 }
 
+// a question asked while "Loading..." is showing (e.g. Attendance Out) must be answerable:
+// the loading screen is taken away while the question is open and comes back after the answer
+function pauseLoading(res) {
+  const busy = !$("loadingOverlay").classList.contains("hidden");
+  if (busy) loading(false);
+  return (v) => { if (busy) loading(true); res(v); };
+}
 function askConfirm(msg) {
-  return new Promise((res) => {
+  return new Promise((res0) => {
     if (confirmResolve) confirmResolve(false); // an older question still open: that one is a No
+    const res = pauseLoading(res0);
     $("confirmText").innerText = msg;
     $("confirmModal").classList.add("open");
     confirmResolve = res;
@@ -1966,8 +1974,9 @@ function askConfirm(msg) {
 // a text box in our own window (instead of the browser's prompt). Resolves to the text, or null for Cancel
 let promptResolve = null;
 function askText(msg, value) {
-  return new Promise((res) => {
+  return new Promise((res0) => {
     if (promptResolve) promptResolve(null);
+    const res = pauseLoading(res0);
     $("promptText").innerText = msg;
     $("promptInput").value = value || "";
     $("promptModal").classList.add("open");
