@@ -6,7 +6,7 @@
 //      overtime / late arrivals, and the shop settings used by all of them.
 // =====================================================================
 import {
-  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDocs, query, where, onSnapshot, serverTimestamp
+  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDocs, query, where, onSnapshot, serverTimestamp, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 /* <shoppure> */
@@ -115,10 +115,20 @@ export function ledger(invoices, credits) {
     .sort((a, b) => b.due - a.due);
 }
 
+// the shift of one employee: their own times (set by the owner in Shop settings) or the shop shift
+export function shiftFor(set, uid) {
+  const s = { ...SHOP_DEFAULTS, ...(set || {}) };
+  const o = (s.empShifts && uid && s.empShifts[uid]) || {};
+  const r = { shiftStart: s.shiftStart, shiftEnd: s.shiftEnd, graceMin: Number(s.graceMin) || 0, own: false };
+  if (o.shiftStart && hm(o.shiftStart) !== null) { r.shiftStart = o.shiftStart; r.own = true; }
+  if (o.shiftEnd && hm(o.shiftEnd) !== null) { r.shiftEnd = o.shiftEnd; r.own = true; }
+  if (o.graceMin !== undefined && o.graceMin !== null && o.graceMin !== "" && !isNaN(Number(o.graceMin))) { r.graceMin = Math.max(0, Number(o.graceMin)); r.own = true; }
+  return r;
+}
 // attendance records -> one row per employee per day with In / Out / hours / late / overtime
+//   late and overtime use each employee's own shift when the owner has set one
 export function attDays(records, set) {
   const s = { ...SHOP_DEFAULTS, ...(set || {}) };
-  const start = hm(s.shiftStart), end = hm(s.shiftEnd), shiftLen = start !== null && end !== null && end > start ? end - start : 0;
   const days = {};
   (records || []).forEach((a) => {
     const t = a.ms; if (!t) return;
@@ -128,16 +138,18 @@ export function attDays(records, set) {
     if (a.name) d.name = a.name;
   });
   return Object.values(days).map((d) => {
+    const sh = shiftFor(s, d.uid);
+    const start = hm(sh.shiftStart), end = hm(sh.shiftEnd), shiftLen = start !== null && end !== null && end > start ? end - start : 0;
     let lateMin = 0, mins = null, otMin = 0;
     if (d.inMs && start !== null) {
       const dt = new Date(d.inMs), inMin = dt.getHours() * 60 + dt.getMinutes();
-      if (inMin > start + (Number(s.graceMin) || 0)) lateMin = inMin - start;
+      if (inMin > start + sh.graceMin) lateMin = inMin - start;
     }
     if (d.inMs && d.outMs && d.outMs > d.inMs) {
       mins = Math.round((d.outMs - d.inMs) / 60000);
       if (shiftLen) otMin = Math.max(0, mins - shiftLen);
     }
-    return { ...d, late: lateMin > 0, lateMin, mins, otMin };
+    return { ...d, late: lateMin > 0, lateMin, mins, otMin, shiftStart: sh.shiftStart, shiftEnd: sh.shiftEnd, ownShift: sh.own };
   }).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.name.localeCompare(b.name)));
 }
 export function attMonth(rows) {
@@ -151,10 +163,10 @@ export function attMonth(rows) {
   return per;
 }
 // ₹ per overtime hour: the rate set by the owner, or the salary per working hour
-export function otRateFor(set, monthly, workingDays) {
-  const s = { ...SHOP_DEFAULTS, ...(set || {}) };
+export function otRateFor(set, monthly, workingDays, uid) {
+  const s = { ...SHOP_DEFAULTS, ...(set || {}) }, sh = shiftFor(s, uid);
   if (Number(s.otRate) > 0) return Number(s.otRate);
-  const len = (hm(s.shiftEnd) || 0) - (hm(s.shiftStart) || 0);
+  const len = (hm(sh.shiftEnd) || 0) - (hm(sh.shiftStart) || 0);
   if (!(len > 0) || !(monthly > 0) || !(workingDays > 0)) return 0;
   return Math.round((monthly / workingDays / (len / 60)) * 100) / 100;
 }
@@ -191,7 +203,7 @@ export function initShop(ctx) {
     if ($("noteBody")) $("noteBody").dataset.seen = "";
     V.dayData = null; V.hoursData = null;
     const keep = (f) => { unsub.push(f); ctx.addUnsub(f); };
-    keep(onSnapshot(D("settings", "shop"), (s) => { settings = { ...SHOP_DEFAULTS, ...(s.exists() ? s.data() : {}) }; render(); }, (e) => console.warn("Shop settings", e)));
+    keep(onSnapshot(D("settings", "shop"), (s) => { settings = { ...SHOP_DEFAULTS, ...(s.exists() ? s.data() : {}) }; myShift(); render(); }, (e) => console.warn("Shop settings", e)));
     if (isAdmin()) {
       keep(onSnapshot(C("credit"), (snap) => { credits = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); bump(); }, (e) => console.warn("Credit ledger", e)));
       keep(onSnapshot(C("creditMeta"), (snap) => { creditMeta = {}; snap.docs.forEach((d) => (creditMeta[d.id] = d.data())); render(); bump(); }, (e) => console.warn("Credit reminders", e)));
@@ -203,6 +215,15 @@ export function initShop(ctx) {
     }
   }
   const getSettings = () => settings;
+  // the employee sees their own shift on the attendance card
+  function myShift() {
+    const el = $("myShift"); if (!el) return;
+    const u = st().user;
+    if (isAdmin() || !u) { el.classList.add("hidden"); return; }
+    const sh = shiftFor(settings, u.uid);
+    el.innerHTML = `⏱ <span>Your shift</span>: <b class="notr">${esc(sh.shiftStart)} – ${esc(sh.shiftEnd)}</b> · <span>Late after ${sh.graceMin} min</span>`;
+    el.classList.remove("hidden");
+  }
 
   /* ---------------- owner reminders while the app is open ---------------- */
   function tick() {
@@ -668,24 +689,28 @@ export function initShop(ctx) {
     const snap = await getDocs(query(C("attendance"), where("time", ">=", new Date(y, m - 1, 1)), where("time", "<", new Date(y, m, 1))));
     return snap.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; });
   }
+  const ownShifts = () => (st().staff || []).filter((x) => shiftFor(settings, x.uid).own).length;
+  const shiftTxt = (sh) => `${esc(sh.shiftStart)} – ${esc(sh.shiftEnd)}`;
   function viewHours() {
-    const head = `<div class="suite-bar">Month: ${monthSel()} <span class="chip">Shift ${esc(settings.shiftStart)} – ${esc(settings.shiftEnd)}</span><span class="chip">Late after ${Number(settings.graceMin) || 0} min</span></div>`;
+    const own = ownShifts();
+    const head = `<div class="suite-bar">Month: ${monthSel()} <span class="chip">Shop shift ${esc(settings.shiftStart)} – ${esc(settings.shiftEnd)}</span><span class="chip">Late after ${Number(settings.graceMin) || 0} min</span>${own ? `<span class="chip">👤 Own shift: ${own}</span>` : ""}</div>`;
     if (!V.hoursData || V.hoursData.loading) return head + `<p class="hint">Loading...</p>`;
     if (V.hoursData.error) return head + `<p class="hint">Could not load: ${esc(V.hoursData.error)}</p>`;
     const rows = V.hoursData.rows;
     if (V.hoursUid) {
-      const mine = rows.filter((r) => r.uid === V.hoursUid);
-      return head + `<h4 class="notr">${esc(mine[0]?.name || "")}</h4><div class="table-wrap"><table class="stable"><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Overtime</th><th>Late</th></tr></thead><tbody>${mine.map((r) =>
+      const mine = rows.filter((r) => r.uid === V.hoursUid), sh = shiftFor(settings, V.hoursUid);
+      return head + `<h4 class="notr">${esc(mine[0]?.name || "")}</h4><p class="hint">${sh.own ? "Own shift" : "Shop shift"}: <span class="notr">${shiftTxt(sh)}</span> · Late after ${sh.graceMin} min</p><div class="table-wrap"><table class="stable"><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Overtime</th><th>Late</th></tr></thead><tbody>${mine.map((r) =>
         `<tr><td>${dstr(new Date(r.date + "T00:00:00").getTime())}</td><td>${tstr(r.inMs)}</td><td>${r.outMs ? tstr(r.outMs) : "-"}</td><td>${r.mins !== null ? fmtMins(r.mins) : "No Out"}</td><td>${r.otMin ? fmtMins(r.otMin) : "-"}</td><td>${r.late ? `<span class="chip chip-red">⚠ ${fmtMins(r.lateMin)}</span>` : "-"}</td></tr>`).join("")}</tbody></table></div>
         <button class="auth-btn" style="background:#666; margin-top:10px" onclick="SH.hu('')">← Back</button>`;
     }
     const per = attMonth(rows);
     const list = Object.values(per).sort((a, b) => a.name.localeCompare(b.name));
-    return head + (list.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Days</th><th>Hours</th><th>Overtime</th><th>Late days</th><th>No Out</th><th></th></tr></thead><tbody>${list.map((p) =>
-      `<tr><td class="notr">${esc(p.name)}</td><td>${p.days}</td><td>${fmtMins(p.mins)}</td><td>${p.otMin ? fmtMins(p.otMin) : "-"}</td><td>${p.lateDays ? `<span class="chip chip-red">${p.lateDays}</span>` : "0"}</td><td>${p.noOut || 0}</td>
-      <td><button class="edit-btn" onclick="SH.hu('${esc(p.uid)}')">📅 Days</button></td></tr>`).join("")}</tbody></table></div>
-      <p class="hint">Hours count from Attendance In to Attendance Out. Overtime is time beyond the shift (${esc(settings.shiftStart)} – ${esc(settings.shiftEnd)}). "No Out" = days without Attendance Out (no hours counted).
-</p><p class="hint">Overtime pay and any late fine are added when you run payroll (Business Suite → Payroll).</p>` : `<p class="hint">No attendance this month.</p>`);
+    return head + (list.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Shift</th><th>Days</th><th>Hours</th><th>Overtime</th><th>Late days</th><th>No Out</th><th></th></tr></thead><tbody>${list.map((p) => {
+      const sh = shiftFor(settings, p.uid);
+      return `<tr><td class="notr">${esc(p.name)}</td><td><span class="notr">${shiftTxt(sh)}</span>${sh.own ? ` <span class="chip">👤 Own</span>` : ""}</td><td>${p.days}</td><td>${fmtMins(p.mins)}</td><td>${p.otMin ? fmtMins(p.otMin) : "-"}</td><td>${p.lateDays ? `<span class="chip chip-red">${p.lateDays}</span>` : "0"}</td><td>${p.noOut || 0}</td>
+      <td><button class="edit-btn" onclick="SH.hu('${esc(p.uid)}')">📅 Days</button></td></tr>`; }).join("")}</tbody></table></div>
+      <p class="hint">Hours count from Attendance In to Attendance Out. Overtime is time beyond each employee's shift (their own shift, or the shop shift ${esc(settings.shiftStart)} – ${esc(settings.shiftEnd)}). "No Out" = days without Attendance Out (no hours counted).
+</p><p class="hint">Overtime pay and any late fine are added when you run payroll (Business Suite → Payroll).</p><p class="hint">Set a different shift for an employee in ⚙ Shop settings → Individual shift times.</p>` : `<p class="hint">No attendance this month.</p>`);
   }
   const hu = (uid) => { V.hoursUid = uid || null; render(true); };
 
@@ -698,17 +723,76 @@ export function initShop(ctx) {
       <div class="grid2">${f("shiftStart", "Shift starts", "time")}${f("shiftEnd", "Shift ends", "time")}</div>
       <div class="grid2">${f("graceMin", "Late after (minutes after shift start)", "number", 'min="0"')}${f("lateFine", "Late fine per late day (₹, 0 = none)", "number", 'min="0"')}</div>
       ${f("otRate", "Overtime pay per hour (₹, 0 = salary per hour)", "number", 'min="0" step="any"')}
+      ${empShiftRows()}
       <h4>📊 Day report</h4><div class="grid2">${f("closingTime", "Closing time (report reminder)", "time")}${f("ownerPhone", "Send the report to WhatsApp number", "tel")}</div>
       <h4>📒 Udhaar and stock</h4><div class="grid2">${f("reminderDays", "Payment reminder every (days)", "number", 'min="1"')}${f("deadDays", "Dead stock after (days)", "number", 'min="7"')}</div>
       ${f("wastage", "Tile calculator: extra for cutting (%)", "number", 'min="0" step="any"')}
       <button class="role-btn" style="background:var(--primary); margin-top:12px" onclick="SH.saveSet()">💾 Save settings</button>`;
+  }
+  /* 👤 individual shift times: a different shift for any employee (empty boxes = the shop shift) */
+  function empShiftRows() {
+    const staff = [...(st().staff || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+    const map = settings.empShifts || {};
+    const rows = staff.map((x, i) => {
+      const o = map[x.uid] || {}, sh = shiftFor(settings, x.uid);
+      return `<tr id="esr_${i}" data-uid="${esc(x.uid)}"><td class="notr"><b>${esc(x.name || "")}</b></td>
+        <td><input id="es_s_${i}" type="time" value="${esc(o.shiftStart || "")}" oninput="SH.typing()" style="width:135px"></td>
+        <td><input id="es_e_${i}" type="time" value="${esc(o.shiftEnd || "")}" oninput="SH.typing()" style="width:135px"></td>
+        <td><input id="es_g_${i}" type="number" min="0" value="${o.graceMin === undefined || o.graceMin === null ? "" : esc(o.graceMin)}" placeholder="${Number(settings.graceMin) || 0}" oninput="SH.typing()" style="width:70px"></td>
+        <td>${sh.own ? `<span class="chip">👤 Own: <span class="notr">${esc(sh.shiftStart)} – ${esc(sh.shiftEnd)}</span></span>` : `<span class="hint">Shop shift</span>`}</td>
+        <td>${sh.own ? `<button class="edit-btn" onclick="SH.esReset('${esc(x.uid)}')">↺ Use shop shift</button>` : ""}</td></tr>`;
+    }).join("");
+    return `<h4>👤 Individual shift times</h4>
+      <p class="hint">Give any employee a different shift. Leave a box empty to use the shop shift for it. Late, overtime and payroll use each employee's own shift.</p>
+      ${staff.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Shift starts</th><th>Shift ends</th><th>Late after (min)</th><th>Now</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : `<p class="hint">No employees have joined yet.</p>`}`;
+  }
+  // read the individual shift boxes -> { map to save, local copy, error }
+  function readEmpShifts(shop) {
+    const old = settings.empShifts || {}, save = {}, local = {};
+    Object.keys(old).forEach((u) => { save[u] = old[u]; local[u] = old[u]; });
+    const staff = [...(st().staff || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+    for (let i = 0; i < staff.length; i++) {
+      const row = $("esr_" + i); if (!row) continue;
+      const uid = row.dataset.uid, name = staff.find((x) => x.uid === uid)?.name || "";
+      const a = ($("es_s_" + i)?.value || "").trim(), b = ($("es_e_" + i)?.value || "").trim(), g = ($("es_g_" + i)?.value || "").trim();
+      const o = {};
+      if (a) o.shiftStart = a;
+      if (b) o.shiftEnd = b;
+      if (g !== "") o.graceMin = Math.max(0, Number(g) || 0);
+      if (!Object.keys(o).length) { if (uid in save) { save[uid] = deleteField(); delete local[uid]; } continue; }
+      const sh = shiftFor({ ...shop, empShifts: { [uid]: o } }, uid);
+      if ((hm(sh.shiftEnd) || 0) <= (hm(sh.shiftStart) || 0)) return { error: `${name}: the shift must end after it starts` };
+      save[uid] = o; local[uid] = o;
+    }
+    return { save, local };
+  }
+  async function esReset(uid) {
+    const old = settings.empShifts || {}, save = {}, local = {};
+    Object.keys(old).forEach((u) => { if (u === uid) save[u] = deleteField(); else { save[u] = old[u]; local[u] = old[u]; } });
+    try { loading(true); await setDoc(D("settings", "shop"), { empShifts: save, updatedAt: serverTimestamp() }, { merge: true }); settings = { ...settings, empShifts: local }; toast("Shop shift will be used"); editing = false; V.hoursData = null; render(true); }
+    catch (e) { console.error(e); toast(errText(e)); }
+    finally { loading(false); }
+  }
+  // the Employees page "⏱ Shift" button: open Shop settings at that employee's row
+  function empShift(uid) {
+    open("settings");
+    setTimeout(() => {
+      const row = document.querySelector(`#shopBody tr[data-uid="${CSS.escape(uid)}"]`) || [...document.querySelectorAll("tr[data-uid]")].find((r) => r.dataset.uid === uid);
+      if (!row) return;
+      row.scrollIntoView({ block: "center" });
+      row.style.outline = "2px solid var(--primary)";
+      const inp = row.querySelector("input"); if (inp) inp.focus();
+    }, 60);
   }
   async function saveSet() {
     const g = (k) => ($("ss_" + k)?.value || "").trim(), n = (k, min) => Math.max(min || 0, Number(g(k)) || 0);
     const v = { shiftStart: g("shiftStart") || "10:00", shiftEnd: g("shiftEnd") || "20:00", graceMin: n("graceMin"), lateFine: n("lateFine"), otRate: n("otRate"),
       closingTime: g("closingTime") || "20:30", ownerPhone: g("ownerPhone"), reminderDays: n("reminderDays", 1) || 7, deadDays: n("deadDays", 7) || 90, wastage: n("wastage") };
     if ((hm(v.shiftEnd) || 0) <= (hm(v.shiftStart) || 0)) return toast("The shift must end after it starts");
-    try { loading(true); await setDoc(D("settings", "shop"), { ...v, updatedAt: serverTimestamp() }, { merge: true }); toast("Settings saved"); settings = { ...settings, ...v }; editing = false; V.hoursData = null; V.dayData = null; render(true); }
+    const es = readEmpShifts(v);
+    if (es.error) return toast(es.error);
+    try { loading(true); await setDoc(D("settings", "shop"), { ...v, empShifts: es.save, updatedAt: serverTimestamp() }, { merge: true }); toast("Settings saved"); settings = { ...settings, ...v, empShifts: es.local }; editing = false; V.hoursData = null; V.dayData = null; render(true); }
     catch (e) { console.error(e); toast(errText(e)); }
     finally { loading(false); }
   }
@@ -793,7 +877,7 @@ export function initShop(ctx) {
     cadd: caddArea, cdel: cdelArea, ctoQuote, cshare,
     typing: () => { editing = true; }, rqty, rsend, rcopy, deadDays, deadShare,
     cgive, creceive, cremind, cstate, cfilter, csearch, cdelEntry, cancelForm,
-    dayAt, dayShare, dayPrint, hm: hmSet, hu, saveSet,
+    dayAt, dayShare, dayPrint, hm: hmSet, hu, saveSet, esReset, empShift,
     openNotes, closeNotes, noteKind
   };
   return { start, getSettings, refresh, monthAttendance, openCalc, bump };

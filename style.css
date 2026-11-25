@@ -882,7 +882,7 @@ tr.low-stock-row td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
 .emp-id .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .emp-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .emp-meta .hint { width: 100%; }
-.emp-act { border-top: 1px solid var(--border); padding-top: 10px; display: flex; justify-content: flex-end; }
+.emp-act { border-top: 1px solid var(--border); padding-top: 10px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .emp-card .role-chip { display: inline-block; margin-top: 3px; }
 .geo-panel { background: var(--surface2); border: 1px solid var(--border); color: var(--text); width: auto; max-width: none; margin: 10px 0; padding: 14px 16px; border-radius: 12px; }
 .geo-panel h4 { color: var(--text) !important; }

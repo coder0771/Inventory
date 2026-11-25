@@ -1127,7 +1127,8 @@ export function initSuite(ctx) {
       const days = ctx.attDays(att.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; }), set);
       const per = {};
       days.forEach((r) => { const p = per[r.uid] = per[r.uid] || { mins: 0, otMin: 0, lateDays: 0 }; if (r.mins !== null) p.mins += r.mins; p.otMin += r.otMin; if (r.late) p.lateDays++; });
-      const shiftH = Math.max(0, ((ctx.hm(set.shiftEnd) || 0) - (ctx.hm(set.shiftStart) || 0)) / 60);
+      // each employee's own shift (or the shop shift) decides their salary per hour for overtime
+      const shiftHOf = (uid) => { const sh = ctx.shiftFor(set, uid); return Math.max(0, ((ctx.hm(sh.shiftEnd) || 0) - (ctx.hm(sh.shiftStart) || 0)) / 60); };
       let n = 0;
       for (const s of staff) {
         const id = `${s.uid}_${monthKey(y, m)}`, old = S.payslips.find((p) => p.id === id);
@@ -1136,6 +1137,7 @@ export function initSuite(ctx) {
         const paidLeave = S.leaves.filter((l) => l.uid === s.uid && l.status === "APPROVED" && l.type !== "Unpaid Leave").reduce((sum, l) => sum + leaveDaysInMonth(l, y, m, pset), 0);
         const payDays = Math.min(working, pset.size + paidLeave), bonus = old ? old.bonus || 0 : 0, deduction = old ? old.deduction || 0 : 0;
         const pm = per[s.uid] || { mins: 0, otMin: 0, lateDays: 0 };
+        const shiftH = shiftHOf(s.uid);
         const otRate = Number(set.otRate) > 0 ? Number(set.otRate) : (shiftH > 0 && working > 0 ? Math.round(monthly / working / shiftH * 100) / 100 : 0);
         const otPay = Math.round(pm.otMin / 60 * otRate), lateDeduct = Math.round(pm.lateDays * (Number(set.lateFine) || 0));
         await setDoc(D("payslips", id), { uid: s.uid, name: s.name, month: monthKey(y, m), monthly, working, present: pset.size, paidLeave, payDays, bonus, deduction,

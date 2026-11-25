@@ -13,13 +13,13 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-8";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-8";
-import { initI18n } from "./i18n.js?v=20261125-8";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-8";
-import { initMarketing } from "./marketing.js?v=20261125-8";
-import { initUI, stockStatus } from "./ui.js?v=20261125-8";
-import { initStudio } from "./studio.js?v=20261125-8";
+import { initSuite } from "./suite.js?v=20261125-9";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-9";
+import { initI18n } from "./i18n.js?v=20261125-9";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, shiftFor, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-9";
+import { initMarketing } from "./marketing.js?v=20261125-9";
+import { initUI, stockStatus } from "./ui.js?v=20261125-9";
+import { initStudio } from "./studio.js?v=20261125-9";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -2848,7 +2848,7 @@ const suite = initSuite({
   addUnsub: (fn) => unsubs.push(fn),
   createTask: createTaskDoc,
   shopSettings: () => shop.getSettings(),
-  attDays, hm, SHOP_DEFAULTS, lotSummary, lotLabel,
+  attDays, shiftFor, hm, SHOP_DEFAULTS, lotSummary, lotLabel,
   readPhoto: (img, prompt, n) => enquiry.readPhoto(img, prompt, n), compressImage
 });
 
@@ -2874,7 +2874,7 @@ const marketing = initMarketing({
 
 // 🖥 the new layout: sidebar, pages, dashboard charts, Transactions, exports, theme (ui.js)
 const ui = initUI({
-  $, esc: escapeHTML, fmtD, fmtDT, toast, attDays, lotLabel, lotSummary, askConfirm, db, doc, getDoc, setDoc,
+  $, esc: escapeHTML, fmtD, fmtDT, toast, attDays, shiftFor, lotLabel, lotSummary, askConfirm, db, doc, getDoc, setDoc,
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, history: historyList,
     attendance: attSnapCache, companyName: companyData ? companyData.companyName : "", geo: companyData && companyData.geo, shopGeo: companyData && companyData.shopGeo }),
   shopSettings: () => shop.getSettings(),

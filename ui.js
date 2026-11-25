@@ -5,7 +5,7 @@
 // No business logic lives here: every action calls the existing functions.
 // =====================================================================
 
-import { initTheme } from "./theme.js?v=20261125-8";
+import { initTheme } from "./theme.js?v=20261125-9";
 /* <uipure> */
 const DAYMS = 86400000;
 export const isIn = (a) => /^STOCK IN/.test(a || "");
@@ -379,6 +379,11 @@ export function initUI(ctx) {
     const rows = ctx.attDays((S.attendance || []).filter((a) => a.date === key), ctx.shopSettings());
     return rows;
   }
+  const shiftChip = (uid) => {
+    if (!ctx.shiftFor) return "";
+    const sh = ctx.shiftFor(ctx.shopSettings(), uid);
+    return ` <span class="st ${sh.own ? "st-info" : ""}" title="${sh.own ? "Own shift" : "Shop shift"}">⏱ <span class="notr">${esc(sh.shiftStart)} – ${esc(sh.shiftEnd)}</span>${sh.own ? " · Own" : ""}</span>`;
+  };
   function renderStaffCards() {
     const el = $("staffCards"); if (!el || !isAdmin()) return;
     const S = st(), att = {}; todayAtt().forEach((r) => (att[r.uid] = r));
@@ -393,8 +398,8 @@ export function initUI(ctx) {
       const where = s.presence === "OUT" ? `<span class="st st-low">Outside shop</span>` : s.presence === "IN" ? `<span class="st st-ok">Inside shop</span>` : "";
       return `<div class="emp-card"><div class="emp-top"><span class="avatar lg">${esc(String(s.name || "?").charAt(0).toUpperCase())}</span>
         <div class="emp-id"><b class="notr">${esc(s.name || "")}</b><div class="hint notr">${esc(s.email || "-")}</div><span class="role-chip">Employee</span></div></div>
-        <div class="emp-meta">${status} ${where}<div class="hint">Joined: ${s.joinedAt && s.joinedAt.toDate ? fmtD(s.joinedAt.toDate()) : "-"}${a && a.inMs ? " · In: " + new Date(a.inMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true }) : ""}</div></div>
-        <div class="emp-act"><button class="btn-ghost danger" onclick="removeEmployee('${esc(s.uid)}')">${ic("user-x")} Remove</button></div></div>`;
+        <div class="emp-meta">${status} ${where}${shiftChip(s.uid)}<div class="hint">Joined: ${s.joinedAt && s.joinedAt.toDate ? fmtD(s.joinedAt.toDate()) : "-"}${a && a.inMs ? " · In: " + new Date(a.inMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true }) : ""}</div></div>
+        <div class="emp-act"><button class="btn-ghost" onclick="SH.empShift('${esc(s.uid)}')">${ic("clock")} Shift</button><button class="btn-ghost danger" onclick="removeEmployee('${esc(s.uid)}')">${ic("user-x")} Remove</button></div></div>`;
     }).join("");
   }
   function renderAttSummary() {
