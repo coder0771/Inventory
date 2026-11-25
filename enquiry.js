@@ -570,6 +570,23 @@ export function initEnquiry(ctx) {
     if (a < 0 || b < a) throw new Error("Could not read the photo. Take a clear, straight photo in good light and try again.");
     try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { throw new Error("Could not read the photo. Take a clear, straight photo in good light and try again."); }
   }
+  // text only (Marketing Studio: AI writer, AI poster plan, design advice). Returns the parsed JSON.
+  async function aiJSON(prompt, maxTokens) {
+    const cfg = await aiCfg();
+    if (!cfg || !cfg.key) throw new Error("AI is not turned on yet. Contact the developer to turn it on.");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": cfg.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: cfg.model || "claude-sonnet-5-5", max_tokens: maxTokens || 1500, messages: [{ role: "user", content: [{ type: "text", text: prompt }] }] })
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error("AI: " + ((err.error && err.error.message) || "error " + res.status)); }
+    const data = await res.json();
+    const text = (data.content || []).map((b) => b.text || "").join("");
+    const a = text.indexOf("{"), b = text.lastIndexOf("}");
+    if (a < 0 || b < a) throw new Error("The AI answer could not be read. Try again.");
+    try { return JSON.parse(text.slice(a, b + 1)); } catch (e) { throw new Error("The AI answer could not be read. Try again."); }
+  }
+  const aiOn = async () => { const c = await aiCfg(); return !!(c && c.key); };
   // FREE reader: Tesseract (open source, runs on the phone itself, no key and no cost)
   function loadTesseract() {
     if (window.Tesseract) return Promise.resolve();
@@ -795,5 +812,5 @@ export function initEnquiry(ctx) {
   window.EQ = { open, close, back, newForm, list: goList, edit, set, setItem, addLine, delLine, pick, dateOn, save, tick, cross, del, print, filter: setFilter, search,
     scan, message, msgEdit, sendWa, sendSms, sharePhotos, sendDone, follows, followSend,
     openKit, closeKit, saveKit, kitPhoto, kitPhotoRemove };
-  return { start, readPhoto };
+  return { start, readPhoto, aiJSON, aiOn };
 }

@@ -5,7 +5,7 @@
 // No business logic lives here: every action calls the existing functions.
 // =====================================================================
 
-import { initTheme } from "./theme.js?v=20261125-6";
+import { initTheme } from "./theme.js?v=20261125-7";
 /* <uipure> */
 const DAYMS = 86400000;
 export const isIn = (a) => /^STOCK IN/.test(a || "");
@@ -470,6 +470,7 @@ export function initUI(ctx) {
     else {
       if (lb && lb.parentNode !== document.body) document.body.appendChild(lb); closePageModals(); drawer(false); prof(false);
       if (id !== "boot") TH.load(null); // start screens and the developer console: the original colours
+      if (window.STUDIO && window.STUDIO.isOpen()) window.STUDIO.close(true);
       // leaving the app (logout, developer console): no window of the app stays open
       document.querySelectorAll(".modal-overlay.open").forEach((m) => { if (m.id !== "confirmModal" && m.id !== "promptModal") m.classList.remove("open"); });
     }

@@ -562,7 +562,7 @@ export function initMarketing(ctx) {
   /* =====================================================================
      the 🎬 Marketing window
      ===================================================================== */
-  const TABS = [["today", "📅 Today"], ["create", "🖼 Create"], ["videos", "🎞 Videos"], ["posted", "📤 Posted"], ["settings", "⚙ Settings"]];
+  const TABS = [["studio", "🎨 AI Marketing Studio"], ["today", "📅 Today"], ["create", "🖼 Create"], ["videos", "🎞 Videos"], ["posted", "📤 Posted"], ["settings", "⚙ Settings"]];
   function open(tab) { if (!isAdmin()) return; if (tab) V.tab = tab; $("mktModal").classList.add("open"); render(true); }
   const close = () => $("mktModal").classList.remove("open");
   const go = (t) => { V.tab = t; render(true); };
@@ -572,10 +572,18 @@ export function initMarketing(ctx) {
     if (!el || !$("mktModal").classList.contains("open") || (editing && !force) || (V.busy && !force)) return;
     editing = false;
     $("mktTabs").innerHTML = TABS.map(([k, l]) => `<button class="stab ${V.tab === k ? "on" : ""}" onclick="MK.go('${k}')">${l}</button>`).join("");
-    el.innerHTML = ({ today: viewToday, create: viewCreate, videos: viewVideos, posted: viewPosted, settings: viewSettings }[V.tab] || viewToday)();
+    el.innerHTML = ({ studio: viewStudio, today: viewToday, create: viewCreate, videos: viewVideos, posted: viewPosted, settings: viewSettings }[V.tab] || viewToday)();
     if (V.tab === "today" || V.tab === "create") drawPreview();
   }
   const setupHint = () => (!set.phone && !set.address ? `<p class="calc-warn">Add your shop phone number and address in ⚙ Settings – they are printed on every pamphlet and video.</p>` : "");
+  function viewStudio() {
+    return `<div class="mk-studio"><div><h3 style="margin:0">🎨 AI Marketing Studio</h3>
+        <p class="hint">Design posters, pamphlets, festival greetings, product advertisements and catalogues like in Canva – with your stock, your Brand Kit, AI text and AI pictures. Download PNG, JPG or print-ready PDF.</p>
+        <div class="calc-actions"><button class="btn btn-primary" onclick="STUDIO.open()">🎨 Open the Studio</button>
+          <button class="btn btn-ghost" onclick="STUDIO.open({ panel: 'ai' })">🤖 AI poster</button><button class="btn btn-ghost" onclick="STUDIO.open({ panel: 'products' })">📦 Product advertisement</button>
+          <button class="btn btn-ghost" onclick="STUDIO.open({ panel: 'designs' })">📁 My designs</button></div></div></div>
+      <p class="hint">📅 Today and 🖼 Create still make the automatic daily pamphlets. Press “🎨 Edit in Studio” there to change any of them.</p>`;
+  }
   function viewToday() {
     const type = V.type && V.tab === "today" ? V.type : todayType();
     V.cur = { type, pick: [], auto: true };
@@ -594,6 +602,7 @@ export function initMarketing(ctx) {
       <div class="calc-actions">
         <button class="role-btn" style="background:#25D366" onclick="MK.sharePam()">📲 Share pamphlet</button>
         <button class="auth-btn" onclick="MK.dlPam()">⬇ Download</button>
+        <button class="auth-btn" style="background:#7c3aed" onclick="MK.toStudio()">🎨 Edit in Studio</button>
         ${metaReady() ? `<button class="auth-btn" style="background:#1877f2" onclick="MK.postPam()">📤 Post now</button>` : ""}
       </div>
       <div class="calc-actions">
@@ -667,6 +676,8 @@ export function initMarketing(ctx) {
       <h4>🤖 AI video (Google Veo)</h4>
       <p class="hint">Get a key at aistudio.google.com → Get API key (billing must be on – Google charges for each second of video).</p>
       ${s("geminiKey", "Google Gemini API key", "AIza...")}${f("veoModel", "Veo model", "text", DEF.veoModel)}
+      ${f("imageModel", "AI picture model (Marketing Studio)", "text", "imagen-4.0-generate-001")}
+      <p class="hint">The same Google key makes the AI pictures in the 🎨 Marketing Studio. Use an Imagen model (e.g. imagen-4.0-generate-001) or a Gemini image model (e.g. gemini-2.5-flash-image). Google charges per picture.</p>
       <h4>🪔 Festivals</h4><p class="hint">One per line: date (YYYY-MM-DD), a space, then the name. Greetings start 3 days before.</p>
       <textarea id="mk_fests" class="task-input notr" rows="6">${esc(fests().map(([d, n]) => d + " " + n).join("\n"))}</textarea>
       <button class="role-btn" style="background:var(--primary); margin-top:12px" onclick="MK.saveSet()">💾 Save settings</button>`;
@@ -675,7 +686,7 @@ export function initMarketing(ctx) {
     const g = (k) => ($("mk_" + k)?.value || "").trim(), ck = (k) => !!$("mk_" + k)?.checked;
     const festivals = g("fests").split("\n").map((l) => l.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/)).filter(Boolean).map((m) => [m[1], m[2].trim()]);
     const v = { phone: g("phone"), address: g("address"), city: g("city"), tagline: g("tagline"), color: g("color") || "#1f4011", auto: ck("auto"), postTime: g("postTime") || "10:00",
-      autoVideo: g("autoVideo") || "off", toFb: ck("toFb"), toIg: ck("toIg"), veoModel: g("veoModel") || DEF.veoModel, festivals: festivals.length ? festivals : null };
+      autoVideo: g("autoVideo") || "off", toFb: ck("toFb"), toIg: ck("toIg"), veoModel: g("veoModel") || DEF.veoModel, imageModel: g("imageModel"), festivals: festivals.length ? festivals : null };
     const sec = {};
     ["pageId", "pageToken", "igId", "geminiKey"].forEach((k) => { const x = ($("mks_" + k)?.value || "").trim(); if (!x.startsWith("••••")) sec[k] = x; });
     try {
@@ -749,8 +760,9 @@ export function initMarketing(ctx) {
     open, close, go, typing: () => { editing = true; const c = $("mktCap"); if (c) c.dataset.touched = "1"; },
     size: (s) => { V.size = s; render(true); }, type: (t) => { V.type = t; V.items = []; render(true); },
     fest: (n) => { V.festName = n; drawPreview(); }, tip: (i) => { V.tipIdx = +i; drawPreview(); }, pick: (id, on) => { V.items = on ? [...new Set([...V.items, id])].slice(0, 4) : V.items.filter((x) => x !== id); V.cur.pick = V.items; drawPreview(); },
+    toStudio: async () => { if (!V.cur || !V.cur.c) await drawPreview(); close(); window.STUDIO && STUDIO.open({ content: V.cur.c }); },
     sharePam, dlPam, postPam, makeSlide, makeAi, shareVid, dlVid, postVid, saveSet, testMeta,
     _test: { content, pamphlet, slideshow, veoVideo, brandVideo, publish, autoTick, todayType, setSecrets: (s) => { secrets = { ...secrets, ...s }; } }
   };
-  return { start };
+  return { start, mkt: () => ({ set, kit, secrets }) };
 }

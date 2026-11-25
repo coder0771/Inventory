@@ -13,12 +13,13 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-6";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-6";
-import { initI18n } from "./i18n.js?v=20261125-6";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-6";
-import { initMarketing } from "./marketing.js?v=20261125-6";
-import { initUI, stockStatus } from "./ui.js?v=20261125-6";
+import { initSuite } from "./suite.js?v=20261125-7";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-7";
+import { initI18n } from "./i18n.js?v=20261125-7";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-7";
+import { initMarketing } from "./marketing.js?v=20261125-7";
+import { initUI, stockStatus } from "./ui.js?v=20261125-7";
+import { initStudio } from "./studio.js?v=20261125-7";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -218,6 +219,8 @@ function appBack(opts) {
     else $(top).classList.remove("open");
     return true;
   }
+  // the Marketing Studio (full screen): its dialog, selection, then the Studio itself
+  if (window.STUDIO && window.STUDIO.isOpen()) return window.STUDIO.escape();
   // inside the app: Inventory / Attendance Location -> Dashboard first
   if (pageStack[pageStack.length - 1] === "app" && window.__uiBack && window.__uiBack()) return true;
   if (opts && opts.esc && pageStack[pageStack.length - 1] === "app") return false; // Escape never logs out of the dashboard
@@ -628,7 +631,7 @@ function openDashboard() {
 
   const admin = currentRole === "ADMIN";
   // Admin-only controls: history, attendance log, geo-fence, Excel import
-  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "taskMgmtBtn", "suiteBtn", "placesBtn", "settingsBtn", "historyBtn", "importBtn", "templateBtn"].forEach(admin ? show : hide);
+  ["staffDisplay", "viewAttBtn", "adminGeoPanel", "adminShopPanel", "movementBtn", "taskMgmtBtn", "suiteBtn", "placesBtn", "settingsBtn", "historyBtn", "importBtn", "templateBtn", "studioBtn"].forEach(admin ? show : hide);
   if (!admin) closeHistoryModal();
   admin ? hide("markAttBtn") : show("markAttBtn");
   admin ? hide("markOutBtn") : show("markOutBtn");
@@ -2794,7 +2797,7 @@ window.devDeleteCompany = async (id) => {
   if (!(await askConfirm(`Delete "${c.companyName}" and ALL its inventory, employees, tasks and history permanently?`))) return;
   try {
     loading(true);
-    for (const sub of ["inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
+    for (const sub of ["mktAssets", "mktAssetData", "mktDesigns", "mktDesignData", "mktTemplates", "notifications", "inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
       "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places", "enquiries", "brand", "aiConfig", "itemPhotos"]) {
       const docs = (await getDocs(collection(db, "companies", id, sub))).docs;
       for (let i = 0; i < docs.length; i += 400) {
@@ -2869,6 +2872,13 @@ const ui = initUI({
   visibleItems: () => (document.getElementById("pg-inventory") && !$("pg-inventory").classList.contains("hidden") ? filteredItems() : inventory)
 });
 window.__uiPage = (id) => ui.page(id);
+
+// 🎨 AI Marketing Studio (studio.js)
+const studio = initStudio({
+  db, $, toast, askConfirm, loading, esc: escapeHTML, fmtD, askText: (m, v) => askText(m, v),
+  getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, inventory, companyName: companyData ? companyData.companyName : "" }),
+  mkt: () => marketing.mkt(), aiJSON: (p, n) => enquiry.aiJSON(p, n), aiOn: () => enquiry.aiOn()
+});
 
 /* ---------- STOCK ITEM PHOTOS: take with the camera or upload ----------
    A small copy is kept with the item (for the table); the large copy is saved separately and loaded only when you tap it. */

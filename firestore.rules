@@ -234,6 +234,34 @@ service cloud.firestore {
         allow delete: if isDeveloper();
       }
 
+      // ----- 🎨 AI Marketing Studio: media library, saved designs and own templates (owner / admins only) -----
+      // each image / design is one record under 1 MB (the app makes pictures smaller before saving)
+      match /mktAssets/{id} {
+        allow read: if isAdmin(cid) || isDeveloper();
+        allow create, update: if isAdmin(cid) && request.resource.data.get('thumb', '').size() < 120000;
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+      match /mktAssetData/{id} {
+        allow read: if isAdmin(cid) || isDeveloper();
+        allow create, update: if isAdmin(cid) && request.resource.data.img is string && request.resource.data.img.size() < 1000000;
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+      match /mktDesigns/{id} {
+        allow read: if isAdmin(cid) || isDeveloper();
+        allow create, update: if isAdmin(cid);
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+      match /mktDesignData/{id} {
+        allow read: if isAdmin(cid) || isDeveloper();
+        allow create, update: if isAdmin(cid) && request.resource.data.json is string;
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+      match /mktTemplates/{id} {
+        allow read: if isAdmin(cid) || isDeveloper();
+        allow create, update: if isAdmin(cid);
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
       // ----- customer credit ledger (udhaar) and reminder dates: owner / admins only -----
       match /credit/{id} {
         allow read, write: if isAdmin(cid);
