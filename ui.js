@@ -5,7 +5,7 @@
 // No business logic lives here: every action calls the existing functions.
 // =====================================================================
 
-import { initTheme } from "./theme.js?v=20261127-2";
+import { initTheme } from "./theme.js?v=20261127-3";
 /* <uipure> */
 const DAYMS = 86400000;
 export const isIn = (a) => /^STOCK IN/.test(a || "");
@@ -376,7 +376,8 @@ export function initUI(ctx) {
   /* ---------------- employees (cards) and attendance summary ---------------- */
   function todayAtt() {
     const S = st(), d = new Date(), key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const rows = ctx.attDays((S.attendance || []).filter((a) => a.date === key), ctx.shopSettings());
+    const lun = ctx.lunches ? ctx.lunches().filter((l) => l.date === key) : [];
+    const rows = ctx.attDays([...(S.attendance || []).filter((a) => a.date === key), ...lun], ctx.shopSettings());
     return rows;
   }
   const shiftChip = (uid) => {
@@ -395,7 +396,9 @@ export function initUI(ctx) {
     el.innerHTML = !(S.staff || []).length ? `<p class="hint">No employees have joined yet. Share the company name and join code with them.</p>`
       : !list.length ? `<p class="hint">No employee matches the search.</p>` : list.map((s) => {
       const a = att[s.uid];
-      const status = a ? (a.outMs ? `<span class="st st-info">Checked out</span>` : a.late ? `<span class="st st-hold">Late today</span>` : `<span class="st st-ok">Present today</span>`) : `<span class="st st-out">Not in today</span>`;
+      const lunchEnd = a && a.lunchAt ? a.lunchAt + 3600000 : 0, onLunch = lunchEnd && !a.outMs && Date.now() < lunchEnd;
+      const tm = (ms) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
+      const status = onLunch ? `<span class="st st-hold">🍱 On lunch till ${tm(lunchEnd)}</span>` : a ? (a.outMs ? `<span class="st st-info">Checked out</span>` : a.late ? `<span class="st st-hold">Late today</span>` : `<span class="st st-ok">Present today</span>`) : `<span class="st st-out">Not in today</span>`;
       const where = s.presence === "OUT" ? `<span class="st st-low">Outside shop</span>` : s.presence === "IN" ? `<span class="st st-ok">Inside shop</span>` : "";
       return `<div class="emp-card"><div class="emp-top"><span class="avatar lg">${esc(String(s.name || "?").charAt(0).toUpperCase())}</span>
         <div class="emp-id"><b class="notr">${esc(s.name || "")}</b><div class="hint notr">${esc(s.email || "-")}</div><span class="role-chip">Employee</span></div></div>
@@ -447,8 +450,9 @@ export function initUI(ctx) {
     pdf("Stock transactions", ["Time", "User", "Action", "Item", "Qty"], rows.map((r) => Object.values(r)));
   }
   function exportAtt(kind) {
-    const rows = ctx.attDays((st().attendance || []), ctx.shopSettings()).map((r) => ({ Date: fmtD(new Date(r.date + "T00:00:00")), Employee: r.name,
+    const rows = ctx.attDays([...(st().attendance || []), ...(ctx.lunches ? ctx.lunches() : [])], ctx.shopSettings()).map((r) => ({ Date: fmtD(new Date(r.date + "T00:00:00")), Employee: r.name,
       In: r.inMs ? new Date(r.inMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "", Out: r.outMs ? new Date(r.outMs).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "",
+      Lunch: r.lunchAt ? new Date(r.lunchAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) + " (1 h)" : "",
       Hours: r.mins !== null ? (Math.round(r.mins / 6) / 10) : "", "Late (min)": r.lateMin || 0, "Overtime (min)": r.otMin || 0 }));
     if (kind === "xlsx") return xlsx(rows, "Attendance", "attendance-" + day());
     pdf("Attendance", Object.keys(rows[0] || { Date: "" }), rows.map((r) => Object.values(r)));

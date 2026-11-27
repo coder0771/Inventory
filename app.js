@@ -13,13 +13,13 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261127-2";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261127-2";
-import { initI18n } from "./i18n.js?v=20261127-2";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, shiftFor, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261127-2";
-import { initMarketing } from "./marketing.js?v=20261127-2";
-import { initUI, stockStatus } from "./ui.js?v=20261127-2";
-import { initStudio } from "./studio.js?v=20261127-2";
+import { initSuite } from "./suite.js?v=20261127-3";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261127-3";
+import { initI18n } from "./i18n.js?v=20261127-3";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, shiftFor, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261127-3";
+import { initMarketing } from "./marketing.js?v=20261127-3";
+import { initUI, stockStatus } from "./ui.js?v=20261127-3";
+import { initStudio } from "./studio.js?v=20261127-3";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -394,6 +394,7 @@ window.verifyOtp = async function () {
 
 window.logout = async function () {
   try {
+    clearTimeout(lunchTimer);
     stopListeners();
     resetSession();
     clearSession();
@@ -635,6 +636,7 @@ function openDashboard() {
   if (!admin) closeHistoryModal();
   admin ? hide("markAttBtn") : show("markAttBtn");
   admin ? hide("markOutBtn") : show("markOutBtn");
+  admin ? hide("lunchBtn") : show("lunchBtn");
   admin ? hide("taskEmpBtn") : show("taskEmpBtn");
   admin ? hide("myWorkBtn") : show("myWorkBtn");
   admin ? show("shopBtn") : hide("shopBtn");
@@ -733,13 +735,14 @@ function startRealtime() {
       firstMoveSnap = false;
     }, (e) => console.error("Movement listener:", e)));
 
-    unsubs.push(onSnapshot(query(collection(db, ...base, "attendance"), orderBy("time", "desc")), (snap) => {
+    const onAtt = (snap) => {
+      lastAttSnap = snap;
       // In time of each employee for each day, so an Out row can show how long they worked
       const inTimes = {};
       snap.docs.forEach((d) => { const a = d.data(); if (a.type !== "OUT" && a.time?.toDate) inTimes[a.uid + "_" + a.date] = a.time.toDate(); });
       attSnapCache = snap.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time?.toDate ? a.time.toDate().getTime() : 0 }; });
       const flags = {};
-      attDays(attSnapCache, shop.getSettings()).forEach((r) => { flags[r.uid + "_" + r.date] = r; });
+      attDays([...attSnapCache, ...shop.getLunches()], shop.getSettings()).forEach((r) => { flags[r.uid + "_" + r.date] = r; });
       setTimeout(() => shop.bump(), 0);
       ui.refresh();
       $("attendanceBody").innerHTML = snap.docs.map((d) => {
@@ -755,10 +758,13 @@ function startRealtime() {
           if (fl && fl.otMin) worked += `<div class="ot-tag">Overtime: ${Math.floor(fl.otMin / 60)}h ${fl.otMin % 60}m</div>`;
         }
         if (!out && fl && fl.late) worked += `<div class="late-tag">⚠ Late: ${Math.floor(fl.lateMin / 60)}h ${fl.lateMin % 60}m</div>`;
+        if (!out && fl && fl.lunchAt) worked += `<div class="ot-tag">🍱 Lunch: ${clock(new Date(fl.lunchAt))} – ${clock(new Date(fl.lunchAt + LUNCH_MS))}</div>`;
         const badge = out ? `<span class="att-tag att-out">Attendance Out</span>` : `<span class="att-tag att-in">Attendance In</span>`;
         return `<tr><td>${escapeHTML(a.name)}</td><td>${badge}${worked}</td><td>${t}</td><td>${dist}</td></tr>`;
       }).join("");
-    }, (e) => console.error("Attendance listener:", e)));
+    };
+    unsubs.push(onSnapshot(query(collection(db, ...base, "attendance"), orderBy("time", "desc")), onAtt, (e) => console.error("Attendance listener:", e)));
+    reAtt = () => { if (lastAttSnap) onAtt(lastAttSnap); };
   }
 }
 
@@ -1252,6 +1258,10 @@ const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad2
 const attendanceRef = () => doc(db, "companies", companyID, "attendance", `${currentUser.uid}_${todayKey()}`);
 // Attendance Out is its own record next to the In record:  userId_date_out  (also once per day)
 const attendanceOutRef = () => doc(db, "companies", companyID, "attendance", `${currentUser.uid}_${todayKey()}_out`);
+// 🍱 lunch break: one record a day (userId_date), always 1 hour
+const LUNCH_MS = 60 * 60000;
+const lunchRef = () => doc(db, "companies", companyID, "lunches", `${currentUser.uid}_${todayKey()}`);
+let lunchTimer = null;
 const clock = (t) => t ? t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true }) : "";
 const tsDate = (s) => s && s.exists() && s.data().time && s.data().time.toDate ? s.data().time.toDate() : null;
 
@@ -1270,15 +1280,69 @@ function setAttendanceOutButton(inDone, outDone, time) {
   b.style.opacity = outDone || !inDone ? "0.7" : "1";
   b.title = inDone ? "" : "Mark Attendance In first";
 }
+function setLunchButton(inDone, outDone, startAt) {
+  const b = $("lunchBtn");
+  if (!b) return;
+  clearTimeout(lunchTimer);
+  b.classList.remove("on-lunch");
+  if (startAt) {
+    const end = new Date(startAt.getTime() + LUNCH_MS), on = Date.now() < end.getTime();
+    b.disabled = true;
+    b.innerText = on ? `🍱 On lunch till ${clock(end)}` : `🍱 Lunch: ${clock(startAt)} – ${clock(end)}`;
+    b.style.opacity = on ? "1" : "0.7";
+    if (on) {
+      b.classList.add("on-lunch");
+      // when the hour is over: tell the employee and update the button
+      lunchTimer = setTimeout(() => { pushAlert(`<b>⏰ Your lunch hour is over</b><br><small>Please get back to work.</small>`, "left"); setLunchButton(inDone, outDone, startAt); }, end.getTime() - Date.now() + 500);
+    }
+    b.title = "";
+    return;
+  }
+  b.disabled = !inDone || outDone;
+  b.innerText = "🍱 Lunch time";
+  b.style.opacity = !inDone || outDone ? "0.7" : "1";
+  b.title = !inDone ? "Mark Attendance In first" : outDone ? "Attendance Out is already marked" : "Start your 1-hour lunch break";
+}
 async function refreshAttendanceButton() {
   if (currentRole !== "EMPLOYEE" || !companyID) return;
-  let inS = null, outS = null;
+  let inS = null, outS = null, luS = null;
   try { inS = await getDoc(attendanceRef()); } catch (e) {}
   try { outS = await getDoc(attendanceOutRef()); } catch (e) {}
+  try { luS = await getDoc(lunchRef()); } catch (e) {}
   const inDone = !!(inS && inS.exists()), outDone = !!(outS && outS.exists());
   setAttendanceButton(inDone, clock(tsDate(inS)));
   setAttendanceOutButton(inDone, outDone, clock(tsDate(outS)));
+  setLunchButton(inDone, outDone, luS && luS.exists() ? (tsDate(luS) || new Date()) : null);
 }
+window.refreshAttendanceButton = refreshAttendanceButton;
+// 🍱 employee starts the 1-hour lunch break; the owner gets a notification with the time
+window.startLunch = async function () {
+  if (currentRole !== "EMPLOYEE" || !companyID) return;
+  try {
+    loading(true);
+    let inS = null, outS = null, luS = null;
+    try { inS = await getDoc(attendanceRef()); } catch (e) {}
+    if (!inS || !inS.exists()) return toast("Mark Attendance In first, then start your lunch break.");
+    try { outS = await getDoc(attendanceOutRef()); } catch (e) {}
+    if (outS && outS.exists()) return toast("Your Attendance Out is already marked today.");
+    try { luS = await getDoc(lunchRef()); } catch (e) {}
+    if (luS && luS.exists()) { refreshAttendanceButton(); return toast("You have already taken your lunch break today."); }
+    const back = clock(new Date(Date.now() + LUNCH_MS));
+    if (!(await askConfirm(`Start your lunch break now? Lunch is 1 hour (back by ${back}). The owner will be told. It can be taken once a day.`))) return;
+    await setDoc(lunchRef(), {
+      type: "LUNCH", minutes: 60,
+      name: displayName || contactOf(currentUser) || "Employee",
+      uid: currentUser.uid,
+      date: todayKey(),
+      time: serverTimestamp()
+    });
+    toast(`Enjoy your lunch! Please be back by ${back}.`);
+    refreshAttendanceButton();
+  } catch (err) {
+    console.error(err);
+    toast(err.code === "permission-denied" ? "Lunch is already marked today, or Attendance In is missing. If this keeps happening, ask the owner to publish the latest firestore.rules." : err.message);
+  } finally { loading(false); }
+};
 
 // GPS reading + geo-fence check, shared by Attendance In and Attendance Out. Returns null (after a message) if not allowed.
 async function readShopLocation() {
@@ -2831,7 +2895,7 @@ window.devDeleteCompany = async (id) => {
   if (!(await askConfirm(`Delete "${c.companyName}" and ALL its inventory, employees, tasks and history permanently?`))) return;
   try {
     loading(true);
-    for (const sub of ["advances", "mktAssets", "mktAssetData", "mktDesigns", "mktDesignData", "mktTemplates", "notifications", "inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
+    for (const sub of ["advances", "lunches", "mktAssets", "mktAssetData", "mktDesigns", "mktDesignData", "mktTemplates", "notifications", "inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
       "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places", "enquiries", "brand", "aiConfig", "itemPhotos"]) {
       const docs = (await getDocs(collection(db, "companies", id, sub))).docs;
       for (let i = 0; i < docs.length; i += 400) {
@@ -2873,15 +2937,17 @@ const suite = initSuite({
   addUnsub: (fn) => unsubs.push(fn),
   createTask: createTaskDoc,
   shopSettings: () => shop.getSettings(),
+  lunches: () => shop.getLunches(),
   attDays, shiftFor, hm, SHOP_DEFAULTS, lotSummary, lotLabel,
   readPhoto: (img, prompt, n) => enquiry.readPhoto(img, prompt, n), compressImage
 });
 
 
 
-let attSnapCache = [];
+let attSnapCache = [], lastAttSnap = null, reAtt = () => {};
 const shop = initShop({
   db, $, toast, askConfirm, loading, esc: escapeHTML, fmtDT, fmtD, pushAlert,
+  onLunch: () => reAtt(),
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, history: historyList, companyName: companyData ? companyData.companyName : "",
     movements: movementsList, attendance: attSnapCache, tasks }),
   addUnsub: (fn) => unsubs.push(fn),
@@ -2903,6 +2969,7 @@ const ui = initUI({
   getState: () => ({ companyID, role: currentRole, user: currentUser, name: displayName, staff: staffList, inventory, history: historyList,
     attendance: attSnapCache, companyName: companyData ? companyData.companyName : "", geo: companyData && companyData.geo, shopGeo: companyData && companyData.shopGeo }),
   shopSettings: () => shop.getSettings(),
+  lunches: () => shop.getLunches(),
   visibleItems: () => (document.getElementById("pg-inventory") && !$("pg-inventory").classList.contains("hidden") ? filteredItems() : inventory)
 });
 window.__uiPage = (id) => ui.page(id);

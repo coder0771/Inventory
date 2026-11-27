@@ -134,6 +134,8 @@ export function shiftFor(set, uid) {
   r.workMin = a !== null && b !== null && b > a ? (b - a) - overlapMin(a, b, r.lunch) : 0;
   return r;
 }
+// the 🍱 Lunch button gives the employee a 1-hour break
+export const LUNCH_MIN = 60;
 // minutes of the lunch break that fall between from and to (minutes of the day)
 export function overlapMin(from, to, lunch) {
   if (!lunch) return 0;
@@ -147,14 +149,17 @@ export function attDays(records, set) {
   (records || []).forEach((a) => {
     const t = a.ms; if (!t) return;
     const k = a.uid + "|" + (a.date || dayKey(t));
-    const d = days[k] || (days[k] = { uid: a.uid, name: a.name || "", date: a.date || dayKey(t), inMs: 0, outMs: 0 });
-    if (a.type === "OUT") d.outMs = t; else d.inMs = t;
+    const d = days[k] || (days[k] = { uid: a.uid, name: a.name || "", date: a.date || dayKey(t), inMs: 0, outMs: 0, lunchAt: 0 });
+    if (a.type === "OUT") d.outMs = t; else if (a.type === "LUNCH") d.lunchAt = t; else d.inMs = t;
     if (a.name) d.name = a.name;
   });
   const dayMin = (ms) => { const dt = new Date(ms); return dt.getHours() * 60 + dt.getMinutes(); };
   return Object.values(days).map((d) => {
     const sh = shiftFor(s, d.uid);
-    const start = hm(sh.shiftStart), shiftLen = sh.workMin;
+    // the lunch the employee really took (🍱 button, 1 hour) replaces the planned lunch time of that day
+    const took = d.lunchAt ? [dayMin(d.lunchAt), dayMin(d.lunchAt) + LUNCH_MIN] : null, lunchWin = took || sh.lunch;
+    const start = hm(sh.shiftStart), end = hm(sh.shiftEnd);
+    const shiftLen = took ? (start !== null && end !== null && end > start ? (end - start) - overlapMin(start, end, took) : 0) : sh.workMin;
     let lateMin = 0, mins = null, otMin = 0, lunchMin = 0;
     if (d.inMs && start !== null) {
       const inMin = dayMin(d.inMs);
@@ -163,7 +168,7 @@ export function attDays(records, set) {
     if (d.inMs && d.outMs && d.outMs > d.inMs) {
       const span = Math.round((d.outMs - d.inMs) / 60000);
       // the lunch break inside In .. Out is not working time (Out on the same day)
-      if (sh.lunch && new Date(d.inMs).toDateString() === new Date(d.outMs).toDateString()) lunchMin = overlapMin(dayMin(d.inMs), dayMin(d.outMs), sh.lunch);
+      if (lunchWin && new Date(d.inMs).toDateString() === new Date(d.outMs).toDateString()) lunchMin = overlapMin(dayMin(d.inMs), dayMin(d.outMs), lunchWin);
       mins = Math.max(0, span - lunchMin);
       if (shiftLen) otMin = Math.max(0, mins - shiftLen);
     }
@@ -208,6 +213,7 @@ export function initShop(ctx) {
 
   let settings = { ...SHOP_DEFAULTS };
   let credits = [], creditMeta = {};
+  let lunches = []; // 🍱 lunch breaks of the last 30 days (owner)
   let unsub = [];
   const V = { tab: "reorder", deadDays: null, credFilter: "", credKey: null, dayMs: Date.now(), hoursY: new Date().getFullYear(), hoursM: new Date().getMonth() + 1,
     hoursUid: null, dayData: null, hoursData: null, reorder: {} };
@@ -217,7 +223,7 @@ export function initShop(ctx) {
   function start() {
     unsub.forEach((f) => { try { f(); } catch (e) {} });
     unsub = [];
-    settings = { ...SHOP_DEFAULTS }; credits = []; creditMeta = {}; notes = []; recentEnq = [];
+    settings = { ...SHOP_DEFAULTS }; lunches = []; credits = []; creditMeta = {}; notes = []; recentEnq = [];
     if ($("noteBody")) $("noteBody").dataset.seen = "";
     V.dayData = null; V.hoursData = null;
     const keep = (f) => { unsub.push(f); ctx.addUnsub(f); };
@@ -226,6 +232,15 @@ export function initShop(ctx) {
       keep(onSnapshot(C("credit"), (snap) => { credits = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); bump(); }, (e) => console.warn("Credit ledger", e)));
       keep(onSnapshot(C("creditMeta"), (snap) => { creditMeta = {}; snap.docs.forEach((d) => (creditMeta[d.id] = d.data())); render(); bump(); }, (e) => console.warn("Credit reminders", e)));
       keep(onSnapshot(query(C("notifications"), where("at", ">=", new Date(Date.now() - 30 * DAY))), (snap) => { notes = snap.docs.map((d) => ({ id: d.id, ...d.data() })); bump(); }, (e) => console.warn("Notifications", e)));
+      // 🍱 lunch breaks: a notification to the owner as soon as an employee starts lunch
+      let lunchSeen = null;
+      keep(onSnapshot(query(C("lunches"), where("time", ">=", new Date(Date.now() - 30 * DAY))), (snap) => {
+        lunches = snap.docs.map((d) => { const a = d.data(); return { id: d.id, ...a, ms: tms(a.time) || Date.now() }; });
+        if (lunchSeen) lunches.filter((l) => !lunchSeen.has(l.id) && Date.now() - l.ms < 2 * 3600000).forEach((l) =>
+          ctx.pushAlert && ctx.pushAlert(`<b>🍱 <span>Lunch break</span>: <span class="notr">${esc(l.name || "")}</span></b><br><small><span>Started</span> ${tstr(l.ms)} · <span>Back by</span> ${tstr(l.ms + LUNCH_MIN * 60000)} (<span>1 hour</span>)</small>`, "enter"));
+        lunchSeen = new Set(lunches.map((l) => l.id));
+        V.hoursData = null; bump(); render(); if (ctx.onLunch) ctx.onLunch();
+      }, (e) => console.warn("Lunch breaks", e)));
       keep(onSnapshot(query(C("enquiries"), where("createdAt", ">=", new Date(Date.now() - 30 * DAY))), (snap) => { recentEnq = snap.docs.map((d) => ({ id: d.id, ...d.data() })); bump(); }, (e) => console.warn("Enquiries for notifications", e)));
       const h = setInterval(tick, 60000);
       keep(() => clearInterval(h));
@@ -624,10 +639,12 @@ export function initShop(ctx) {
     const from = startOfDay(V.dayMs), to = from + DAY, key = dayKey(from);
     V.dayData = { loading: true };
     try {
-      const [att, enq] = await Promise.all([
+      const [att0, lun, enq] = await Promise.all([
         getDocs(query(C("attendance"), where("date", "==", key))).catch(() => ({ docs: [] })),
+        getDocs(query(C("lunches"), where("date", "==", key))).catch(() => ({ docs: [] })),
         getDocs(query(C("enquiries"), where("createdAt", ">=", new Date(from)), where("createdAt", "<", new Date(to)))).catch(() => ({ docs: [] }))
       ]);
+      const att = { docs: [...att0.docs, ...lun.docs] };
       V.dayData = { from, to, att: att.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; }), enq: enq.docs.map((d) => ({ id: d.id, ...d.data() })) };
     } catch (e) { console.error(e); V.dayData = { error: e.message }; }
     render(true);
@@ -704,8 +721,9 @@ export function initShop(ctx) {
     render(true);
   }
   async function monthAttendance(y, m) {
-    const snap = await getDocs(query(C("attendance"), where("time", ">=", new Date(y, m - 1, 1)), where("time", "<", new Date(y, m, 1))));
-    return snap.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; });
+    const range = (n) => getDocs(query(C(n), where("time", ">=", new Date(y, m - 1, 1)), where("time", "<", new Date(y, m, 1))));
+    const [snap, lsnap] = await Promise.all([range("attendance"), range("lunches").catch(() => ({ docs: [] }))]);
+    return [...snap.docs, ...lsnap.docs].map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; });
   }
   const ownShifts = () => (st().staff || []).filter((x) => shiftFor(settings, x.uid).own).length;
   const shiftTxt = (sh) => `${esc(sh.shiftStart)} – ${esc(sh.shiftEnd)}`;
@@ -717,8 +735,8 @@ export function initShop(ctx) {
     const rows = V.hoursData.rows;
     if (V.hoursUid) {
       const mine = rows.filter((r) => r.uid === V.hoursUid), sh = shiftFor(settings, V.hoursUid);
-      return head + `<h4 class="notr">${esc(mine[0]?.name || "")}</h4><p class="hint">${sh.own ? "Own shift" : "Shop shift"}: <span class="notr">${shiftTxt(sh)}</span> · Late after ${sh.graceMin} min${sh.lunch ? ` · <span>Lunch</span> <span class="notr">${lunchTxt(sh)}</span>` : ""}</p><div class="table-wrap"><table class="stable"><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Overtime</th><th>Late</th></tr></thead><tbody>${mine.map((r) =>
-        `<tr><td>${dstr(new Date(r.date + "T00:00:00").getTime())}</td><td>${tstr(r.inMs)}</td><td>${r.outMs ? tstr(r.outMs) : "-"}</td><td>${r.mins !== null ? fmtMins(r.mins) : "No Out"}</td><td>${r.otMin ? fmtMins(r.otMin) : "-"}</td><td>${r.late ? `<span class="chip chip-red">⚠ ${fmtMins(r.lateMin)}</span>` : "-"}</td></tr>`).join("")}</tbody></table></div>
+      return head + `<h4 class="notr">${esc(mine[0]?.name || "")}</h4><p class="hint">${sh.own ? "Own shift" : "Shop shift"}: <span class="notr">${shiftTxt(sh)}</span> · Late after ${sh.graceMin} min${sh.lunch ? ` · <span>Lunch</span> <span class="notr">${lunchTxt(sh)}</span>` : ""}</p><div class="table-wrap"><table class="stable"><thead><tr><th>Date</th><th>In</th><th>Lunch</th><th>Out</th><th>Hours</th><th>Overtime</th><th>Late</th></tr></thead><tbody>${mine.map((r) =>
+        `<tr><td>${dstr(new Date(r.date + "T00:00:00").getTime())}</td><td>${tstr(r.inMs)}</td><td>${r.lunchAt ? `🍱 ${tstr(r.lunchAt)} – ${tstr(r.lunchAt + LUNCH_MIN * 60000)}` : "-"}</td><td>${r.outMs ? tstr(r.outMs) : "-"}</td><td>${r.mins !== null ? fmtMins(r.mins) : "No Out"}</td><td>${r.otMin ? fmtMins(r.otMin) : "-"}</td><td>${r.late ? `<span class="chip chip-red">⚠ ${fmtMins(r.lateMin)}</span>` : "-"}</td></tr>`).join("")}</tbody></table></div>
         <button class="auth-btn" style="background:#666; margin-top:10px" onclick="SH.hu('')">← Back</button>`;
     }
     const per = attMonth(rows);
@@ -728,7 +746,7 @@ export function initShop(ctx) {
       return `<tr><td class="notr">${esc(p.name)}</td><td><span class="notr">${shiftTxt(sh)}</span>${sh.own ? ` <span class="chip">👤 Own</span>` : ""}${sh.lunch ? `<div class="hint">🍱 <span class="notr">${lunchTxt(sh)}</span></div>` : ""}</td><td>${p.days}</td><td>${fmtMins(p.mins)}</td><td>${p.otMin ? fmtMins(p.otMin) : "-"}</td><td>${p.lateDays ? `<span class="chip chip-red">${p.lateDays}</span>` : "0"}</td><td>${p.noOut || 0}</td>
       <td><button class="edit-btn" onclick="SH.hu('${esc(p.uid)}')">📅 Days</button></td></tr>`; }).join("")}</tbody></table></div>
       <p class="hint">Hours count from Attendance In to Attendance Out. Overtime is time beyond each employee's shift (their own shift, or the shop shift ${esc(settings.shiftStart)} – ${esc(settings.shiftEnd)}). "No Out" = days without Attendance Out (no hours counted).
-</p><p class="hint">Lunch time is not counted as working time.</p><p class="hint">Overtime pay and any late fine are added when you run payroll (Business Suite → Payroll).</p><p class="hint">Set a different shift for an employee in ⚙ Shop settings → Individual shift times.</p>` : `<p class="hint">No attendance this month.</p>`);
+</p><p class="hint">Lunch time is not counted as working time. When an employee presses 🍱 Lunch time, that 1 hour is used instead of the planned lunch.</p><p class="hint">Overtime pay and any late fine are added when you run payroll (Business Suite → Payroll).</p><p class="hint">Set a different shift for an employee in ⚙ Shop settings → Individual shift times.</p>` : `<p class="hint">No attendance this month.</p>`);
   }
   const hu = (uid) => { V.hoursUid = uid || null; render(true); };
 
@@ -839,6 +857,7 @@ export function initShop(ctx) {
      🔔 NOTIFICATIONS (owner): everything that happened, newest first, with date and time
      ===================================================================== */
   let notes = [], recentEnq = [];
+  const withLunch = (att) => [...(att || []), ...lunches];
   const NV = { kind: "all" };
   const seenKey = () => "pi_notes_seen_" + st().companyID;
   const getSeen = () => { try { return Number(localStorage.getItem(seenKey())) || 0; } catch (e) { return 0; } };
@@ -853,7 +872,8 @@ export function initShop(ctx) {
     (S.movements || []).forEach((m) => add("move", tms(m.time), m.type === "LEFT" ? "🚶 Left the shop radius" : "🏪 Came inside the shop radius",
       [`Employee: ${m.name || ""}`, m.place && m.place !== "Shop" ? `Place: ${m.place}` : "", `Distance: ${Math.round(m.distance ?? 0)} m`].filter(Boolean).join(" · ")));
     const flags = {};
-    attDays((S.attendance || []).map((a) => ({ ...a, ms: a.ms || tms(a.time) })), settings).forEach((r) => (flags[r.uid + "_" + r.date] = r));
+    attDays(withLunch((S.attendance || []).map((a) => ({ ...a, ms: a.ms || tms(a.time) }))), settings).forEach((r) => (flags[r.uid + "_" + r.date] = r));
+    lunches.forEach((l) => add("att", l.ms, "🍱 Lunch break", [`Employee: ${l.name || ""}`, `Started: ${tstr(l.ms)}`, `Back by: ${tstr(l.ms + LUNCH_MIN * 60000)}`].join(" · ")));
     (S.attendance || []).forEach((a) => {
       const f = flags[a.uid + "_" + a.date], out = a.type === "OUT";
       add("att", a.ms || tms(a.time), out ? "🚪 Attendance Out" : (f && f.late ? "⚠ Attendance In (late)" : "✅ Attendance In"),
@@ -918,5 +938,6 @@ export function initShop(ctx) {
     dayAt, dayShare, dayPrint, hm: hmSet, hu, saveSet, esReset, empShift,
     openNotes, closeNotes, noteKind
   };
-  return { start, getSettings, refresh, monthAttendance, openCalc, bump };
+  const getLunches = () => lunches;
+  return { start, getSettings, getLunches, refresh, monthAttendance, openCalc, bump };
 }

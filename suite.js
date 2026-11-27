@@ -1126,7 +1126,9 @@ export function initSuite(ctx) {
       att.docs.forEach((d) => { const a = d.data(), t = a.time && a.time.toDate ? a.time.toDate() : null; if (t && a.type !== "OUT") (present[a.uid] = present[a.uid] || new Set()).add(t.getDate()); });
       // hours, overtime and late days from Attendance In / Out
       const set = { ...ctx.SHOP_DEFAULTS, ...(ctx.shopSettings() || {}) };
-      const days = ctx.attDays(att.docs.map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; }), set);
+      // the 🍱 lunch breaks the employees took are not working time
+      const lun = await getDocs(query(C("lunches"), where("time", ">=", new Date(y, m - 1, 1)), where("time", "<", new Date(y, m, 1)))).catch(() => ({ docs: [] }));
+      const days = ctx.attDays([...att.docs, ...lun.docs].map((d) => { const a = d.data(); return { ...a, ms: a.time && a.time.toDate ? a.time.toDate().getTime() : 0 }; }), set);
       const per = {};
       days.forEach((r) => { const p = per[r.uid] = per[r.uid] || { mins: 0, otMin: 0, lateDays: 0 }; if (r.mins !== null) p.mins += r.mins; p.otMin += r.otMin; if (r.late) p.lateDays++; });
       // each employee's own shift (or the shop shift) decides their salary per hour for overtime

@@ -294,6 +294,21 @@ service cloud.firestore {
         allow delete: if isDeveloper();
       }
 
+      // ----- 🍱 lunch break (1 hour): the employee starts it once a day, the owner is told -----
+      //   id = <uid>_<YYYY-MM-DD>; only the owner / admins and that employee can read it; it cannot be changed later
+      match /lunches/{lunchId} {
+        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.uid == request.auth.uid);
+        allow create: if isMember(cid)
+          && request.resource.data.uid == request.auth.uid
+          && lunchId == request.auth.uid + '_' + request.resource.data.date
+          && request.resource.data.type == 'LUNCH'
+          && request.resource.data.minutes == 60
+          && request.resource.data.time == request.time
+          // only after that day's Attendance In
+          && exists(/databases/$(database)/documents/companies/$(cid)/attendance/$(lunchId));
+        allow delete: if isAdmin(cid) || isDeveloper();
+      }
+
       // ----- extra geo-fence places for attendance -----
       match /places/{placeId} {
         allow read: if isMember(cid);

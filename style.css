@@ -742,6 +742,8 @@ body.is-emp .admin-only, body.is-admin .emp-only { display: none !important; }
 .att-btn { background: var(--primary); color: var(--on-primary); padding: 11px 18px; border-radius: 12px; }
 .att-btn:hover { background: var(--primary); }
 .att-out-btn { background: var(--warning); color: #3a2300; }
+.att-lunch-btn { background: #0e7490; color: #fff; }
+.att-lunch-btn.on-lunch { background: #f59e0b; color: #3a2300; }
 .att-out-btn:hover { background: #d98a06; }
 
 /* ---------- tables ---------- */
