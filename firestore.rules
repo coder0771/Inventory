@@ -424,9 +424,9 @@ service cloud.firestore {
         allow delete: if isDeveloper();
       }
 
-      // Payslips: admin manages, an employee reads their own
+      // Payslips: only the owner / admins (employees do not see salaries)
       match /payslips/{id} {
-        allow read: if isAdmin(cid) || (isMember(cid) && resource.data.uid == request.auth.uid);
+        allow read: if isAdmin(cid);
         allow write: if isAdmin(cid);
         allow delete: if isDeveloper();
       }

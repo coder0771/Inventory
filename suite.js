@@ -292,7 +292,7 @@ export function initSuite(ctx) {
       listen("leads", query(C("leads"), where("assignedTo", "==", uid)));
       listen("tickets", query(C("tickets"), where("assignedTo", "==", uid)));
       listen("leaves", query(C("leaves"), where("uid", "==", uid)));
-      listen("payslips", query(C("payslips"), where("uid", "==", uid)));
+      // salaries and payslips are not shown to employees (owner's choice); the database rules block them too
       listen("templates");
     }
     const h = setInterval(tick, 60000);
@@ -1235,6 +1235,7 @@ export function initSuite(ctx) {
   }
 
   function printSlip(id) {
+    if (!isAdmin()) return;
     const p = S.payslips.find((x) => x.id === id);
     if (!p) return;
     const [y, m] = p.month.split("-");
@@ -1479,9 +1480,10 @@ export function initSuite(ctx) {
   function renderMy() {
     const el = $("myWorkBody");
     if (!el || !$("myWorkModal").classList.contains("open")) return;
-    $("myWorkTabs").innerHTML = [["leads", "📇 My Leads"], ["tickets", "🎫 My Tickets"], ["leave", "🏖 Leave"], ["slips", "💵 Payslips"]]
+    if (!["leads", "tickets", "leave"].includes(V.my)) V.my = "leads";
+    $("myWorkTabs").innerHTML = [["leads", "📇 My Leads"], ["tickets", "🎫 My Tickets"], ["leave", "🏖 Leave"]]
       .map(([k, l]) => `<button class="stab ${V.my === k ? "on" : ""}" onclick="SU.myTab('${k}')">${l}</button>`).join("");
-    el.innerHTML = { leads: myLeads, tickets: myTickets, leave: myLeave, slips: mySlips }[V.my]();
+    el.innerHTML = { leads: myLeads, tickets: myTickets, leave: myLeave }[V.my]();
   }
   const noteLead = (id) => {
     const l = S.leads.find((x) => x.id === id);
@@ -1500,9 +1502,6 @@ export function initSuite(ctx) {
   const myLeave = () => `<button class="auth-btn" style="background:var(--primary)" onclick="SU.leaveForm()">➕ Apply for leave</button>` +
     (S.leaves.length ? [...S.leaves].sort((a, b) => b.from - a.from).map((l) => `<div class="task-card"><div class="task-info"><div class="task-title">${esc(l.type)} ${lvChip(l.status)}</div>
       <div class="task-meta">${dstr(l.from)} to ${dstr(l.to)} (${l.days} day(s))<br>${esc(l.reason || "")}</div></div></div>`).join("") : "<p class='hint'>No leave requests yet.</p>");
-  const mySlips = () => { const list = S.payslips.filter((p) => p.status !== "DRAFT").sort((a, b) => b.month.localeCompare(a.month));
-    return list.length ? list.map((p) => `<div class="task-card"><div class="task-info"><div class="task-title">${p.month.split("-").reverse().join("/")} ${chip(p.status, "chip-green")}</div>
-      <div class="task-meta">Paid days ${p.payDays}/${p.working} · Net pay <b>${inr(p.net)}</b></div></div><button class="edit-btn" onclick="SU.printSlip('${p.id}')">🖨 Print</button></div>`).join("") : "<p class='hint'>No payslips yet.</p>"; };
 
   /* ---------------- public handlers (used by the buttons) ---------------- */
   window.SU = {

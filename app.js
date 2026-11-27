@@ -13,13 +13,13 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261127-1";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261127-1";
-import { initI18n } from "./i18n.js?v=20261127-1";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, shiftFor, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261127-1";
-import { initMarketing } from "./marketing.js?v=20261127-1";
-import { initUI, stockStatus } from "./ui.js?v=20261127-1";
-import { initStudio } from "./studio.js?v=20261127-1";
+import { initSuite } from "./suite.js?v=20261127-2";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261127-2";
+import { initI18n } from "./i18n.js?v=20261127-2";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, shiftFor, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261127-2";
+import { initMarketing } from "./marketing.js?v=20261127-2";
+import { initUI, stockStatus } from "./ui.js?v=20261127-2";
+import { initStudio } from "./studio.js?v=20261127-2";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
