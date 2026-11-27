@@ -264,7 +264,7 @@ export function initSuite(ctx) {
     { name: "Interview invite", text: "Hi {name}, we would like to invite you for an interview for the {role} role at {company}." }
   ];
 
-  const S = { leads: [], tickets: [], docs: [], rules: [], templates: [], leaves: [], candidates: [], salaries: [], payslips: [], posts: [], calls: [] };
+  const S = { leads: [], tickets: [], docs: [], rules: [], templates: [], leaves: [], candidates: [], salaries: [], payslips: [], posts: [], calls: [], advances: [] };
   let attached = {};
   const alerted = new Set();
   const V = { tab: "crm", sub: "", id: null, billTab: "INVOICE", paySub: "sal", pm: { y: new Date().getFullYear(), m: new Date().getMonth() + 1 },
@@ -422,7 +422,7 @@ export function initSuite(ctx) {
   /* ---------------- navigation / rendering ---------------- */
   const TABS = [["crm", "📇 CRM"], ["sales", "📈 Sales"], ["bill", "🧾 Billing"], ["pay", "💰 Payroll & Leave"], ["hire", "🧑‍💼 Hiring"],
     ["help", "🎫 Support"], ["auto", "⚙ Automation"], ["msg", "💬 WhatsApp & Calls"], ["social", "📣 Content"]];
-  const LAZY = { hire: ["candidates"], pay: ["salaries", "payslips"], social: ["posts"], msg: ["calls"], crm: ["calls"] };
+  const LAZY = { hire: ["candidates"], pay: ["salaries", "payslips", "advances"], social: ["posts"], msg: ["calls"], crm: ["calls"] };
 
   function open() {
     if (!isAdmin()) return;
@@ -1076,12 +1076,13 @@ export function initSuite(ctx) {
 
   function viewPay() {
     const pend = S.leaves.filter((l) => l.status === "PENDING").length, key = monthKey(V.pm.y, V.pm.m);
-    const nav = `<div class="suite-bar">${[["sal", "Salaries"], ["run", "Run Payroll"], ["slips", "Payslips"], ["leave", "Leaves"]]
+    const nav = `<div class="suite-bar">${[["sal", "Salaries"], ["run", "Run Payroll"], ["slips", "Payslips"], ["adv", "💵 Advance salary"], ["leave", "Leaves"]]
       .map(([k, l]) => `<button class="auth-btn ${V.paySub === k ? "on" : ""}" onclick="SU.paySub('${k}')">${l}${k === "leave" && pend ? ` <span class="badge-low">${pend}</span>` : ""}</button>`).join("")}</div>`;
     if (V.paySub === "sal") {
       const staff = st().staff;
-      return nav + (staff.length ? `<table class="stable"><thead><tr><th>Employee</th><th>Monthly salary</th><th></th></tr></thead><tbody>${staff.map((s) =>
-        `<tr><td>${esc(s.name)}</td><td>${salOf(s.uid) ? inr(salOf(s.uid).monthly) : "<i>Not set</i>"}</td><td><button class="edit-btn" onclick="SU.salForm('${esc(s.uid)}')">✏ Set</button></td></tr>`).join("")}</tbody></table>` : "<p class='hint'>No employees yet.</p>");
+      return nav + (staff.length ? `<table class="stable"><thead><tr><th>Employee</th><th>Monthly salary</th><th>Advance taken (balance)</th><th></th></tr></thead><tbody>${staff.map((s) => { const a = advOf(s.uid);
+        return `<tr><td>${esc(s.name)}</td><td>${salOf(s.uid) ? inr(salOf(s.uid).monthly) : "<i>Not set</i>"}</td><td>${a.balance > 0 ? `<b style="color:#c0392b">${inr(a.balance)}</b>` : "-"}</td><td><button class="edit-btn" onclick="SU.salForm('${esc(s.uid)}')">✏ Set</button></td></tr>`; }).join("")}</tbody></table>
+        <p class="hint">🔒 Advance salary is seen only by the owner. Employees never see it.</p>` : "<p class='hint'>No employees yet.</p>");
     }
     if (V.paySub === "run") {
       const mi = monthInfo(V.pm.y, V.pm.m);
@@ -1091,10 +1092,11 @@ export function initSuite(ctx) {
         Payslips already marked PAID are never changed. You can edit days, bonus and deduction on each payslip afterwards.</p>
         <p class="hint">Overtime pay (time after the shift, from Attendance In / Out) and the late fine are added automatically. Set the shift, overtime rate and late fine in 📊 Shop Reports → ⚙ Shop settings.</p>`;
     }
+    if (V.paySub === "adv") return nav + viewAdvances();
     if (V.paySub === "slips") {
       const list = S.payslips.filter((p) => p.month === key);
-      return nav + `<p>Month: ${monthPicker()}</p>` + (list.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Salary</th><th>Days</th><th>Bonus</th><th>Overtime</th><th>Late</th><th>Deduction</th><th>Net pay</th><th>Status</th><th></th></tr></thead><tbody>${list.map((p) =>
-        `<tr><td>${esc(p.name)}</td><td>${inr(p.monthly)}</td><td>${p.payDays}/${p.working}</td><td>${inr(p.bonus)}</td><td>${p.otHours ? p.otHours + " h · " + inr(p.otPay) : "-"}</td><td>${p.lateDays ? p.lateDays + (p.lateDeduct ? " · -" + inr(p.lateDeduct) : "") : "-"}</td><td>${inr(p.deduction)}</td><td><b>${inr(p.net)}</b></td><td>${chip(p.status, p.status === "PAID" ? "chip-green" : "chip-yellow")}</td>
+      return nav + `<p>Month: ${monthPicker()}</p>` + (list.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Salary</th><th>Days</th><th>Bonus</th><th>Overtime</th><th>Late</th><th>Deduction</th><th>Net pay</th><th>🔒 Advance</th><th>Status</th><th></th></tr></thead><tbody>${list.map((p) =>
+        `<tr><td>${esc(p.name)}</td><td>${inr(p.monthly)}</td><td>${p.payDays}/${p.working}</td><td>${inr(p.bonus)}</td><td>${p.otHours ? p.otHours + " h · " + inr(p.otPay) : "-"}</td><td>${p.lateDays ? p.lateDays + (p.lateDeduct ? " · -" + inr(p.lateDeduct) : "") : "-"}</td><td>${inr(p.deduction)}</td><td><b>${inr(p.net)}</b></td><td>${advCell(p, key)}</td><td>${chip(p.status, p.status === "PAID" ? "chip-green" : "chip-yellow")}</td>
         <td style="white-space:nowrap">${p.status !== "PAID" ? `<button class="edit-btn" onclick="SU.psEdit('${p.id}')">✏</button><button class="edit-btn" onclick="SU.markPaid('${p.id}')">✔ Paid</button>` : ""}
         <button class="edit-btn" onclick="SU.printSlip('${p.id}')">🖨</button><button class="bin" onclick="SU.delRec('payslips','${p.id}')">🗑</button></td></tr>`).join("")}</tbody></table></div>` : "<p class='hint'>No payslips for this month. Use Run Payroll.</p>");
     }
@@ -1128,7 +1130,7 @@ export function initSuite(ctx) {
       const per = {};
       days.forEach((r) => { const p = per[r.uid] = per[r.uid] || { mins: 0, otMin: 0, lateDays: 0 }; if (r.mins !== null) p.mins += r.mins; p.otMin += r.otMin; if (r.late) p.lateDays++; });
       // each employee's own shift (or the shop shift) decides their salary per hour for overtime
-      const shiftHOf = (uid) => { const sh = ctx.shiftFor(set, uid); return Math.max(0, ((ctx.hm(sh.shiftEnd) || 0) - (ctx.hm(sh.shiftStart) || 0)) / 60); };
+      const shiftHOf = (uid) => Math.max(0, ctx.shiftFor(set, uid).workMin / 60); // working hours of the shift, lunch not counted
       let n = 0;
       for (const s of staff) {
         const id = `${s.uid}_${monthKey(y, m)}`, old = S.payslips.find((p) => p.id === id);
@@ -1149,6 +1151,62 @@ export function initSuite(ctx) {
       V.paySub = "slips"; renderSuite(true);
     } catch (e) { console.error(e); toast("Payroll failed: " + e.message); }
     finally { loading(false); }
+  }
+
+  /* 💵 ADVANCE SALARY (owner only: stored in "advances", which employees cannot read) */
+  const advList = (uid) => S.advances.filter((a) => !uid || a.uid === uid);
+  function advOf(uid) {
+    let given = 0, back = 0;
+    advList(uid).forEach((a) => { if (a.type === "RECOVER") back += Number(a.amount) || 0; else given += Number(a.amount) || 0; });
+    return { given, back, balance: Math.round((given - back) * 100) / 100 };
+  }
+  // owner's payslip row: advance still due, what was cut from this month's pay, and what to hand over
+  function advCell(p, key) {
+    const a = advOf(p.uid), cut = advList(p.uid).filter((x) => x.type === "RECOVER" && x.month === key).reduce((t, x) => t + (Number(x.amount) || 0), 0);
+    if (!(a.balance > 0) && !cut) return "-";
+    return `${a.balance > 0 ? `<div>Due <b style="color:#c0392b">${inr(a.balance)}</b></div>` : ""}${cut ? `<div>Cut ${inr(cut)} · Pay <b>${inr(Math.max(0, p.net - cut))}</b></div>` : ""}`
+      + (a.balance > 0 && p.status !== "PAID" ? `<button class="edit-btn" onclick="SU.advCut('${esc(p.id)}')">↩ Cut from pay</button>` : "");
+  }
+  function viewAdvances() {
+    const staff = st().staff, all = [...S.advances].sort((a, b) => (b.at || 0) - (a.at || 0));
+    const names = {}; staff.forEach((x) => (names[x.uid] = x.name)); all.forEach((x) => { if (!names[x.uid]) names[x.uid] = x.name; });
+    const uids = Object.keys(names).filter((u) => staff.some((x) => x.uid === u) || advOf(u).balance !== 0);
+    const total = uids.reduce((t, u) => t + Math.max(0, advOf(u).balance), 0);
+    return `<p class="hint">🔒 Only the owner sees this page. Employees never see their advance here or anywhere in the app.</p>
+      <div class="suite-bar"><button class="role-btn" style="background:var(--primary); width:auto; padding:10px 20px" onclick="SU.advForm('', 'ADVANCE')">➕ Give advance</button>
+      <span class="chip">Total advance due: <b>${inr(total)}</b></span></div>`
+      + (uids.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Employee</th><th>Advance given</th><th>Taken back</th><th>Balance due</th><th></th></tr></thead><tbody>${uids.sort((a, b) => String(names[a]).localeCompare(String(names[b]))).map((u) => { const a = advOf(u);
+        return `<tr><td class="notr">${esc(names[u] || "")}</td><td>${inr(a.given)}</td><td>${inr(a.back)}</td><td>${a.balance > 0 ? `<b style="color:#c0392b">${inr(a.balance)}</b>` : inr(a.balance)}</td>
+        <td style="white-space:nowrap"><button class="edit-btn" onclick="SU.advForm('${esc(u)}','ADVANCE')">➕ Advance</button>${a.balance > 0 ? `<button class="edit-btn" onclick="SU.advForm('${esc(u)}','RECOVER')">↩ Taken back</button>` : ""}</td></tr>`; }).join("")}</tbody></table></div>` : "<p class='hint'>No employees yet.</p>")
+      + `<h4>History</h4>` + (all.length ? `<div class="table-wrap"><table class="stable"><thead><tr><th>Date</th><th>Employee</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr></thead><tbody>${all.map((x) =>
+        `<tr><td>${dstr(x.at)}</td><td class="notr">${esc(x.name || names[x.uid] || "")}</td><td>${x.type === "RECOVER" ? chip("Taken back", "chip-green") : chip("Advance given", "chip-yellow")}</td><td>${inr(x.amount)}</td><td class="notr">${esc(x.note || "")}</td>
+        <td><button class="bin" onclick="SU.delRec('advances','${esc(x.id)}')">🗑</button></td></tr>`).join("")}</tbody></table></div>` : "<p class='hint'>No advance given yet.</p>");
+  }
+  function advForm(uid, type, preset) {
+    const staff = st().staff;
+    if (!staff.length && !uid) return toast("No employees yet");
+    const rec = type === "RECOVER";
+    const fields = [];
+    if (!uid) fields.push({ k: "uid", label: "Employee", type: "select", opts: staff.map((x) => [x.uid, x.name]) });
+    fields.push({ k: "amount", label: rec ? "Amount taken back (₹)" : "Advance amount (₹)", type: "number", req: true },
+      { k: "at", label: "Date (DD / MM / YYYY)", type: "date" }, { k: "note", label: "Note (optional)" });
+    const who = uid ? (staff.find((x) => x.uid === uid) || advList(uid)[0] || {}).name || "" : "";
+    openForm({ title: (rec ? "Advance taken back" : "Give advance salary") + (who ? " - " + who : ""), values: { uid: uid || staff[0]?.uid, amount: (preset && preset.amount) || "", at: now(), note: (preset && preset.note) || "" }, fields,
+      saveLabel: rec ? "Save" : "Give advance",
+      onSave: async (v) => {
+        const u = uid || v.uid, name = who || (staff.find((x) => x.uid === u) || {}).name || "";
+        const amount = Math.round(Number(v.amount) * 100) / 100;
+        if (!(amount > 0)) throw new Error("Enter the amount");
+        if (rec && amount > advOf(u).balance + 0.001) throw new Error(`Only ${inr(advOf(u).balance)} advance is due from ${name}`);
+        await addDoc(C("advances"), { uid: u, name, type: rec ? "RECOVER" : "ADVANCE", amount, at: v.at || now(), note: v.note || "", month: (preset && preset.month) || "", by: st().name || "", createdAt: serverTimestamp() });
+        toast(rec ? "Saved" : "Advance saved");
+      } });
+  }
+  // cut part of the advance from this month's pay (recorded only in the owner's advance book)
+  function advCut(id) {
+    const p = S.payslips.find((x) => x.id === id); if (!p) return;
+    const bal = advOf(p.uid).balance;
+    advForm(p.uid, "RECOVER", { amount: Math.min(bal, Math.max(0, p.net)), month: p.month, note: "Cut from salary " + p.month.split("-").reverse().join("/") });
   }
 
   function psEdit(id) {
@@ -1464,7 +1522,7 @@ export function initSuite(ctx) {
     openTicket: (id) => { V.sub = "ticket"; V.id = id; renderSuite(true); },
     leadForm, candForm, ticketForm, noteForm, callForm, wa: waForm, tplPick, tplForm, quickWa, myNote: noteLead,
     billTab: (t) => { V.billTab = t; renderSuite(true); }, billStart, billFromLead, billEdit, bset, bitem, baddItem, bdel, bpick, bsave,
-    clearStage, bsaveAndInvoice, payForm, toInvoice, deduct, remind, qstatus, printDoc, pmSet, paySub, salForm, genPayroll, psEdit, markPaid, printSlip, leaveForm, leaveSet,
+    clearStage, bsaveAndInvoice, payForm, toInvoice, deduct, remind, qstatus, printDoc, pmSet, paySub, salForm, genPayroll, advForm, advCut, psEdit, markPaid, printSlip, leaveForm, leaveSet,
     ruleForm, ruleToggle, presets, postForm, copyPost, markPosted, blot, tallyPhoto
   };
   return { start, getDocs: () => S.docs, getLeaves: () => S.leaves, addBillLine };

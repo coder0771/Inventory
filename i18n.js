@@ -6620,6 +6620,226 @@ const DICT = {
 "किसी कर्मचारी की अलग शिफ्ट ⚙ दुकान की सेटिंग्स → हर कर्मचारी की अलग शिफ्ट में रखें",
 "एखाद्या कर्मचाऱ्याची वेगळी शिफ्ट ⚙ दुकानाच्या सेटिंग्ज → प्रत्येक कर्मचाऱ्याची वेगळी शिफ्ट येथे ठेवा"
 ],
+"Lunch": [
+"लंच",
+"जेवणाची सुट्टी"
+],
+"Lunch {}": [
+"लंच {}",
+"जेवणाची सुट्टी {}"
+],
+"Lunch from (empty = no lunch break)": [
+"लंच कब से (खाली = लंच नहीं)",
+"जेवणाची सुट्टी केव्हापासून (रिकामे = सुट्टी नाही)"
+],
+"Lunch from": [
+"लंच कब से",
+"जेवण केव्हापासून"
+],
+"Lunch to": [
+"लंच कब तक",
+"जेवण केव्हापर्यंत"
+],
+"Lunch time is not counted as working time": [
+"लंच का समय काम के घंटों में नहीं गिना जाता",
+"जेवणाचा वेळ कामाच्या तासांत मोजला जात नाही"
+],
+"Set both lunch times (from and to), or leave both empty": [
+"लंच के दोनों समय (कब से और कब तक) भरें, या दोनों खाली छोड़ें",
+"जेवणाच्या दोन्ही वेळा (केव्हापासून आणि केव्हापर्यंत) भरा, किंवा दोन्ही रिकाम्या ठेवा"
+],
+"Lunch must end after it starts": [
+"लंच शुरू होने के बाद ही खत्म होना चाहिए",
+"जेवणाची सुट्टी सुरू झाल्यानंतरच संपली पाहिजे"
+],
+"Lunch time must be inside the shift": [
+"लंच का समय शिफ्ट के अंदर होना चाहिए",
+"जेवणाची वेळ शिफ्टच्या आतच असली पाहिजे"
+],
+"{}: Set both lunch times (from and to), or leave both empty": [
+"{}: लंच के दोनों समय (कब से और कब तक) भरें, या दोनों खाली छोड़ें",
+"{}: जेवणाच्या दोन्ही वेळा (केव्हापासून आणि केव्हापर्यंत) भरा, किंवा दोन्ही रिकाम्या ठेवा"
+],
+"{}: Lunch must end after it starts": [
+"{}: लंच शुरू होने के बाद ही खत्म होना चाहिए",
+"{}: जेवणाची सुट्टी सुरू झाल्यानंतरच संपली पाहिजे"
+],
+"{}: Lunch time must be inside the shift": [
+"{}: लंच का समय शिफ्ट के अंदर होना चाहिए",
+"{}: जेवणाची वेळ शिफ्टच्या आतच असली पाहिजे"
+],
+"{}: set both lunch times (from and to)": [
+"{}: लंच के दोनों समय (कब से और कब तक) भरें",
+"{}: जेवणाच्या दोन्ही वेळा (केव्हापासून आणि केव्हापर्यंत) भरा"
+],
+"Advance salary": [
+"एडवांस सैलरी",
+"उचल (आगाऊ पगार)"
+],
+"Advance": [
+"एडवांस",
+"उचल"
+],
+"Advance taken (balance)": [
+"लिया गया एडवांस (बाकी)",
+"घेतलेली उचल (बाकी)"
+],
+"Advance salary is seen only by the owner. Employees never see it": [
+"एडवांस सैलरी सिर्फ़ मालिक देख सकता है। कर्मचारी इसे कभी नहीं देखते",
+"उचल फक्त मालकाला दिसते. कर्मचाऱ्यांना ती कधीच दिसत नाही"
+],
+"Only the owner sees this page. Employees never see their advance here or anywhere in the app": [
+"यह पेज सिर्फ़ मालिक देखता है। कर्मचारी अपना एडवांस यहाँ या ऐप में कहीं भी नहीं देखते",
+"हे पान फक्त मालकाला दिसते. कर्मचाऱ्यांना त्यांची उचल येथे किंवा ॲपमध्ये कुठेही दिसत नाही"
+],
+"Give advance": [
+"एडवांस दें",
+"उचल द्या"
+],
+"Give advance salary": [
+"एडवांस सैलरी दें",
+"उचल द्या"
+],
+"Give advance salary - {}": [
+"एडवांस सैलरी दें - {}",
+"उचल द्या - {}"
+],
+"Advance taken back": [
+"एडवांस वापस लिया",
+"उचल परत घेतली"
+],
+"Advance taken back - {}": [
+"एडवांस वापस लिया - {}",
+"उचल परत घेतली - {}"
+],
+"Total advance due": [
+"कुल बाकी एडवांस",
+"एकूण बाकी उचल"
+],
+"Advance given": [
+"एडवांस दिया",
+"दिलेली उचल"
+],
+"Taken back": [
+"वापस लिया",
+"परत घेतली"
+],
+"History": [
+"इतिहास",
+"इतिहास"
+],
+"No advance given yet": [
+"अभी तक कोई एडवांस नहीं दिया",
+"अजून कोणतीही उचल दिलेली नाही"
+],
+"Amount taken back (₹)": [
+"वापस ली गई रकम (₹)",
+"परत घेतलेली रक्कम (₹)"
+],
+"Advance amount (₹)": [
+"एडवांस की रकम (₹)",
+"उचलीची रक्कम (₹)"
+],
+"Note (optional)": [
+"नोट (ज़रूरी नहीं)",
+"टीप (ऐच्छिक)"
+],
+"Advance saved": [
+"एडवांस सेव हो गया",
+"उचल सेव्ह झाली"
+],
+"Only {} advance is due from {}": [
+"{2} से सिर्फ़ {1} एडवांस बाकी है",
+"{2} यांच्याकडून फक्त {1} उचल बाकी आहे"
+],
+"Cut {}": [
+"काटा {}",
+"कापले {}"
+],
+"Pay": [
+"दें",
+"द्या"
+],
+"Cut from pay": [
+"वेतन से काटें",
+"पगारातून कापा"
+],
+"This employee is already removed. Refresh the page if they still show": [
+"यह कर्मचारी पहले ही हटाया जा चुका है। अगर फिर भी दिखे तो पेज रीफ्रेश करें",
+"हा कर्मचारी आधीच काढला आहे. तरीही दिसत असल्यास पान रिफ्रेश करा"
+],
+"Remove {} from your company? They will lose access immediately. Their past attendance, tasks and payslips are kept. To stop them joining again, change the employee join code in ⚙ Settings": [
+"{} को अपनी कंपनी से हटाएं? उनकी पहुँच तुरंत बंद हो जाएगी। उनकी पुरानी हाज़िरी, काम और पे-स्लिप रखी रहेंगी। उन्हें फिर से जुड़ने से रोकने के लिए ⚙ सेटिंग्स में कर्मचारी जॉइन कोड बदलें",
+"{} यांना तुमच्या कंपनीतून काढायचे? त्यांचा प्रवेश लगेच बंद होईल. त्यांची जुनी हजेरी, कामे आणि पगार पावत्या ठेवल्या जातील. त्यांना पुन्हा जोडले जाण्यापासून थांबवण्यासाठी ⚙ सेटिंग्जमध्ये कर्मचारी जॉइन कोड बदला"
+],
+"Remove {} from your company? They will lose access immediately. Their past attendance, tasks and payslips are kept. (This is your own account: only its employee access is removed, you stay the owner.)": [
+"{} को अपनी कंपनी से हटाएं? उनकी पहुँच तुरंत बंद हो जाएगी। उनकी पुरानी हाज़िरी, काम और पे-स्लिप रखी रहेंगी। (यह आपका अपना अकाउंट है: सिर्फ़ कर्मचारी वाली पहुँच हटेगी, आप मालिक बने रहेंगे।)",
+"{} यांना तुमच्या कंपनीतून काढायचे? त्यांचा प्रवेश लगेच बंद होईल. त्यांची जुनी हजेरी, कामे आणि पगार पावत्या ठेवल्या जातील. (हे तुमचे स्वतःचे खाते आहे: फक्त कर्मचारी प्रवेश काढला जाईल, तुम्ही मालकच राहाल.)"
+],
+"{} was taken off the list, but the database refused to remove their access. Publish the latest firestore.rules in Firebase (Firestore → Rules), then remove again": [
+"{} को सूची से हटा दिया गया, पर डेटाबेस ने उनकी पहुँच हटाने से मना कर दिया। Firebase में नए firestore.rules पब्लिश करें (Firestore → Rules), फिर दोबारा हटाएं",
+"{} यांना यादीतून काढले, पण डेटाबेसने त्यांचा प्रवेश काढू दिला नाही. Firebase मध्ये नवीन firestore.rules पब्लिश करा (Firestore → Rules), मग पुन्हा काढा"
+],
+"Could not remove: the database refused. Publish the latest firestore.rules in Firebase (Firestore → Rules) and try again": [
+"हटा नहीं सके: डेटाबेस ने मना कर दिया। Firebase में नए firestore.rules पब्लिश करें (Firestore → Rules) और फिर कोशिश करें",
+"काढता आले नाही: डेटाबेसने नकार दिला. Firebase मध्ये नवीन firestore.rules पब्लिश करा (Firestore → Rules) आणि पुन्हा प्रयत्न करा"
+],
+"Take a photo": [
+"फोटो लें",
+"फोटो काढा"
+],
+"Upload a photo": [
+"फोटो अपलोड करें",
+"फोटो अपलोड करा"
+],
+"Products read from the photo": [
+"फोटो से पढ़े गए प्रोडक्ट",
+"फोटोतून वाचलेली उत्पादने"
+],
+"Instagram, Facebook and map links, visiting card and showroom photos, showroom video, welcome and follow-up texts, No password needed": [
+"Instagram, Facebook और मैप लिंक, विज़िटिंग कार्ड और शोरूम फोटो, शोरूम वीडियो, स्वागत और फॉलो-अप संदेश। पासवर्ड की ज़रूरत नहीं",
+"Instagram, Facebook आणि नकाशा लिंक, व्हिजिटिंग कार्ड आणि शोरूम फोटो, शोरूम व्हिडिओ, स्वागत आणि फॉलो-अप संदेश. पासवर्डची गरज नाही"
+],
+"Customer messages & social links": [
+"ग्राहक संदेश और सोशल लिंक",
+"ग्राहक संदेश आणि सोशल लिंक"
+],
+"Photo reading (memo scan, products from a photo, Tally bills)": [
+"फोटो पढ़ना (मेमो स्कैन, फोटो से प्रोडक्ट, Tally बिल)",
+"फोटो वाचन (मेमो स्कॅन, फोटोतून उत्पादने, Tally बिल)"
+],
+"Edit in Studio": [
+"स्टूडियो में बदलें",
+"स्टुडिओमध्ये बदला"
+],
+"The same Google key makes the AI pictures in the 🎨 Marketing Studio. Use an Imagen model (e.g. imagen-4.0-generate-001) or a Gemini image model (e.g. gemini-2.5-flash-image). Google charges per picture": [
+"यही Google की 🎨 मार्केटिंग स्टूडियो में AI चित्र बनाती है। Imagen मॉडल (जैसे imagen-4.0-generate-001) या Gemini चित्र मॉडल (जैसे gemini-2.5-flash-image) इस्तेमाल करें। Google हर चित्र का पैसा लेता है",
+"हीच Google की 🎨 मार्केटिंग स्टुडिओमध्ये AI चित्रे बनवते. Imagen मॉडेल (उदा. imagen-4.0-generate-001) किंवा Gemini चित्र मॉडेल (उदा. gemini-2.5-flash-image) वापरा. Google प्रत्येक चित्राचे पैसे घेते"
+],
+"Tally bill photo": [
+"Tally बिल का फोटो",
+"Tally बिलाचा फोटो"
+],
+"Upload Tally bill": [
+"Tally बिल अपलोड करें",
+"Tally बिल अपलोड करा"
+],
+"Total to collect: {}": [
+"कुल वसूली बाकी: {}",
+"एकूण वसुली बाकी: {}"
+],
+"Total udhaar to collect": [
+"कुल उधार वसूली बाकी",
+"एकूण उधार वसुली बाकी"
+],
+"Paid {}": [
+"जमा {}",
+"भरले {}"
+],
+"Choose Custom mode to pick your own background colour": [
+"अपना बैकग्राउंड रंग चुनने के लिए Custom मोड चुनें",
+"स्वतःचा पार्श्वभूमी रंग निवडण्यासाठी Custom मोड निवडा"
+],
 };
 
 /* <i18npure> */

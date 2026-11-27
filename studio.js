@@ -15,7 +15,7 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, deleteDoc, updateDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { SIZES, FONTS, FONT_URL, fontStack, PALETTES, brandPalette, STYLES, CATEGORIES, TEMPLATES, buildTemplate, tText, READY, WRITING_STYLES, contrast, lum, mix, orientationOf } from "./studio-templates.js?v=20261125-9";
+import { SIZES, FONTS, FONT_URL, fontStack, PALETTES, brandPalette, STYLES, CATEGORIES, TEMPLATES, buildTemplate, tText, READY, WRITING_STYLES, contrast, lum, mix, orientationOf } from "./studio-templates.js?v=20261127-1";
 
 const FABRIC_URL = "https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js";
 const QR_URL = "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";

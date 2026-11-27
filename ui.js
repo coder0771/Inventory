@@ -5,7 +5,7 @@
 // No business logic lives here: every action calls the existing functions.
 // =====================================================================
 
-import { initTheme } from "./theme.js?v=20261125-9";
+import { initTheme } from "./theme.js?v=20261127-1";
 /* <uipure> */
 const DAYMS = 86400000;
 export const isIn = (a) => /^STOCK IN/.test(a || "");
@@ -382,7 +382,8 @@ export function initUI(ctx) {
   const shiftChip = (uid) => {
     if (!ctx.shiftFor) return "";
     const sh = ctx.shiftFor(ctx.shopSettings(), uid);
-    return ` <span class="st ${sh.own ? "st-info" : ""}" title="${sh.own ? "Own shift" : "Shop shift"}">⏱ <span class="notr">${esc(sh.shiftStart)} – ${esc(sh.shiftEnd)}</span>${sh.own ? " · Own" : ""}</span>`;
+    return ` <span class="st ${sh.own ? "st-info" : ""}" title="${sh.own ? "Own shift" : "Shop shift"}">⏱ <span class="notr">${esc(sh.shiftStart)} – ${esc(sh.shiftEnd)}</span>${sh.own ? " · Own" : ""}</span>`
+      + (sh.lunch ? ` <span class="st">🍱 <span class="notr">${esc(sh.lunchStart)} – ${esc(sh.lunchEnd)}</span></span>` : "");
   };
   function renderStaffCards() {
     const el = $("staffCards"); if (!el || !isAdmin()) return;

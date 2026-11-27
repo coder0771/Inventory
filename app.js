@@ -13,13 +13,13 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, getDoc, updateDoc, deleteDoc,
   getDocs, query, where, orderBy, serverTimestamp, onSnapshot, runTransaction, writeBatch, deleteField
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { initSuite } from "./suite.js?v=20261125-9";
-import { initEnquiry, compressImage } from "./enquiry.js?v=20261125-9";
-import { initI18n } from "./i18n.js?v=20261125-9";
-import { initShop, lotSummary, lotLabel, tileInfo, attDays, shiftFor, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261125-9";
-import { initMarketing } from "./marketing.js?v=20261125-9";
-import { initUI, stockStatus } from "./ui.js?v=20261125-9";
-import { initStudio } from "./studio.js?v=20261125-9";
+import { initSuite } from "./suite.js?v=20261127-1";
+import { initEnquiry, compressImage } from "./enquiry.js?v=20261127-1";
+import { initI18n } from "./i18n.js?v=20261127-1";
+import { initShop, lotSummary, lotLabel, tileInfo, attDays, shiftFor, hm, SHOP_DEFAULTS, deadStock } from "./shop.js?v=20261127-1";
+import { initMarketing } from "./marketing.js?v=20261127-1";
+import { initUI, stockStatus } from "./ui.js?v=20261127-1";
+import { initStudio } from "./studio.js?v=20261127-1";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA5T82D_9QzJZjCRS7_xU47TQJ9a8RKpOo",
@@ -702,7 +702,8 @@ function startRealtime() {
     }, (e) => console.error("History listener:", e)));
 
     unsubs.push(onSnapshot(collection(db, ...base, "staff"), (snap) => {
-      staffList = snap.docs.map((d) => d.data());
+      // the document id is the employee's account id; older records may miss the uid / name fields
+      staffList = snap.docs.map((d) => { const x = d.data() || {}; return { ...x, uid: x.uid || d.id, name: x.name || x.email || "Employee", _id: d.id }; });
       syncTeam();
       const names = staffList.map((s) => escapeHTML(s.name));
       $("staffNames").innerHTML = names.length ? names.join(", ") : "None";
@@ -1665,19 +1666,43 @@ window.showStaffModal = () => { if (currentRole !== "ADMIN") return; renderStaff
 window.closeStaffModal = () => $("staffModal").classList.remove("open");
 
 window.removeEmployee = async (uid) => {
-  const s = staffList.find((x) => x.uid === uid);
-  if (!s) return;
-  if (!(await askConfirm(`Remove ${s.name} from your company? They will lose access immediately. Their past task records are kept.`))) return;
+  const s = staffList.find((x) => x.uid === uid || x._id === uid);
+  if (!s) return toast("This employee is already removed. Refresh the page if they still show.");
+  const self = currentUser && s.uid === currentUser.uid;
+  if (!(await askConfirm(`Remove ${s.name} from your company? They will lose access immediately. Their past attendance, tasks and payslips are kept.` +
+    (self ? " (This is your own account: only its employee access is removed, you stay the owner.)" : " To stop them joining again, change the employee join code in ⚙ Settings.")))) return;
+  const denied = (e) => e && e.code === "permission-denied";
   try {
     loading(true);
-    const memberRef = doc(db, "companies", companyID, "members", uid);
-    // Works for every employee, whatever tasks they have (or have not) done, and even if the old record is missing
-    try { await updateDoc(memberRef, { employee: false }); }
-    catch (e1) { await deleteDoc(memberRef); }
-    await deleteDoc(doc(db, "companies", companyID, "staff", uid));
-    try { await deleteDoc(doc(db, "companies", companyID, "team", uid)); } catch (e) {}
-    toast(s.name + " removed");
-  } catch (err) { console.error(err); toast("Could not remove: " + err.message); }
+    const memberRef = doc(db, "companies", companyID, "members", s.uid);
+    // 1) take away the employee access. Never delete the owner's own record (that would remove the owner too)
+    let accessOff = false, lastErr = null;
+    if (self) {
+      try { await setDoc(memberRef, { uid: s.uid, employee: false }, { merge: true }); accessOff = true; } catch (e) { lastErr = e; }
+    } else {
+      try { await updateDoc(memberRef, { employee: false }); accessOff = true; }
+      catch (e1) {
+        lastErr = e1;
+        // no record (old employee) or an older rule: delete the record instead
+        try { await deleteDoc(memberRef); accessOff = true; } catch (e2) { lastErr = e2; }
+      }
+    }
+    // 2) take them off the employee list (also an old record kept under another id)
+    const ids = [...new Set([s._id, s.uid].filter(Boolean))];
+    for (const id of ids) await deleteDoc(doc(db, "companies", companyID, "staff", id));
+    try { await deleteDoc(doc(db, "companies", companyID, "team", s.uid)); } catch (e) {}
+    staffList = staffList.filter((x) => x !== s);
+    renderStaffTable(); ui.refresh();
+    if (accessOff) toast(s.name + " removed");
+    else {
+      console.error("Employee access not removed", lastErr);
+      toast(denied(lastErr) ? `${s.name} was taken off the list, but the database refused to remove their access. Publish the latest firestore.rules in Firebase (Firestore → Rules), then remove again.`
+        : `${s.name} was taken off the list, but their access could not be removed: ${lastErr && lastErr.message}`);
+    }
+  } catch (err) {
+    console.error(err);
+    toast(denied(err) ? "Could not remove: the database refused. Publish the latest firestore.rules in Firebase (Firestore → Rules) and try again." : "Could not remove: " + err.message);
+  }
   finally { loading(false); }
 };
 
@@ -2093,7 +2118,7 @@ function refreshTaskUI() { updateTaskBadges(); renderTaskAdmin(false); renderEmp
 
 let teamSyncBusy = false;
 async function syncTeam() {
-  if (currentRole !== "ADMIN" || !companyID || teamSyncBusy || !staffList.length) return;
+  if (currentRole !== "ADMIN" || !companyID || teamSyncBusy) return;
   teamSyncBusy = true;
   try {
     for (const st of staffList) {
@@ -2806,7 +2831,7 @@ window.devDeleteCompany = async (id) => {
   if (!(await askConfirm(`Delete "${c.companyName}" and ALL its inventory, employees, tasks and history permanently?`))) return;
   try {
     loading(true);
-    for (const sub of ["mktAssets", "mktAssetData", "mktDesigns", "mktDesignData", "mktTemplates", "notifications", "inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
+    for (const sub of ["advances", "mktAssets", "mktAssetData", "mktDesigns", "mktDesignData", "mktTemplates", "notifications", "inventory", "history", "attendance", "movements", "staff", "members", "adminTasks", "tasks", "private",
       "leads", "tickets", "docs", "candidates", "salaries", "payslips", "leaves", "templates", "rules", "posts", "counters", "calls", "places", "enquiries", "brand", "aiConfig", "itemPhotos"]) {
       const docs = (await getDocs(collection(db, "companies", id, sub))).docs;
       for (let i = 0; i < docs.length; i += 400) {

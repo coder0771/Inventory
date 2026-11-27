@@ -359,6 +359,8 @@ service cloud.firestore {
       match /docs/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
       match /candidates/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
       match /salaries/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
+      // advance salary given to employees: ONLY the owner / admins can see or change it (never the employee)
+      match /advances/{id} { allow read, write: if isAdmin(cid); allow delete: if isAdmin(cid) || isDeveloper(); }
       match /rules/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
       match /posts/{id} { allow read, write: if isAdmin(cid); allow delete: if isDeveloper(); }
       match /counters/{id} { allow read, write: if isAdmin(cid) || (isMember(cid) && id == 'enquiry'); allow delete: if isDeveloper(); }

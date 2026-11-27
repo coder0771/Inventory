@@ -156,7 +156,7 @@ export function initTheme(ctx) {
           <div class="tp-row"><input type="color" class="tp-color" data-f="primary" value="${d.primary}" aria-label="Primary colour">
             <label class="tp-hex">HEX <input class="notr" data-hex="primary" value="${d.primary}" maxlength="7" spellcheck="false"></label>
             <button class="btn btn-ghost sm" data-reset="primary">Reset to default</button></div></div>
-        <div class="tp-sec ${custom ? "" : "tp-off"}"><b>Background colour</b><p class="hint">${custom ? "The colour of the whole page. Cards and text adjust to it." : "Choose <b>Custom</b> mode to pick your own background colour."}</p>
+        <div class="tp-sec ${custom ? "" : "tp-off"}"><b>Background colour</b><p class="hint">${custom ? "The colour of the whole page. Cards and text adjust to it." : "Choose Custom mode to pick your own background colour."}</p>
           <div class="tp-presets">${BG_PRESETS.map(([n, c]) => `<button class="tp-dot ${d.bg === c ? "on" : ""}" data-bg="${c}" title="${n}" style="background:${c}"></button>`).join("")}</div>
           <div class="tp-row"><input type="color" class="tp-color" data-f="bg" value="${d.bg}" aria-label="Background colour">
             <label class="tp-hex">HEX <input class="notr" data-hex="bg" value="${d.bg}" maxlength="7" spellcheck="false"></label>
